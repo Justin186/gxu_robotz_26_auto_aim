@@ -16,11 +16,28 @@ Recorder::Recorder(double fps) : init_(false), fps_(fps), queue_(1), stop_thread
   last_time_ = start_time_;
 
   auto folder_path = "records";
-  auto file_name = fmt::format("{:%Y-%m-%d_%H-%M-%S}", std::chrono::system_clock::now());
-  text_path_ = fmt::format("{}/{}.txt", folder_path, file_name);
-  video_path_ = fmt::format("{}/{}.avi", folder_path, file_name);
-
   std::filesystem::create_directory(folder_path);
+
+  // 为了在 CMOS 电池没电导致时间不对的机器上也能生成唯一文件名，
+  // 使用文件夹中已有的按数字命名的文件，找到最大编号并+1作为新文件名。
+  int max_index = 0;
+  for (auto &entry : std::filesystem::directory_iterator(folder_path)) {
+    if (!entry.is_regular_file()) continue;
+    std::string stem = entry.path().stem().string();
+    try {
+      size_t pos = 0;
+      int n = std::stoi(stem, &pos);
+      if (pos == stem.size()) {
+        if (n > max_index) max_index = n;
+      }
+    } catch (...) {
+      // 非数字文件名忽略
+    }
+  }
+  int next_index = max_index + 1;
+  auto base_name = fmt::format("{}", next_index);
+  text_path_ = fmt::format("{}/{}.txt", folder_path, base_name);
+  video_path_ = fmt::format("{}/{}.avi", folder_path, base_name);
 }
 
 Recorder::~Recorder()
