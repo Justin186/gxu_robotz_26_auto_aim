@@ -49,14 +49,20 @@ target_link_libraries(uav_debug ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim tools 
 
 ##################calibration################
 add_executable(capture calibration/capture.cpp)
+add_executable(capture_gimbal calibration/capture_gimbal.cpp)
 add_executable(calibrate_camera calibration/calibrate_camera.cpp)
+add_executable(calibrate_camera_chessboard calibration/calibrate_camera_chessboard.cpp)
 add_executable(calibrate_handeye calibration/calibrate_handeye.cpp)
+add_executable(calibrate_handeye_chessboard calibration/calibrate_handeye_chessboard.cpp)
 add_executable(calibrate_robotworld_handeye calibration/calibrate_robotworld_handeye.cpp)
 add_executable(split_video calibration/split_video.cpp)
 
 target_link_libraries(capture ${OpenCV_LIBS} fmt::fmt tools io)
+target_link_libraries(capture_gimbal ${OpenCV_LIBS} fmt::fmt tools io)
 target_link_libraries(calibrate_camera ${OpenCV_LIBS} fmt::fmt yaml-cpp tools)
+target_link_libraries(calibrate_camera_chessboard ${OpenCV_LIBS} fmt::fmt yaml-cpp tools)
 target_link_libraries(calibrate_handeye ${OpenCV_LIBS} fmt::fmt yaml-cpp tools)
+target_link_libraries(calibrate_handeye_chessboard ${OpenCV_LIBS} fmt::fmt yaml-cpp tools)
 target_link_libraries(calibrate_robotworld_handeye ${OpenCV_LIBS} fmt::fmt yaml-cpp tools)
 target_link_libraries(split_video ${OpenCV_LIBS} fmt::fmt tools)
 
