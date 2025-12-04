@@ -39,7 +39,7 @@ std::list<Armor> Detector::detect(const cv::Mat & bgr_img, int frame_count)
   // 进行二值化
   cv::Mat binary_img;
   cv::threshold(gray_img, binary_img, threshold_, 255, cv::THRESH_BINARY);
-  cv::imshow("binary_img", binary_img);
+  // cv::imshow("binary_img", binary_img);
 
   // 获取轮廓点
   std::vector<std::vector<cv::Point>> contours;
@@ -121,37 +121,32 @@ std::list<Armor> Detector::detect(const cv::Mat & bgr_img, int frame_count)
 
 bool Detector::detect(Armor & armor, const cv::Mat & bgr_img)
 {
-  // 取得四个角点
+  // 取得原始四个角点
   auto tl = armor.points[0];
   auto tr = armor.points[1];
   auto br = armor.points[2];
   auto bl = armor.points[3];
-  // 计算向量和调整后的点
-  auto lt2b = bl - tl;
-  auto rt2b = br - tr;
-  auto tl1 = (tl + bl) / 2 - lt2b;
-  auto bl1 = (tl + bl) / 2 + lt2b;
-  auto br1 = (tr + br) / 2 + rt2b;
-  auto tr1 = (tr + br) / 2 - rt2b;
-  auto tl2tr = tr1 - tl1;
-  auto bl2br = br1 - bl1;
-  auto tl2 = (tl1 + tr) / 2 - 0.75 * tl2tr;
-  auto tr2 = (tl1 + tr) / 2 + 0.75 * tl2tr;
-  auto bl2 = (bl1 + br) / 2 - 0.75 * bl2br;
-  auto br2 = (bl1 + br) / 2 + 0.75 * bl2br;
-  // 构造新的四个角点
-  std::vector<cv::Point> points = {tl2, tr2, br2, bl2};
-  auto armor_rotaterect = cv::minAreaRect(points);
-  cv::Rect boundingBox = armor_rotaterect.boundingRect();
-  // 检查boundingBox是否超出图像边界
-  if (
-    boundingBox.x < 0 || boundingBox.y < 0 || boundingBox.x + boundingBox.width > bgr_img.cols ||
-    boundingBox.y + boundingBox.height > bgr_img.rows) {
-    return false;
-  }
+  
+  // 计算当前边界框
+  cv::Rect current_bbox = cv::boundingRect(armor.points);
+  
+  // 扩展边界框
+  const float EXPAND_RATIO = 0.3f;
+  int expand_width = static_cast<int>(current_bbox.width * EXPAND_RATIO);
+  int expand_height = static_cast<int>(current_bbox.height * EXPAND_RATIO);
 
-  // 在图像上裁剪出这个矩形区域（ROI）
-  cv::Mat armor_roi = bgr_img(boundingBox);
+  cv::Rect expanded_bbox = current_bbox;
+  expanded_bbox.x -= expand_width / 2;
+  expanded_bbox.y -= expand_height / 2;
+  expanded_bbox.width += expand_width;
+  expanded_bbox.height += expand_height;
+  // 限制在图像边界内
+  expanded_bbox &= cv::Rect(0, 0, bgr_img.cols, bgr_img.rows);
+  
+  // 裁剪ROI
+  cv::Mat armor_roi = bgr_img(expanded_bbox);
+  
+  // 检查ROI是否有效
   if (armor_roi.empty()) {
     return false;
   }
@@ -193,15 +188,15 @@ bool Detector::detect(Armor & armor, const cv::Mat & bgr_img)
   float min_distance_br_tr = std::numeric_limits<float>::max();
   for (auto & lightbar : lightbars) {
     float distance_tl_bl =
-      cv::norm(tl - (lightbar.top + cv::Point2f(boundingBox.x, boundingBox.y))) +
-      cv::norm(bl - (lightbar.bottom + cv::Point2f(boundingBox.x, boundingBox.y)));
+      cv::norm(tl - (lightbar.top + cv::Point2f(expanded_bbox.x, expanded_bbox.y))) +
+      cv::norm(bl - (lightbar.bottom + cv::Point2f(expanded_bbox.x, expanded_bbox.y)));
     if (distance_tl_bl < min_distance_tl_bl) {
       min_distance_tl_bl = distance_tl_bl;
       closest_left_lightbar = &lightbar;
     }
     float distance_br_tr =
-      cv::norm(br - (lightbar.bottom + cv::Point2f(boundingBox.x, boundingBox.y))) +
-      cv::norm(tr - (lightbar.top + cv::Point2f(boundingBox.x, boundingBox.y)));
+      cv::norm(br - (lightbar.bottom + cv::Point2f(expanded_bbox.x, expanded_bbox.y))) +
+      cv::norm(tr - (lightbar.top + cv::Point2f(expanded_bbox.x, expanded_bbox.y)));
     if (distance_br_tr < min_distance_br_tr) {
       min_distance_br_tr = distance_br_tr;
       closest_right_lightbar = &lightbar;
@@ -216,14 +211,14 @@ bool Detector::detect(Armor & armor, const cv::Mat & bgr_img)
   // tools::draw_points(armor_roi, points2f, {0, 0, 255}, 2);
   // cv::imshow("armor_roi", armor_roi);
 
-  if (
+  if ( // 找到了左右灯条且距离误差小于设定阈值
     closest_left_lightbar && closest_right_lightbar &&
-    min_distance_br_tr + min_distance_tl_bl < 15) {
+    min_distance_br_tr + min_distance_tl_bl < 60) {
     // 将四个点从armor_roi坐标系转换到原始图像坐标系
-    armor.points[0] = closest_left_lightbar->top + cv::Point2f(boundingBox.x, boundingBox.y);
-    armor.points[1] = closest_right_lightbar->top + cv::Point2f(boundingBox.x, boundingBox.y);
-    armor.points[2] = closest_right_lightbar->bottom + cv::Point2f(boundingBox.x, boundingBox.y);
-    armor.points[3] = closest_left_lightbar->bottom + cv::Point2f(boundingBox.x, boundingBox.y);
+    armor.points[0] = closest_left_lightbar->top + cv::Point2f(expanded_bbox.x, expanded_bbox.y);
+    armor.points[1] = closest_right_lightbar->top + cv::Point2f(expanded_bbox.x, expanded_bbox.y);
+    armor.points[2] = closest_right_lightbar->bottom + cv::Point2f(expanded_bbox.x, expanded_bbox.y);
+    armor.points[3] = closest_left_lightbar->bottom + cv::Point2f(expanded_bbox.x, expanded_bbox.y);
     return true;
   }
 
