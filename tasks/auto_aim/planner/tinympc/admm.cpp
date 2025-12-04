@@ -37,7 +37,7 @@ void forward_pass(TinySolver *solver)
  * @return projection onto cone if s is outside cone. Return s if s is inside cone.
 */
 tinyVector project_soc(tinyVector s, float mu) {
-    tinytype u0 = s(Eigen::placeholders::last) * mu;
+    tinytype u0 = s(Eigen::last) * mu;
     tinyVector u1 = s.head(s.rows()-1);
     float a = u1.norm();
     tinyVector cone_origin(s.rows());
