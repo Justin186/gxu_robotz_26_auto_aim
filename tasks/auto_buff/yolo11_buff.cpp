@@ -54,7 +54,10 @@ std::vector<YOLO11_BUFF::Object> YOLO11_BUFF::get_multicandidateboxes(cv::Mat & 
   /// 处理推理计算结果
   const ov::Tensor output = infer_request.get_output_tensor();  // 获得推理结果
   const ov::Shape output_shape = output.get_shape();
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   const float * output_buffer = output.data<const float>();
+#pragma GCC diagnostic pop
   const int out_rows = output_shape[1];  // 获得"output"节点的rows 15
   const int out_cols = output_shape[2];  // 获得"output"节点的cols 8400
   const cv::Mat det_output(
@@ -159,7 +162,10 @@ std::vector<YOLO11_BUFF::Object> YOLO11_BUFF::get_onecandidatebox(cv::Mat & imag
 
   const ov::Tensor output = infer_request.get_output_tensor();  // 获得推理结果
   const ov::Shape output_shape = output.get_shape();
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   const float * output_buffer = output.data<const float>();
+#pragma GCC diagnostic pop
   const int out_rows = output_shape[1];  // 获得"output"节点的rows 17
   const int out_cols = output_shape[2];  // 获得"output"节点的cols 8400
   const cv::Mat det_output(
