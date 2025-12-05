@@ -16,4 +16,4 @@ send_canid: 0xff
 can_interface: "can0"
 
 #  云台dh参数
-t_base2gimbal: [31, 0, 0]  # 单位mm
+t_pitchlink2yawlink: [31, 0, 0]  # 单位mm
