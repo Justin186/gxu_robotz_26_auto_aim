@@ -62,9 +62,10 @@ void load(
     if (img.empty()) break;
 
     // 计算云台的欧拉角
-    Eigen::Matrix3d R_imubody2imuabs = q.toRotationMatrix();
-    Eigen::Matrix3d R_gimbal2world =
-      R_gimbal2imubody.transpose() * R_imubody2imuabs * R_gimbal2imubody;
+    // 均认为imuabs、imubody、gimbal在同一点（yaw与pitch旋转轴的交点），并且坐标系都认为是前左上
+    // camera与标定版坐标系都是右下前
+    Eigen::Matrix3d R_imubody2imuabs = q.toRotationMatrix(); // IMU机体坐标系到绝对IMU世界坐标系
+    Eigen::Matrix3d R_gimbal2world = R_imubody2imuabs * R_gimbal2imubody;
     Eigen::Vector3d ypr = tools::eulers(R_gimbal2world, 2, 1, 0) * 57.3;  // degree
 
     // 在图片上显示云台的欧拉角，用来检验R_gimbal2imubody是否正确
