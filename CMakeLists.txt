@@ -66,6 +66,7 @@ target_link_libraries(calibrate_handeye ${OpenCV_LIBS} fmt::fmt yaml-cpp tools)
 target_link_libraries(calibrate_handeye_chessboard ${OpenCV_LIBS} fmt::fmt yaml-cpp tools)
 target_link_libraries(calibrate_robotworld_handeye ${OpenCV_LIBS} fmt::fmt yaml-cpp tools)
 target_link_libraries(split_video ${OpenCV_LIBS} fmt::fmt tools)
+target_link_libraries(calibrate_dh_handeye_chessboard ${OpenCV_LIBS} fmt::fmt yaml-cpp tools)
 
 ##################tests##################
 add_executable(auto_aim_test tests/auto_aim_test.cpp)
