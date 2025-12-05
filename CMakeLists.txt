@@ -55,6 +55,7 @@ add_executable(calibrate_camera_chessboard calibration/calibrate_camera_chessboa
 add_executable(calibrate_handeye calibration/calibrate_handeye.cpp)
 add_executable(calibrate_handeye_chessboard calibration/calibrate_handeye_chessboard.cpp)
 add_executable(calibrate_robotworld_handeye calibration/calibrate_robotworld_handeye.cpp)
+add_executable(calibrate_dh_handeye_chessboard calibration/calibrate_dh_handeye_chessboard.cpp)
 add_executable(split_video calibration/split_video.cpp)
 
 target_link_libraries(capture ${OpenCV_LIBS} fmt::fmt tools io)
