@@ -11,7 +11,7 @@
 
 const std::string keys =
   "{help h usage ? |                          | 输出命令行参数说明}"
-  "{config-path c  | configs/calibration_dh.yaml | yaml配置文件路径 }"
+  "{config-path c  | configs/calibration.yaml | yaml配置文件路径 }"
   "{@input-folder  | assets/img_with_q        | 输入文件夹路径   }";
 
 std::vector<cv::Point3f> centers_3d(const cv::Size & pattern_size, const float center_distance)
@@ -36,15 +36,17 @@ Eigen::Quaterniond read_q(const std::string & q_path)
 void load(
   const std::string & input_folder, const std::string & config_path,
   std::vector<double> & R_gimbal2imubody_data, std::vector<cv::Mat> & R_gimbal2world_list,
-  std::vector<cv::Mat> & t_gimbal2world_list, std::vector<cv::Mat> & rvecs,
-  std::vector<cv::Mat> & tvecs)
+  std::vector<cv::Mat> & t_gimbal2world_list, std::vector<double> & t_pitchlink2yawlink,
+  std::vector<cv::Mat> & rvecs, std::vector<cv::Mat> & tvecs)
 {
   // 读取yaml参数
   auto yaml = YAML::LoadFile(config_path);
   auto pattern_cols = yaml["pattern_cols"].as<int>();
   auto pattern_rows = yaml["pattern_rows"].as<int>();
   auto center_distance_mm = yaml["square"].as<double>();
-  R_gimbal2imubody_data = yaml["R_gimbal2imubody"].as<std::vector<double>>();
+  R_gimbal2imubody_data = yaml["R_pitchlink2imubody"].as<std::vector<double>>();
+  t_pitchlink2yawlink = yaml["t_pitchlink2yawlink"].as<std::vector<double>>();
+  
   auto camera_matrix_data = yaml["camera_matrix"].as<std::vector<double>>();
   auto distort_coeffs_data = yaml["distort_coeffs"].as<std::vector<double>>();
 
@@ -62,10 +64,21 @@ void load(
     if (img.empty()) break;
 
     // 计算云台的欧拉角
-    Eigen::Matrix3d R_imubody2imuabs = q.toRotationMatrix();
-    Eigen::Matrix3d R_gimbal2world =
-      R_gimbal2imubody.transpose() * R_imubody2imuabs * R_gimbal2imubody;
+    // 均认为imuabs、imubody、gimbal在同一点（yaw与pitch旋转轴的交点），并且坐标系都认为是前左上
+    // camera与标定版坐标系都是右下前
+    Eigen::Matrix3d R_imubody2imuabs = q.toRotationMatrix(); // IMU机体坐标系到绝对IMU世界坐标系
+
+
+    Eigen::Matrix3d R_gimbal2world = R_imubody2imuabs * R_gimbal2imubody;
     Eigen::Vector3d ypr = tools::eulers(R_gimbal2world, 2, 1, 0) * 57.3;  // degree
+
+    Eigen::Matrix3d R_pitchlink2yawlink = tools::rotation_matrix(
+      Eigen::Vector3d(0, ypr[1], 0));
+    Eigen::Matrix3d R_yawink2world = tools::rotation_matrix(
+      Eigen::Vector3d(ypr[0], 0, 0));
+    Eigen::Matrix3d R_pitchlink2world = R_yawink2world * R_pitchlink2yawlink;
+
+    Eigen::Vector3d t_pitchlink2world =  Eigen::Vector3d(std::cos(ypr[0] / 57.3) * t_pitchlink2yawlink[0], std::sin(ypr[0] / 57.3) * t_pitchlink2yawlink[0], 0);
 
     // 在图片上显示云台的欧拉角，用来检验R_gimbal2imubody是否正确
     auto drawing = img.clone();
@@ -156,9 +169,10 @@ int main(int argc, char * argv[])
   // 从输入文件夹中加载标定所需的数据
   std::vector<double> R_gimbal2imubody_data;
   std::vector<cv::Mat> R_gimbal2world_list, t_gimbal2world_list;
+  std::vector<double> t_pitchlink2yawlink;
   std::vector<cv::Mat> rvecs, tvecs;
   load(
-    input_folder, config_path, R_gimbal2imubody_data, R_gimbal2world_list, t_gimbal2world_list,
+    input_folder, config_path, R_gimbal2imubody_data, R_gimbal2world_list, t_gimbal2world_list, t_pitchlink2yawlink,
     rvecs, tvecs);
 
   // 手眼标定

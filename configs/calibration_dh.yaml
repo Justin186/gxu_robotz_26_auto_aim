@@ -2,7 +2,7 @@ pattern_cols: 10
 pattern_rows: 7
 square: 40
 
-R_gimbal2imubody: [1, 0, 0, 0, 1, 0,  0, 0, 1]
+R_pitchlink2imubody: [1, 0, 0, 0, 1, 0,  0, 0, 1]
 
 camera_name: "hikrobot"
 exposure_ms: 3
