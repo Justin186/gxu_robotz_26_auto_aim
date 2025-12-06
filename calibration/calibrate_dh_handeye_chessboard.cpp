@@ -68,19 +68,13 @@ void load(
     // camera与标定版坐标系都是右下前
     Eigen::Matrix3d R_imubody2imuabs = q.toRotationMatrix(); // IMU机体坐标系到绝对IMU世界坐标系
 
+    Eigen::Matrix3d R_pitchlink2world = R_imubody2imuabs;
 
-    Eigen::Matrix3d R_gimbal2world = R_imubody2imuabs * R_gimbal2imubody;
-    Eigen::Vector3d ypr = tools::eulers(R_gimbal2world, 2, 1, 0) * 57.3;  // degree
-
-    Eigen::Matrix3d R_pitchlink2yawlink = tools::rotation_matrix(
-      Eigen::Vector3d(0, ypr[1], 0));
-    Eigen::Matrix3d R_yawink2world = tools::rotation_matrix(
-      Eigen::Vector3d(ypr[0], 0, 0));
-    Eigen::Matrix3d R_pitchlink2world = R_yawink2world * R_pitchlink2yawlink;
-
-    Eigen::Vector3d t_pitchlink2world =  Eigen::Vector3d(std::cos(ypr[0] / 57.3) * t_pitchlink2yawlink[0], std::sin(ypr[0] / 57.3) * t_pitchlink2yawlink[0], 0);
-
+    Eigen::Vector3d t_pitchlink2world = R_pitchlink2world * Eigen::Vector3d(t_pitchlink2yawlink[0], t_pitchlink2yawlink[1], t_pitchlink2yawlink[2]);
+    
+    
     // 在图片上显示云台的欧拉角，用来检验R_gimbal2imubody是否正确
+    Eigen::Vector3d ypr = tools::eulers(R_pitchlink2world, 2, 1, 0) * 57.3;
     auto drawing = img.clone();
     tools::draw_text(drawing, fmt::format("yaw   {:.2f}", ypr[0]), {40, 40}, {0, 0, 255});
     tools::draw_text(drawing, fmt::format("pitch {:.2f}", ypr[1]), {40, 80}, {0, 0, 255});
@@ -112,17 +106,18 @@ void load(
     if (!success) continue;
 
     // 计算所需的数据
-    cv::Mat t_gimbal2world = (cv::Mat_<double>(3, 1) << 0, 0, 0);
-    cv::Mat R_gimbal2world_cv;
-    cv::eigen2cv(R_gimbal2world, R_gimbal2world_cv);
+    cv::Mat t_pitchlink2world_cv;
+    cv::eigen2cv(t_pitchlink2world, t_pitchlink2world_cv);
+    cv::Mat R_pitchlink2world_cv;
+    cv::eigen2cv(R_pitchlink2world, R_pitchlink2world_cv);
     cv::Mat rvec, tvec;
     auto centers_3d_ = centers_3d(pattern_size, center_distance_mm);
     cv::solvePnP(
       centers_3d_, centers_2d, camera_matrix, distort_coeffs, rvec, tvec, false, cv::SOLVEPNP_IPPE);
 
     // 记录所需的数据
-    R_gimbal2world_list.emplace_back(R_gimbal2world_cv);
-    t_gimbal2world_list.emplace_back(t_gimbal2world);
+    R_gimbal2world_list.emplace_back(R_pitchlink2world_cv);
+    t_gimbal2world_list.emplace_back(t_pitchlink2world_cv);
     rvecs.emplace_back(rvec);
     tvecs.emplace_back(tvec);
   }
