@@ -1,9 +1,9 @@
-
+﻿
 #ifndef _MV_OBSOLETE_INTERFACES_H_
 #define _MV_OBSOLETE_INTERFACES_H_
 
-#include "CameraParams.h"
 #include "MvErrorDefine.h"
+#include "CameraParams.h"
 #include "ObsoleteCamParams.h"
 
 /**
@@ -12,35 +12,35 @@
 */
 #ifndef MV_CAMCTRL_API
 
-#if (defined(_WIN32) || defined(WIN64))
-#if defined(MV_CAMCTRL_EXPORTS)
-#define MV_CAMCTRL_API __declspec(dllexport)
-#else
-#define MV_CAMCTRL_API __declspec(dllimport)
-#endif
-#else
-#ifndef __stdcall
-#define __stdcall
-#endif
+    #if (defined (_WIN32) || defined(WIN64))
+        #if defined(MV_CAMCTRL_EXPORTS)
+            #define MV_CAMCTRL_API __declspec(dllexport)
+        #else
+            #define MV_CAMCTRL_API __declspec(dllimport)
+        #endif
+    #else
+        #ifndef __stdcall
+            #define __stdcall
+        #endif
 
-#ifndef MV_CAMCTRL_API
-#define MV_CAMCTRL_API
-#endif
-#endif
+        #ifndef MV_CAMCTRL_API
+            #define  MV_CAMCTRL_API
+        #endif
+    #endif
 
 #endif
 
 #ifndef IN
-#define IN
+    #define IN
 #endif
 
 #ifndef OUT
-#define OUT
+    #define OUT
 #endif
 
 #ifdef __cplusplus
 extern "C" {
-#endif
+#endif 
 
 /************************************************************************/
 /* 不建议使用的接口                     	                    		*/
@@ -59,8 +59,7 @@ extern "C" {
  *  @param  pstInfo                     [IN][OUT]       Structure pointer of image basic information
  *  @return Success, return MV_OK. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_GetImageInfo(
-  IN void * handle, IN OUT MV_IMAGE_BASIC_INFO * pstInfo);
+MV_CAMCTRL_API int __stdcall MV_CC_GetImageInfo(IN void* handle, IN OUT MV_IMAGE_BASIC_INFO* pstInfo);
 
 /************************************************************************
  *  @fn     MV_CC_GetTlProxy
@@ -73,7 +72,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_GetImageInfo(
  *  @param  handle                 [IN]           Handle address
  *  @return GenICam proxy pointer, normal, return non-NULL; exception, return NULL
  ************************************************************************/
-MV_CAMCTRL_API void * __stdcall MV_CC_GetTlProxy(IN void * handle);
+MV_CAMCTRL_API void* __stdcall MV_CC_GetTlProxy(IN void* handle);
 
 /***********************************************************************
  *  @fn         MV_XML_GetRootNode
@@ -88,8 +87,7 @@ MV_CAMCTRL_API void * __stdcall MV_CC_GetTlProxy(IN void * handle);
  *  @param       pstNode                [OUT]         Root node information structure
  *  @return Success, return MV_OK. Failure, return error code
  ***********************************************************************/
-MV_CAMCTRL_API int __stdcall MV_XML_GetRootNode(
-  IN void * handle, IN OUT MV_XML_NODE_FEATURE * pstNode);
+MV_CAMCTRL_API int __stdcall MV_XML_GetRootNode(IN void* handle, IN OUT MV_XML_NODE_FEATURE* pstNode);
 
 /***********************************************************************
  *  @fn         MV_XML_GetChildren
@@ -106,8 +104,7 @@ MV_CAMCTRL_API int __stdcall MV_XML_GetRootNode(
  *  @param       pstNodesList           [OUT]         Node information structure
  *  @return Success, return MV_OK. Failure, return error code
  ***********************************************************************/
-MV_CAMCTRL_API int __stdcall MV_XML_GetChildren(
-  IN void * handle, IN MV_XML_NODE_FEATURE * pstNode, IN OUT MV_XML_NODES_LIST * pstNodesList);
+MV_CAMCTRL_API int __stdcall MV_XML_GetChildren(IN void* handle, IN MV_XML_NODE_FEATURE* pstNode, IN OUT MV_XML_NODES_LIST* pstNodesList);
 
 /***********************************************************************
  *  @fn         MV_XML_GetNodeFeature
@@ -126,8 +123,7 @@ MV_CAMCTRL_API int __stdcall MV_XML_GetChildren(
                            Details of pstFeature refer to MV_XML_FEATURE_x
  *  @return Success, return MV_OK. Failure, return error code
  ***********************************************************************/
-MV_CAMCTRL_API int __stdcall MV_XML_GetNodeFeature(
-  IN void * handle, IN MV_XML_NODE_FEATURE * pstNode, IN OUT void * pstFeature);
+MV_CAMCTRL_API int __stdcall MV_XML_GetNodeFeature(IN void* handle, IN MV_XML_NODE_FEATURE* pstNode, IN OUT void* pstFeature);
 
 /***********************************************************************
  *  @fn         MV_XML_UpdateNodeFeature
@@ -144,8 +140,7 @@ MV_CAMCTRL_API int __stdcall MV_XML_GetNodeFeature(
  *  @param       pstFeature             [OUT]         Current node feature structure
  *  @return Success, return MV_OK. Failure, return error code
  ***********************************************************************/
-MV_CAMCTRL_API int __stdcall MV_XML_UpdateNodeFeature(
-  IN void * handle, IN enum MV_XML_InterfaceType enType, IN void * pstFeature);
+MV_CAMCTRL_API int __stdcall MV_XML_UpdateNodeFeature(IN void* handle, IN enum MV_XML_InterfaceType enType, IN void* pstFeature);
 
 // 有节点需要更新时的回调函数
 // 当调用MV_XML_UpdateNodeFeature接口更新节点属性时，注册的回调函数cbUpdate会在pstNodesList中返回与之相关联的节点
@@ -164,12 +159,9 @@ MV_CAMCTRL_API int __stdcall MV_XML_UpdateNodeFeature(
  *  @param       pUser                  [IN]          User defined variable
  *  @return Success, return MV_OK. Failure, return error code
  ***********************************************************************/
-MV_CAMCTRL_API int __stdcall MV_XML_RegisterUpdateCallBack(
-  IN void * handle,
-  IN void(__stdcall * cbUpdate)(
-    enum MV_XML_InterfaceType enType, void * pstFeature, MV_XML_NODES_LIST * pstNodesList,
-    void * pUser),
-  IN void * pUser);
+MV_CAMCTRL_API int __stdcall MV_XML_RegisterUpdateCallBack(IN void* handle, 
+                                                           IN void(__stdcall* cbUpdate)(enum MV_XML_InterfaceType enType, void* pstFeature, MV_XML_NODES_LIST* pstNodesList, void* pUser),
+                                                           IN void* pUser);
 
 /************************************************************************/
 /* 弃用的接口（存在更优化的接口可替换）                     			*/
@@ -196,9 +188,7 @@ MV_CAMCTRL_API int __stdcall MV_XML_RegisterUpdateCallBack(
  *  @param       pFrameInfo             [OUT]         Image information structure
  *  @return Success, return MV_OK. Failure, return error code
  ***********************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_GetOneFrame(
-  IN void * handle, IN OUT unsigned char * pData, IN unsigned int nDataSize,
-  IN OUT MV_FRAME_OUT_INFO * pFrameInfo);
+MV_CAMCTRL_API int __stdcall MV_CC_GetOneFrame(IN void* handle, IN OUT unsigned char * pData , IN unsigned int nDataSize, IN OUT MV_FRAME_OUT_INFO* pFrameInfo);
 
 /***********************************************************************
  *  @fn         MV_CC_GetOneFrameEx
@@ -206,9 +196,9 @@ MV_CAMCTRL_API int __stdcall MV_CC_GetOneFrame(
                 缓存有无数据，有数据则范围数据，无数据返回错误码
                 （该接口已弃用，建议改用 MV_CC_GetOneFrameTimeOut接口）
  *  @param       handle                 [IN]          句柄
- *  @param       pData                  [OUT]         图像数据接收指针
+ *  @param       pData                  [IN][OUT]     图像数据接收指针
  *  @param       nDataSize              [IN]          接收缓存大小
- *  @param       pFrameInfo             [OUT]         图像信息结构体
+ *  @param       pFrameInfo             [IN][OUT]     图像信息结构体
  *  @return 成功，返回MV_OK；错误，返回错误码
  
  *  @fn         MV_CC_GetOneFrameEx
@@ -221,9 +211,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_GetOneFrame(
  *  @param       pFrameInfo             [OUT]         Image information structure
  *  @return Success, return MV_OK. Failure, return error code
  ***********************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_GetOneFrameEx(
-  IN void * handle, IN OUT unsigned char * pData, IN unsigned int nDataSize,
-  IN OUT MV_FRAME_OUT_INFO_EX * pFrameInfo);
+MV_CAMCTRL_API int __stdcall MV_CC_GetOneFrameEx(IN void* handle, IN OUT unsigned char * pData , IN unsigned int nDataSize, IN OUT MV_FRAME_OUT_INFO_EX* pFrameInfo);
 
 /***********************************************************************
  *  @fn         MV_CC_RegisterImageCallBack
@@ -240,14 +228,13 @@ MV_CAMCTRL_API int __stdcall MV_CC_GetOneFrameEx(
  *  @param       pUser                  [IN]          User defined variable
  *  @return Success, return MV_OK. Failure, return error code
  ***********************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_RegisterImageCallBack(
-  void * handle,
-  void(__stdcall * cbOutput)(unsigned char * pData, MV_FRAME_OUT_INFO * pFrameInfo, void * pUser),
-  void * pUser);
+MV_CAMCTRL_API int __stdcall MV_CC_RegisterImageCallBack(void* handle, 
+                                                         void(__stdcall* cbOutput)(unsigned char * pData, MV_FRAME_OUT_INFO* pFrameInfo, void* pUser),
+                                                         void* pUser);
 
 /************************************************************************
  *  @fn     MV_CC_SaveImage
- *  @brief  保存图片（该接口已弃用，建议改用 MV_CC_SaveImageEx2接口）
+ *  @brief  保存图片（该接口仅支持Windows且已弃用，建议改用 MV_CC_SaveImageEx2接口）
  *  @param  pSaveParam             [IN][OUT]          保存图片参数结构体
                        pData;              // [IN]     输入数据缓存
                        nDataLen;           // [IN]     输入数据大小
@@ -261,7 +248,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_RegisterImageCallBack(
  *  @return 成功，返回MV_OK；错误，返回错误码 
  
  *  @fn     MV_CC_SaveImage
- *  @brief  Save image (This interface is abandoned, it is recommended to use the MV_CC_SaveImageEx)
+ *  @brief  Save image (This interface only supports on Windows, and is abandoned, it is recommended to use the MV_CC_SaveImageEx2)
  *  @param  pSaveParam             [IN][OUT]          Save image parameters structure
                        pData;              // [IN]     Input data buffer
                        nDataLen;           // [IN]     Input data size
@@ -274,11 +261,11 @@ MV_CAMCTRL_API int __stdcall MV_CC_RegisterImageCallBack(
                        enImageType;        // [IN]     Output image type
  *  @return Success, return MV_OK. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_SaveImage(IN OUT MV_SAVE_IMAGE_PARAM * pSaveParam);
+MV_CAMCTRL_API int __stdcall MV_CC_SaveImage(IN OUT MV_SAVE_IMAGE_PARAM* pSaveParam);
 
 /************************************************************************
  *  @fn     MV_CC_SaveImageEx
- *  @brief  保存图片，支持Bmp和Jpeg.编码质量在50-99之前 （该接口已弃用，建议改用 MV_CC_SaveImageEx2接口）
+ *  @brief  保存图片，支持Bmp和Jpeg.编码质量在50-99之前 （该接口仅支持Windows且已弃用，建议改用 MV_CC_SaveImageEx2接口）
  *  @param  pSaveParam             [IN][OUT]          保存图片参数结构体
                        pData;              // [IN]     输入数据缓存
                        nDataLen;           // [IN]     输入数据大小
@@ -295,6 +282,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_SaveImage(IN OUT MV_SAVE_IMAGE_PARAM * pSaveP
  
  *  @fn     MV_CC_SaveImageEx
  *  @brief  Save image, support Bmp and Jpeg. Encoding quality, (50-99]
+            This interface only supports on Windows, and is abandoned, it is recommended to use the MV_CC_SaveImageEx2
  *  @param  pSaveParam             [IN][OUT]           Save image parameters structure
                        pData;              // [IN]     Input data buffer
                        nDataLen;           // [IN]     Input data size
@@ -309,9 +297,9 @@ MV_CAMCTRL_API int __stdcall MV_CC_SaveImage(IN OUT MV_SAVE_IMAGE_PARAM * pSaveP
                        nReserved[4];
  *  @return Success, return MV_OK. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_SaveImageEx(IN OUT MV_SAVE_IMAGE_PARAM_EX * pSaveParam);
+MV_CAMCTRL_API int __stdcall MV_CC_SaveImageEx(IN OUT MV_SAVE_IMAGE_PARAM_EX* pSaveParam);
 
-/********************************************************************/ /**
+/********************************************************************//**
  *  @~chinese
  *  @brief  Bayer噪声估计（该接口已弃用，建议改用ISP Tool方式进行标定）
  *  @param  handle                      [IN]            设备句柄
@@ -328,10 +316,9 @@ MV_CAMCTRL_API int __stdcall MV_CC_SaveImageEx(IN OUT MV_SAVE_IMAGE_PARAM_EX * p
  *  @remarks This API only support Bayer8/Bayer10/Bayer12 format, other Bayer format must Convert to Bayer8/Bayer10/Bayer12 format.\n
              This API is only available when the camera is turned on, and when the camera is disconnected or disconnected, continuing to use This API will return an error.
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_BayerNoiseEstimate(
-  IN void * handle, IN OUT MV_CC_BAYER_NOISE_ESTIMATE_PARAM * pstNoiseEstimateParam);
+MV_CAMCTRL_API int __stdcall MV_CC_BayerNoiseEstimate(IN void* handle, IN OUT MV_CC_BAYER_NOISE_ESTIMATE_PARAM* pstNoiseEstimateParam);
 
-/********************************************************************/ /**
+/********************************************************************//**
  *  @~chinese
  *  @brief  Bayer空域降噪（该接口已弃用，建议改用ISP Tool方式进行降噪）
  *  @param  handle                      [IN]            设备句柄
@@ -348,10 +335,9 @@ MV_CAMCTRL_API int __stdcall MV_CC_BayerNoiseEstimate(
  *  @remarks This API only support Bayer8/Bayer10/Bayer12 format, other Bayer format must Convert to Bayer8/Bayer10/Bayer12 format.\n
              This API is only available when the camera is turned on, and when the camera is disconnected or disconnected, continuing to use This API will return an error.
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_BayerSpatialDenoise(
-  IN void * handle, IN OUT MV_CC_BAYER_SPATIAL_DENOISE_PARAM * pstSpatialDenoiseParam);
+MV_CAMCTRL_API int __stdcall MV_CC_BayerSpatialDenoise(IN void* handle, IN OUT MV_CC_BAYER_SPATIAL_DENOISE_PARAM* pstSpatialDenoiseParam);
 
-/********************************************************************/ /**
+/********************************************************************//**
  *  @~chinese
  *  @brief  设置Bayer格式的CLUT使能和信息（该接口已弃用，建议改用ISP Tool方式进行设置）
  *  @param  handle                      [IN]            设备句柄
@@ -366,10 +352,9 @@ MV_CAMCTRL_API int __stdcall MV_CC_BayerSpatialDenoise(
  *  @return Success, return MV_OK. Failure, return error code
  *  @remarks After enable the CLUT and set CLUT, It work in the calling MV_CC_ConvertPixelType\MV_CC_SaveImageEx2 API convert Bayer8/10/12/16 to RGB24/48， RGBA32/64，BGR24/48，BGRA32/64.
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_SetBayerCLUTParam(
-  IN void * handle, IN MV_CC_CLUT_PARAM * pstCLUTParam);
+MV_CAMCTRL_API int __stdcall MV_CC_SetBayerCLUTParam(IN void* handle, IN MV_CC_CLUT_PARAM* pstCLUTParam);
 
-/********************************************************************/ /**
+/********************************************************************//**
  *  @~chinese
  *  @brief  图像锐化（该接口已弃用，建议改用ISP Tool方式进行锐化）
  *  @param  handle                      [IN]            设备句柄
@@ -382,10 +367,9 @@ MV_CAMCTRL_API int __stdcall MV_CC_SetBayerCLUTParam(
  *  @param  pstSharpenParam             [IN]            Sharpen parameter structure
  *  @return Success, return MV_OK. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_ImageSharpen(
-  IN void * handle, IN OUT MV_CC_SHARPEN_PARAM * pstSharpenParam);
+MV_CAMCTRL_API int __stdcall MV_CC_ImageSharpen(IN void* handle, IN OUT MV_CC_SHARPEN_PARAM* pstSharpenParam);
 
-/********************************************************************/ /**
+/********************************************************************//**
  *  @~chinese
  *  @brief  色彩校正（包括CCM和CLUT）（该接口已弃用，建议改用ISP Tool方式进行校正）
  *  @param  handle                      [IN]            设备句柄
@@ -400,10 +384,9 @@ MV_CAMCTRL_API int __stdcall MV_CC_ImageSharpen(
  *  @return Success, return MV_OK. Failure, return error code
  *  @remarks This API supports CCM or CLUT alone, as well as CCM and CLUT at the same time. The user can select by means of the enable switch in CCM and CLUT information.
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_ColorCorrect(
-  IN void * handle, IN OUT MV_CC_COLOR_CORRECT_PARAM * pstColorCorrectParam);
+MV_CAMCTRL_API int __stdcall MV_CC_ColorCorrect(IN void* handle, IN OUT MV_CC_COLOR_CORRECT_PARAM* pstColorCorrectParam);
 
-/********************************************************************/ /**
+/********************************************************************//**
  *  @~chinese
  *  @brief  噪声估计（该接口已弃用，建议改用ISP Tool方式进行标定）
  *  @param  handle                      [IN]            设备句柄
@@ -418,10 +401,9 @@ MV_CAMCTRL_API int __stdcall MV_CC_ColorCorrect(
  *  @return Success, return MV_OK. Failure, return error code
  *  @remarks If the user selects the full image, nROINum can be typed with 0 and pstROIRect empty.
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_NoiseEstimate(
-  IN void * handle, IN OUT MV_CC_NOISE_ESTIMATE_PARAM * pstNoiseEstimateParam);
+MV_CAMCTRL_API int __stdcall MV_CC_NoiseEstimate(IN void* handle, IN OUT MV_CC_NOISE_ESTIMATE_PARAM* pstNoiseEstimateParam);
 
-/********************************************************************/ /**
+/********************************************************************//**
  *  @~chinese
  *  @brief  空域降噪（该接口已弃用，建议改用ISP Tool方式进行降噪）
  *  @param  handle                      [IN]            设备句柄
@@ -434,26 +416,27 @@ MV_CAMCTRL_API int __stdcall MV_CC_NoiseEstimate(
  *  @param  pstSpatialDenoiseParam      [IN]            Spatial Denoise parameter structure
  *  @return Success, return MV_OK. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_SpatialDenoise(
-  IN void * handle, IN OUT MV_CC_SPATIAL_DENOISE_PARAM * pstSpatialDenoiseParam);
+MV_CAMCTRL_API int __stdcall MV_CC_SpatialDenoise(IN void* handle, IN OUT MV_CC_SPATIAL_DENOISE_PARAM* pstSpatialDenoiseParam);
 
-/********************************************************************/ /**
+
+/********************************************************************//**
  *  @~chinese
  *  @brief  LSC标定
  *  @param  handle                      [IN]            设备句柄
  *  @param  pstLSCCalibParam            [IN]            标定参数
  *  @return 成功，返回MV_OK；错误，返回错误码 
+ *  @remarks 
 
  *  @~english
  *  @brief  LSC Calib
  *  @param  handle                      [IN]            Device handle
  *  @param  pstLSCCalibParam            [IN]            LSC Calib parameter structure
  *  @return Success, return MV_OK. Failure, return error code
+ *  @remarks 
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_LSCCalib(
-  IN void * handle, IN OUT MV_CC_LSC_CALIB_PARAM * pstLSCCalibParam);
+MV_CAMCTRL_API int __stdcall MV_CC_LSCCalib(IN void* handle, IN OUT MV_CC_LSC_CALIB_PARAM* pstLSCCalibParam);
 
-/********************************************************************/ /**
+/********************************************************************//**
  *  @~chinese
  *  @brief  LSC校正
  *  @param  handle                      [IN]            设备句柄
@@ -466,8 +449,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_LSCCalib(
  *  @param  pstLSCCorrectParam          [IN]            LSC Correct parameter structure
  *  @return Success, return MV_OK. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_LSCCorrect(
-  IN void * handle, IN OUT MV_CC_LSC_CORRECT_PARAM * pstLSCCorrectParam);
+MV_CAMCTRL_API int __stdcall MV_CC_LSCCorrect(IN void* handle, IN OUT MV_CC_LSC_CORRECT_PARAM* pstLSCCorrectParam);
 
 /************************************************************************
  *  @fn     MV_GIGE_ForceIp
@@ -482,26 +464,24 @@ MV_CAMCTRL_API int __stdcall MV_CC_LSCCorrect(
  *  @param  nIP               [IN]      IP to set
  *  @return Refer to error code
 ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_GIGE_ForceIp(IN void * handle, unsigned int nIP);
+MV_CAMCTRL_API int __stdcall MV_GIGE_ForceIp(IN void* handle, unsigned int nIP);
 
 /************************************************************************
  *  @fn     MV_CC_RegisterEventCallBack
- *  @brief  注册事件回调（该接口已弃用，建议改用 MV_CC_RegisterEventCallBackEx接口）
+ *  @brief  注册事件回调（该接口已弃用，建议改用 MV_CC_RegisterEventCallBackEx接口），该接口只支持网口设备，不支持U口和GenTL设备
  *  @param  handle：设备句柄
  *  @param  cbEvent           [IN]      事件回调函数指针
  *  @param  pUser             [IN]      用户自定义变量
  *  @return 见返回错误码
  
  *  @fn     MV_CC_RegisterEventCallBack
- *  @brief  Register event callback (this interface has been deprecated and is recommended to be converted to the MV_CC_RegisterEventCallBackEx interface)
+ *  @brief  Register event callback (this interface has been deprecated and is recommended to be converted to the MV_CC_RegisterEventCallBackEx interface)，only support GEV devices，don‘t support USB and GenTL Device.
  *  @param  handle：设备句柄
  *  @param  cbEvent           [IN]      event callback pointer
  *  @param  pUser             [IN]      User defined value
  *  @return 见返回错误码
 ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_RegisterEventCallBack(
-  void * handle, void(__stdcall * cbEvent)(unsigned int nExternalEventId, void * pUser),
-  void * pUser);
+MV_CAMCTRL_API int __stdcall MV_CC_RegisterEventCallBack(void* handle, void(__stdcall* cbEvent)(unsigned int nExternalEventId, void* pUser), void* pUser);
 
 /***********************************************************************
  *  @fn         MV_CC_Display
@@ -516,7 +496,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_RegisterEventCallBack(
  *  @param      hWnd                   [IN]          Display Window Handle
  *  @return     Success, return MV_OK. Failure, return error code
  ***********************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_Display(IN void * handle, void * hWnd);
+MV_CAMCTRL_API int __stdcall MV_CC_Display(IN void* handle, void* hWnd);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_GetIntValue(IN void* handle,
@@ -537,8 +517,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_Display(IN void * handle, void * hWnd);
  *  @param  MVCC_INTVALUE* pstValue     [IN][OUT]   Structure pointer of camera features
  *  @return Success, return MV_OK. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_GetIntValue(
-  IN void * handle, IN const char * strKey, OUT MVCC_INTVALUE * pIntValue);
+MV_CAMCTRL_API int __stdcall MV_CC_GetIntValue(IN void* handle,IN const char* strKey,OUT MVCC_INTVALUE *pIntValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_SetIntValue(IN void* handle,
@@ -559,8 +538,8 @@ MV_CAMCTRL_API int __stdcall MV_CC_GetIntValue(
  *          const unsigned int nValue   [IN]        Feature value to set
  *  @return Success, return MV_OK. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_SetIntValue(
-  IN void * handle, IN const char * strKey, IN unsigned int nValue);
+MV_CAMCTRL_API int __stdcall MV_CC_SetIntValue(IN void* handle,IN const char* strKey,IN unsigned int nValue);
+
 
 /************************************************************************/
 /* 相机参数获取和设置，此模块的所有接口已废弃，建议使用万能接口代替   */
@@ -593,7 +572,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_SetIntValue(
  *  
  *          Other Integer structure parameters interface can refer to this interface
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_GetWidth(IN void * handle, IN OUT MVCC_INTVALUE * pstValue);
+MV_CAMCTRL_API int __stdcall MV_CC_GetWidth(IN void* handle, IN OUT MVCC_INTVALUE* pstValue);
 
 /************************************************************************
 *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_SetWidth(IN void* handle, IN const unsigned int nValue);
@@ -608,7 +587,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_GetWidth(IN void * handle, IN OUT MVCC_INTVAL
  *          const unsigned int nValue   [IN]        To set the value of the camera width, note that the width value must be a multiple of nInc in the pstValue returned by the MV_CC_GetWidth interface
  *  @return Success, return MV_OK, and the camera width will change to the corresponding value. Failure, return error code
 ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_SetWidth(IN void * handle, IN const unsigned int nValue);
+MV_CAMCTRL_API int __stdcall MV_CC_SetWidth(IN void* handle, IN const unsigned int nValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_GetHeight(IN void* handle, IN OUT MVCC_INTVALUE* pstValue);
@@ -627,7 +606,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_SetWidth(IN void * handle, IN const unsigned 
  *  
  *          Refer to MV_CC_GetWidth
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_GetHeight(IN void * handle, IN OUT MVCC_INTVALUE * pstValue);
+MV_CAMCTRL_API int __stdcall MV_CC_GetHeight(IN void* handle, IN OUT MVCC_INTVALUE* pstValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_SetHeight(IN void* handle, IN const unsigned int nValue);
@@ -642,7 +621,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_GetHeight(IN void * handle, IN OUT MVCC_INTVA
  *          const unsigned int nValue   [IN]        Camera height value to set, note that this value must be times of nInc of pstValue returned by MV_CC_GetWidth
  *  @return Success, return MV_OK, and the camera height will change to the corresponding value. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_SetHeight(IN void * handle, IN const unsigned int nValue);
+MV_CAMCTRL_API int __stdcall MV_CC_SetHeight(IN void* handle, IN const unsigned int nValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_GetAOIoffsetX(IN void* handle, IN OUT MVCC_INTVALUE* pstValue);
@@ -661,7 +640,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_SetHeight(IN void * handle, IN const unsigned
  *  
  *          Refer to MV_CC_GetWidth
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_GetAOIoffsetX(IN void * handle, IN OUT MVCC_INTVALUE * pstValue);
+MV_CAMCTRL_API int __stdcall MV_CC_GetAOIoffsetX(IN void* handle, IN OUT MVCC_INTVALUE* pstValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_SetAOIoffsetX(IN void* handle, IN const unsigned int nValue);
@@ -676,7 +655,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_GetAOIoffsetX(IN void * handle, IN OUT MVCC_I
  *          const unsigned int nValue   [IN]        Camera X offset value to set
  *  @return Success, return MV_OK, and the camera X offset will change to the corresponding value. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_SetAOIoffsetX(IN void * handle, IN const unsigned int nValue);
+MV_CAMCTRL_API int __stdcall MV_CC_SetAOIoffsetX(IN void* handle, IN const unsigned int nValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_GetAOIoffsetY(IN void* handle, IN OUT MVCC_INTVALUE* pstValue);
@@ -695,7 +674,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_SetAOIoffsetX(IN void * handle, IN const unsi
  *  
  *          Refer to MV_CC_GetWidth
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_GetAOIoffsetY(IN void * handle, IN OUT MVCC_INTVALUE * pstValue);
+MV_CAMCTRL_API int __stdcall MV_CC_GetAOIoffsetY(IN void* handle, IN OUT MVCC_INTVALUE* pstValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_SetAOIoffsetX(IN void* handle, IN const unsigned int nValue);
@@ -710,7 +689,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_GetAOIoffsetY(IN void * handle, IN OUT MVCC_I
  *          const unsigned int nValue   [IN]        Camera Y offset value to set
  *  @return Success, return MV_OK, and the camera Y offset will change to the corresponding value. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_SetAOIoffsetY(IN void * handle, IN const unsigned int nValue);
+MV_CAMCTRL_API int __stdcall MV_CC_SetAOIoffsetY(IN void* handle, IN const unsigned int nValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_GetAutoExposureTimeLower(IN void* handle, IN OUT MVCC_INTVALUE* pstValue);
@@ -729,8 +708,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_SetAOIoffsetY(IN void * handle, IN const unsi
  *  
  *          Refer to MV_CC_GetWidth
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_GetAutoExposureTimeLower(
-  IN void * handle, IN OUT MVCC_INTVALUE * pstValue);
+MV_CAMCTRL_API int __stdcall MV_CC_GetAutoExposureTimeLower(IN void* handle, IN OUT MVCC_INTVALUE* pstValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_SetAutoExposureTimeLower(IN void* handle, IN const unsigned int nValue);
@@ -745,8 +723,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_GetAutoExposureTimeLower(
  *          const unsigned int nValue   [IN]        Exposure lower to set
  *  @return Success, return MV_OK, and the camera exposure time lower limit value will change to the corresponding value. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_SetAutoExposureTimeLower(
-  IN void * handle, IN const unsigned int nValue);
+MV_CAMCTRL_API int __stdcall MV_CC_SetAutoExposureTimeLower(IN void* handle, IN const unsigned int nValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_GetAutoExposureTimeUpper(IN void* handle, IN OUT MVCC_INTVALUE* pstValue);
@@ -765,8 +742,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_SetAutoExposureTimeLower(
  *  
  *          Refer to MV_CC_GetWidth
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_GetAutoExposureTimeUpper(
-  IN void * handle, IN OUT MVCC_INTVALUE * pstValue);
+MV_CAMCTRL_API int __stdcall MV_CC_GetAutoExposureTimeUpper(IN void* handle, IN OUT MVCC_INTVALUE* pstValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_SetAutoExposureTimeUpper(IN void* handle, IN const unsigned int nValue);
@@ -781,8 +757,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_GetAutoExposureTimeUpper(
  *          const unsigned int nValue   [IN]        Exposure upper to set
  *  @return Success, return MV_OK, and the camera exposure time upper limit value will change to the corresponding value. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_SetAutoExposureTimeUpper(
-  IN void * handle, IN const unsigned int nValue);
+MV_CAMCTRL_API int __stdcall MV_CC_SetAutoExposureTimeUpper(IN void* handle, IN const unsigned int nValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_GetBrightness(IN void* handle, IN OUT MVCC_INTVALUE* pstValue);
@@ -801,7 +776,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_SetAutoExposureTimeUpper(
  *  
  *          Refer to MV_CC_GetWidth
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_GetBrightness(IN void * handle, IN OUT MVCC_INTVALUE * pstValue);
+MV_CAMCTRL_API int __stdcall MV_CC_GetBrightness(IN void* handle, IN OUT MVCC_INTVALUE* pstValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_SetBrightness(IN void* handle, IN const unsigned int nValue);
@@ -816,7 +791,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_GetBrightness(IN void * handle, IN OUT MVCC_I
  *          const unsigned int nValue   [IN]        Brightness upper to set
  *  @return Success, return MV_OK, and the camera brightness value will change to the corresponding value. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_SetBrightness(IN void * handle, IN const unsigned int nValue);
+MV_CAMCTRL_API int __stdcall MV_CC_SetBrightness(IN void* handle, IN const unsigned int nValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_GetFrameRate(IN void* handle, IN OUT MVCC_FLOATVALUE* pstValue);
@@ -843,8 +818,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_SetBrightness(IN void * handle, IN const unsi
  *  
  *          Other interface of Float structure parameters can refer to this interface
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_GetFrameRate(
-  IN void * handle, IN OUT MVCC_FLOATVALUE * pstValue);
+MV_CAMCTRL_API int __stdcall MV_CC_GetFrameRate(IN void* handle, IN OUT MVCC_FLOATVALUE* pstValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_SetFrameRate(IN void* handle, IN const float fValue);
@@ -859,7 +833,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_GetFrameRate(
  *          const float fValue          [IN]        Camera frame rate to set 
  *  @return Success, return MV_OK, and camera frame rate will be changed to the corresponding value. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_SetFrameRate(IN void * handle, IN const float fValue);
+MV_CAMCTRL_API int __stdcall MV_CC_SetFrameRate(IN void* handle, IN const float fValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_GetGain(IN void* handle, IN OUT MVCC_FLOATVALUE* pstValue);
@@ -886,7 +860,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_SetFrameRate(IN void * handle, IN const float
  *  
  *          Other interface of Float structure parameters can refer to this interface
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_GetGain(IN void * handle, IN OUT MVCC_FLOATVALUE * pstValue);
+MV_CAMCTRL_API int __stdcall MV_CC_GetGain(IN void* handle, IN OUT MVCC_FLOATVALUE* pstValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_SetGain(IN void* handle, IN const float fValue);
@@ -901,7 +875,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_GetGain(IN void * handle, IN OUT MVCC_FLOATVA
  *          const float fValue          [IN]        Gain value to set
  *  @return Success, return MV_OK, and the camera gain value will change to the corresponding value. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_SetGain(IN void * handle, IN const float fValue);
+MV_CAMCTRL_API int __stdcall MV_CC_SetGain(IN void* handle, IN const float fValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_GetExposureTime(IN void* handle, IN OUT MVCC_FLOATVALUE* pstValue);
@@ -928,8 +902,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_SetGain(IN void * handle, IN const float fVal
  *  
  *          Other interface of Float structure parameters can refer to this interface
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_GetExposureTime(
-  IN void * handle, IN OUT MVCC_FLOATVALUE * pstValue);
+MV_CAMCTRL_API int __stdcall MV_CC_GetExposureTime(IN void* handle, IN OUT MVCC_FLOATVALUE* pstValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_SetExposureTime(IN void* handle, IN const float fValue);
@@ -944,7 +917,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_GetExposureTime(
  *          const float fValue          [IN]        Exposure time to set
  *  @return Success, return MV_OK, and the camera exposure time value will change to the corresponding value. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_SetExposureTime(IN void * handle, IN const float fValue);
+MV_CAMCTRL_API int __stdcall MV_CC_SetExposureTime(IN void* handle, IN const float fValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_GetPixelFormat(IN void* handle, IN OUT MVCC_ENUMVALUE* pstValue);
@@ -971,8 +944,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_SetExposureTime(IN void * handle, IN const fl
  *  
             Other interface of Enumeration structure parameters can refer to this interface, look for the corresponding definition in PixelType.h and CameraParams.h for the integer values of the enum type parameter
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_GetPixelFormat(
-  IN void * handle, IN OUT MVCC_ENUMVALUE * pstValue);
+MV_CAMCTRL_API int __stdcall MV_CC_GetPixelFormat(IN void* handle, IN OUT MVCC_ENUMVALUE* pstValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_SetPixelFormat(IN void* handle, IN const unsigned int nValue);
@@ -991,7 +963,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_GetPixelFormat(
  *  
  *          Other interface of Enumeration structure parameters can refer to this interface, the enumeration type to be set must be one of the nSupportValue [MV_MAX_XML_SYMBOLIC_NUM] returned by the Get interface, otherwise it will fail
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_SetPixelFormat(IN void * handle, IN const unsigned int nValue);
+MV_CAMCTRL_API int __stdcall MV_CC_SetPixelFormat(IN void* handle, IN const unsigned int nValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_GetAcquisitionMode(IN void* handle, IN OUT MVCC_ENUMVALUE* pstValue);
@@ -1010,8 +982,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_SetPixelFormat(IN void * handle, IN const uns
  *  
             Refer to MV_CC_GetPixelFormat and definition of MV_CAM_ACQUISITION_MODE in CameraParam.h
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_GetAcquisitionMode(
-  IN void * handle, IN OUT MVCC_ENUMVALUE * pstValue);
+MV_CAMCTRL_API int __stdcall MV_CC_GetAcquisitionMode(IN void* handle, IN OUT MVCC_ENUMVALUE* pstValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_SetAcquisitionMode(IN void* handle, IN const unsigned int nValue);
@@ -1026,8 +997,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_GetAcquisitionMode(
  *          const unsigned int nValue   [IN]        Integer value to set corresponding to acquisition mode
  *  @return Success, return MV_OK, and the camera acquisition mode will change to the corresponding value. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_SetAcquisitionMode(
-  IN void * handle, IN const unsigned int nValue);
+MV_CAMCTRL_API int __stdcall MV_CC_SetAcquisitionMode(IN void* handle, IN const unsigned int nValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_GetGainMode(IN void* handle, IN OUT MVCC_ENUMVALUE* pstValue);
@@ -1046,7 +1016,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_SetAcquisitionMode(
  *  
             Refer to MV_CC_GetPixelFormat and definition of MV_CAM_GAIN_MODE in CameraParam.h
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_GetGainMode(IN void * handle, IN OUT MVCC_ENUMVALUE * pstValue);
+MV_CAMCTRL_API int __stdcall MV_CC_GetGainMode(IN void* handle, IN OUT MVCC_ENUMVALUE* pstValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_SetGainMode(IN void* handle, IN const unsigned int nValue);
@@ -1061,7 +1031,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_GetGainMode(IN void * handle, IN OUT MVCC_ENU
  *          const unsigned int nValue   [IN]        Integer value to set corresponding to gain mode
  *  @return Success, return MV_OK, and the camera gain mode will change to the corresponding value. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_SetGainMode(IN void * handle, IN const unsigned int nValue);
+MV_CAMCTRL_API int __stdcall MV_CC_SetGainMode(IN void* handle, IN const unsigned int nValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_GetExposureAutoMode(IN void* handle, IN OUT MVCC_ENUMVALUE* pstValue);
@@ -1080,8 +1050,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_SetGainMode(IN void * handle, IN const unsign
  *  
             Refer to MV_CC_GetPixelFormat and definition of MV_CAM_EXPOSURE_AUTO_MODE in CameraParam.h
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_GetExposureAutoMode(
-  IN void * handle, IN OUT MVCC_ENUMVALUE * pstValue);
+MV_CAMCTRL_API int __stdcall MV_CC_GetExposureAutoMode(IN void* handle, IN OUT MVCC_ENUMVALUE* pstValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_SetExposureAutoMode(IN void* handle, IN const unsigned int nValue);
@@ -1096,8 +1065,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_GetExposureAutoMode(
  *          const unsigned int nValue   [IN]        Integer value to set corresponding to auto exposure mode
  *  @return Success, return MV_OK, and the camera auto exposure mode will change to the corresponding value. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_SetExposureAutoMode(
-  IN void * handle, IN const unsigned int nValue);
+MV_CAMCTRL_API int __stdcall MV_CC_SetExposureAutoMode(IN void* handle, IN const unsigned int nValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_GetTriggerMode(IN void* handle, IN OUT MVCC_ENUMVALUE* pstValue);
@@ -1116,8 +1084,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_SetExposureAutoMode(
  *  
             Refer to MV_CC_GetPixelFormat and definition of MV_CAM_TRIGGER_MODE in CameraParam.h
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_GetTriggerMode(
-  IN void * handle, IN OUT MVCC_ENUMVALUE * pstValue);
+MV_CAMCTRL_API int __stdcall MV_CC_GetTriggerMode(IN void* handle, IN OUT MVCC_ENUMVALUE* pstValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_SetTriggerMode(IN void* handle, IN const unsigned int nValue);
@@ -1132,7 +1099,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_GetTriggerMode(
  *          const unsigned int nValue   [IN]        Integer value to set corresponding to trigger mode
  *  @return Success, return MV_OK, and the camera trigger mode will change to the corresponding value. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_SetTriggerMode(IN void * handle, IN const unsigned int nValue);
+MV_CAMCTRL_API int __stdcall MV_CC_SetTriggerMode(IN void* handle, IN const unsigned int nValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_GetTriggerDelay(IN void* handle, IN OUT MVCC_FLOATVALUE* pstValue);
@@ -1151,8 +1118,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_SetTriggerMode(IN void * handle, IN const uns
  *  
  *          Refer to MV_CC_GetFrameRate
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_GetTriggerDelay(
-  IN void * handle, IN OUT MVCC_FLOATVALUE * pstValue);
+MV_CAMCTRL_API int __stdcall MV_CC_GetTriggerDelay(IN void* handle, IN OUT MVCC_FLOATVALUE* pstValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_SetTriggerDelay(IN void* handle, IN const float fValue);
@@ -1167,7 +1133,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_GetTriggerDelay(
  *          const float fValue          [IN]        Trigger delay to set
  *  @return Success, return MV_OK, and the camera trigger delay will change to the corresponding value. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_SetTriggerDelay(IN void * handle, IN const float fValue);
+MV_CAMCTRL_API int __stdcall MV_CC_SetTriggerDelay(IN void* handle, IN const float fValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_GetTriggerSource(IN void* handle, IN OUT MVCC_ENUMVALUE* pstValue);
@@ -1186,8 +1152,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_SetTriggerDelay(IN void * handle, IN const fl
  *  
             Refer to MV_CC_GetPixelFormat and definition of MV_CAM_TRIGGER_SOURCE in CameraParam.h
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_GetTriggerSource(
-  IN void * handle, IN OUT MVCC_ENUMVALUE * pstValue);
+MV_CAMCTRL_API int __stdcall MV_CC_GetTriggerSource(IN void* handle, IN OUT MVCC_ENUMVALUE* pstValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_SetTriggerSource(IN void* handle, IN const unsigned int nValue);
@@ -1202,7 +1167,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_GetTriggerSource(
  *          const unsigned int nValue   [IN]        Integer value to set corresponding to trigger source
  *  @return Success, return MV_OK, and the camera trigger source will change to the corresponding value. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_SetTriggerSource(IN void * handle, IN const unsigned int nValue);
+MV_CAMCTRL_API int __stdcall MV_CC_SetTriggerSource(IN void* handle, IN const unsigned int nValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_TriggerSoftwareExecute(IN void* handle);
@@ -1215,7 +1180,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_SetTriggerSource(IN void * handle, IN const u
  *  @param  void* handle                [IN]        Handle
  *  @return Success, return MV_OK. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_TriggerSoftwareExecute(IN void * handle);
+MV_CAMCTRL_API int __stdcall MV_CC_TriggerSoftwareExecute(IN void* handle);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_GetGammaSelector(IN void* handle, IN OUT MVCC_ENUMVALUE* pstValue);
@@ -1234,8 +1199,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_TriggerSoftwareExecute(IN void * handle);
  *  
             Refer to MV_CC_GetPixelFormat and definition of MV_CAM_GAMMA_SELECTOR in CameraParam.h
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_GetGammaSelector(
-  IN void * handle, IN OUT MVCC_ENUMVALUE * pstValue);
+MV_CAMCTRL_API int __stdcall MV_CC_GetGammaSelector(IN void* handle, IN OUT MVCC_ENUMVALUE* pstValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_SetGammaSelector(IN void* handle, IN const unsigned int nValue);
@@ -1250,7 +1214,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_GetGammaSelector(
  *          const unsigned int nValue   [IN]        Integer value to set corresponding to gamma mode
  *  @return Success, return MV_OK, and the camera gamma mode will change to the corresponding value. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_SetGammaSelector(IN void * handle, IN const unsigned int nValue);
+MV_CAMCTRL_API int __stdcall MV_CC_SetGammaSelector(IN void* handle, IN const unsigned int nValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_GetGamma(IN void* handle, IN OUT MVCC_FLOATVALUE* pstValue);
@@ -1269,7 +1233,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_SetGammaSelector(IN void * handle, IN const u
  *  
  *          Refer to MV_CC_GetFrameRate
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_GetGamma(IN void * handle, IN OUT MVCC_FLOATVALUE * pstValue);
+MV_CAMCTRL_API int __stdcall MV_CC_GetGamma(IN void* handle, IN OUT MVCC_FLOATVALUE* pstValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_SetGamma(IN void* handle, IN const float fValue);
@@ -1284,7 +1248,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_GetGamma(IN void * handle, IN OUT MVCC_FLOATV
  *          const float fValue          [IN]        Gamma value to set
  *  @return Success, return MV_OK, and the camera gamma value will change to the corresponding value. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_SetGamma(IN void * handle, IN const float fValue);
+MV_CAMCTRL_API int __stdcall MV_CC_SetGamma(IN void* handle, IN const float fValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_GetSharpness(IN void* handle, IN OUT MVCC_INTVALUE* pstValue);
@@ -1303,7 +1267,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_SetGamma(IN void * handle, IN const float fVa
  *  
  *          Refer to MV_CC_GetWidth
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_GetSharpness(IN void * handle, IN OUT MVCC_INTVALUE * pstValue);
+MV_CAMCTRL_API int __stdcall MV_CC_GetSharpness(IN void* handle, IN OUT MVCC_INTVALUE* pstValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_SetSharpness(IN void* handle, IN const unsigned int nValue);
@@ -1318,7 +1282,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_GetSharpness(IN void * handle, IN OUT MVCC_IN
  *          const unsigned int nValue   [IN]        Sharpness to set
  *  @return Success, return MV_OK, and the camera sharpness will change to the corresponding value. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_SetSharpness(IN void * handle, IN const unsigned int nValue);
+MV_CAMCTRL_API int __stdcall MV_CC_SetSharpness(IN void* handle, IN const unsigned int nValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_GetHue(IN void* handle, IN OUT MVCC_INTVALUE* pstValue);
@@ -1337,7 +1301,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_SetSharpness(IN void * handle, IN const unsig
  *  
  *          Refer to MV_CC_GetWidth
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_GetHue(IN void * handle, IN OUT MVCC_INTVALUE * pstValue);
+MV_CAMCTRL_API int __stdcall MV_CC_GetHue(IN void* handle, IN OUT MVCC_INTVALUE* pstValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_SetHue(IN void* handle, IN const unsigned int nValue);
@@ -1352,7 +1316,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_GetHue(IN void * handle, IN OUT MVCC_INTVALUE
  *          const unsigned int nValue   [IN]        Hue to set
  *  @return Success, return MV_OK, and the camera Hue will change to the corresponding value. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_SetHue(IN void * handle, IN const unsigned int nValue);
+MV_CAMCTRL_API int __stdcall MV_CC_SetHue(IN void* handle, IN const unsigned int nValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_GetSaturation(IN void* handle, IN OUT MVCC_INTVALUE* pstValue);
@@ -1371,7 +1335,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_SetHue(IN void * handle, IN const unsigned in
  *  
  *          Refer to MV_CC_GetWidth
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_GetSaturation(IN void * handle, IN OUT MVCC_INTVALUE * pstValue);
+MV_CAMCTRL_API int __stdcall MV_CC_GetSaturation(IN void* handle, IN OUT MVCC_INTVALUE* pstValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_SetSaturation(IN void* handle, IN const unsigned int nValue);
@@ -1386,7 +1350,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_GetSaturation(IN void * handle, IN OUT MVCC_I
  *          const unsigned int nValue   [IN]        Saturation to set
  *  @return Success, return MV_OK, and the camera Saturation will change to the corresponding value. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_SetSaturation(IN void * handle, IN const unsigned int nValue);
+MV_CAMCTRL_API int __stdcall MV_CC_SetSaturation(IN void* handle, IN const unsigned int nValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_GetBalanceWhiteAuto(IN void* handle, IN OUT MVCC_ENUMVALUE* pstValue);
@@ -1405,8 +1369,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_SetSaturation(IN void * handle, IN const unsi
  *  
             Refer to MV_CC_GetPixelFormat and definition of MV_CAM_BALANCEWHITE_AUTO in CameraParam.h
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_GetBalanceWhiteAuto(
-  IN void * handle, IN OUT MVCC_ENUMVALUE * pstValue);
+MV_CAMCTRL_API int __stdcall MV_CC_GetBalanceWhiteAuto(IN void* handle, IN OUT MVCC_ENUMVALUE* pstValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_SetBalanceWhiteAuto(IN void* handle, IN const unsigned int nValue);
@@ -1421,8 +1384,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_GetBalanceWhiteAuto(
  *          const unsigned int nValue   [IN]        Integer value to set corresponding to auto white balance
  *  @return Success, return MV_OK, and the camera auto white balance will change to the corresponding value. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_SetBalanceWhiteAuto(
-  IN void * handle, IN const unsigned int nValue);
+MV_CAMCTRL_API int __stdcall MV_CC_SetBalanceWhiteAuto(IN void* handle, IN const unsigned int nValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_GetBalanceRatioRed(IN void* handle, IN OUT MVCC_INTVALUE* pstValue);
@@ -1441,8 +1403,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_SetBalanceWhiteAuto(
  *  
  *          Refer to MV_CC_GetWidth
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_GetBalanceRatioRed(
-  IN void * handle, IN OUT MVCC_INTVALUE * pstValue);
+MV_CAMCTRL_API int __stdcall MV_CC_GetBalanceRatioRed(IN void* handle, IN OUT MVCC_INTVALUE* pstValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_SetBalanceRatioRed(IN void* handle, IN const unsigned int nValue);
@@ -1457,8 +1418,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_GetBalanceRatioRed(
  *          const unsigned int nValue   [IN]        White balance red to set
  *  @return Success, return MV_OK, and the camera white balance red will change to the corresponding value. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_SetBalanceRatioRed(
-  IN void * handle, IN const unsigned int nValue);
+MV_CAMCTRL_API int __stdcall MV_CC_SetBalanceRatioRed(IN void* handle, IN const unsigned int nValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_GetBalanceRatioGreen(IN void* handle, IN OUT MVCC_INTVALUE* pstValue);
@@ -1477,8 +1437,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_SetBalanceRatioRed(
  *  
  *          Refer to MV_CC_GetWidth
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_GetBalanceRatioGreen(
-  IN void * handle, IN OUT MVCC_INTVALUE * pstValue);
+MV_CAMCTRL_API int __stdcall MV_CC_GetBalanceRatioGreen(IN void* handle, IN OUT MVCC_INTVALUE* pstValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_SetBalanceRatioGreen(IN void* handle, IN const unsigned int nValue);
@@ -1493,8 +1452,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_GetBalanceRatioGreen(
  *          const unsigned int nValue   [IN]        White balance green to set
  *  @return Success, return MV_OK, and the camera white balance green will change to the corresponding value. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_SetBalanceRatioGreen(
-  IN void * handle, IN const unsigned int nValue);
+MV_CAMCTRL_API int __stdcall MV_CC_SetBalanceRatioGreen(IN void* handle, IN const unsigned int nValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_GetBalanceRatioBlue(IN void* handle, IN OUT MVCC_INTVALUE* pstValue);
@@ -1513,8 +1471,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_SetBalanceRatioGreen(
  *  
  *          Refer to MV_CC_GetWidth
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_GetBalanceRatioBlue(
-  IN void * handle, IN OUT MVCC_INTVALUE * pstValue);
+MV_CAMCTRL_API int __stdcall MV_CC_GetBalanceRatioBlue(IN void* handle, IN OUT MVCC_INTVALUE* pstValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_SetBalanceRatioBlue(IN void* handle, IN const unsigned int nValue);
@@ -1529,8 +1486,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_GetBalanceRatioBlue(
  *          const unsigned int nValue   [IN]        White balance blue to set
  *  @return Success, return MV_OK, and the camera white balance blue will change to the corresponding value. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_SetBalanceRatioBlue(
-  IN void * handle, IN const unsigned int nValue);
+MV_CAMCTRL_API int __stdcall MV_CC_SetBalanceRatioBlue(IN void* handle, IN const unsigned int nValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_GetFrameSpecInfoAbility(IN void* handle, IN OUT MVCC_INTVALUE* pstValue);
@@ -1549,8 +1505,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_SetBalanceRatioBlue(
  *  
  *          Refer to MV_CC_GetWidth
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_GetFrameSpecInfoAbility(
-  IN void * handle, IN OUT MVCC_INTVALUE * pstValue);
+MV_CAMCTRL_API int __stdcall MV_CC_GetFrameSpecInfoAbility(IN void* handle, IN OUT MVCC_INTVALUE* pstValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_SetFrameSpecInfoAbility(IN void* handle, IN const unsigned int nValue);
@@ -1565,8 +1520,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_GetFrameSpecInfoAbility(
  *          const unsigned int nValue   [IN]        Information type included by frame stamp to set
  *  @return Success, return MV_OK, and the camera information type included by frame stamp will change to the corresponding value. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_SetFrameSpecInfoAbility(
-  IN void * handle, IN const unsigned int nValue);
+MV_CAMCTRL_API int __stdcall MV_CC_SetFrameSpecInfoAbility(IN void* handle, IN const unsigned int nValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_GetDeviceUserID(IN void* handle, IN OUT MVCC_STRINGVALUE* pstValue);
@@ -1581,8 +1535,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_SetFrameSpecInfoAbility(
  *          MVCC_STRINGVALUE* pstValue  [IN OUT]    Structure pointer of device name
  *  @return Success, return MV_OK, and get the camera user defined name. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_GetDeviceUserID(
-  IN void * handle, IN OUT MVCC_STRINGVALUE * pstValue);
+MV_CAMCTRL_API int __stdcall MV_CC_GetDeviceUserID(IN void* handle, IN OUT MVCC_STRINGVALUE* pstValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_SetDeviceUserID(IN void* handle, IN const char* chValue);
@@ -1597,7 +1550,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_GetDeviceUserID(
  *          IN const char* chValue      [IN]        Device name
  *  @return Success, return MV_OK, and set the camera user defined name. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_SetDeviceUserID(IN void * handle, IN const char * chValue);
+MV_CAMCTRL_API int __stdcall MV_CC_SetDeviceUserID(IN void* handle, IN const char* chValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_GetBurstFrameCount(IN void* handle, IN OUT MVCC_INTVALUE* pstValue);
@@ -1616,8 +1569,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_SetDeviceUserID(IN void * handle, IN const ch
  *  
  *          Refer to MV_CC_GetWidth
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_GetBurstFrameCount(
-  IN void * handle, IN OUT MVCC_INTVALUE * pstValue);
+MV_CAMCTRL_API int __stdcall MV_CC_GetBurstFrameCount(IN void* handle, IN OUT MVCC_INTVALUE* pstValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_SetBurstFrameCount(IN void* handle, IN const unsigned int nValue);
@@ -1632,8 +1584,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_GetBurstFrameCount(
  *          const unsigned int nValue   [IN]        Frame number trigger by once to set
  *  @return Success, return MV_OK, and the camera frame number trigger by once will change to the corresponding value. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_SetBurstFrameCount(
-  IN void * handle, IN const unsigned int nValue);
+MV_CAMCTRL_API int __stdcall MV_CC_SetBurstFrameCount(IN void* handle, IN const unsigned int nValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_GetAcquisitionLineRate(IN void* handle, IN OUT MVCC_INTVALUE* pstValue);
@@ -1652,8 +1603,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_SetBurstFrameCount(
  *  
  *          Refer to MV_CC_GetWidth
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_GetAcquisitionLineRate(
-  IN void * handle, IN OUT MVCC_INTVALUE * pstValue);
+MV_CAMCTRL_API int __stdcall MV_CC_GetAcquisitionLineRate(IN void* handle, IN OUT MVCC_INTVALUE* pstValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_SetAcquisitionLineRate(IN void* handle, IN const unsigned int nValue);
@@ -1668,8 +1618,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_GetAcquisitionLineRate(
  *          const unsigned int nValue   [IN]        Line rate to set
  *  @return Success, return MV_OK, and the camera line rate will change to the corresponding value. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_SetAcquisitionLineRate(
-  IN void * handle, IN const unsigned int nValue);
+MV_CAMCTRL_API int __stdcall MV_CC_SetAcquisitionLineRate(IN void* handle, IN const unsigned int nValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_GetHeartBeatTimeout(IN void* handle, IN OUT MVCC_INTVALUE* pstValue);
@@ -1688,8 +1637,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_SetAcquisitionLineRate(
  *  
  *          Refer to MV_CC_GetWidth
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_GetHeartBeatTimeout(
-  IN void * handle, IN OUT MVCC_INTVALUE * pstValue);
+MV_CAMCTRL_API int __stdcall MV_CC_GetHeartBeatTimeout(IN void* handle, IN OUT MVCC_INTVALUE* pstValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_CC_SetHeartBeatTimeout(IN void* handle, IN const unsigned int nValue);
@@ -1704,8 +1652,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_GetHeartBeatTimeout(
  *          const unsigned int nValue   [IN]        Heartbeat information to set
  *  @return Success, return MV_OK, and the camera heartbeat information will change to the corresponding value. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_SetHeartBeatTimeout(
-  IN void * handle, IN const unsigned int nValue);
+MV_CAMCTRL_API int __stdcall MV_CC_SetHeartBeatTimeout(IN void* handle, IN const unsigned int nValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_GIGE_GetGevSCPSPacketSize(IN void* handle, IN OUT MVCC_INTVALUE* pstValue);
@@ -1724,8 +1671,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_SetHeartBeatTimeout(
  *  
  *          Refer to MV_CC_GetWidth
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_GIGE_GetGevSCPSPacketSize(
-  IN void * handle, IN OUT MVCC_INTVALUE * pstValue);
+MV_CAMCTRL_API int __stdcall MV_GIGE_GetGevSCPSPacketSize(IN void* handle, IN OUT MVCC_INTVALUE* pstValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_GIGE_SetGevSCPSPacketSize(IN void* handle, IN const unsigned int nValue);
@@ -1740,8 +1686,7 @@ MV_CAMCTRL_API int __stdcall MV_GIGE_GetGevSCPSPacketSize(
  *          const unsigned int nValue   [IN]        Packet size to set
  *  @return Success, return MV_OK, and change packet size to setting value. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_GIGE_SetGevSCPSPacketSize(
-  IN void * handle, IN const unsigned int nValue);
+MV_CAMCTRL_API int __stdcall MV_GIGE_SetGevSCPSPacketSize(IN void* handle, IN const unsigned int nValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_GIGE_GetGevSCPD(IN void* handle, IN OUT MVCC_INTVALUE* pstValue);
@@ -1760,7 +1705,7 @@ MV_CAMCTRL_API int __stdcall MV_GIGE_SetGevSCPSPacketSize(
  *  
  *          Refer to MV_CC_GetWidth
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_GIGE_GetGevSCPD(IN void * handle, IN OUT MVCC_INTVALUE * pstValue);
+MV_CAMCTRL_API int __stdcall MV_GIGE_GetGevSCPD(IN void* handle, IN OUT MVCC_INTVALUE* pstValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_GIGE_SetGevSCPD(IN void* handle, IN const unsigned int nValue);
@@ -1775,7 +1720,7 @@ MV_CAMCTRL_API int __stdcall MV_GIGE_GetGevSCPD(IN void * handle, IN OUT MVCC_IN
  *          const unsigned int nValue   [IN]        Packet delay to set
  *  @return Success, return MV_OK, and change packet delay to setting value. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_GIGE_SetGevSCPD(IN void * handle, IN const unsigned int nValue);
+MV_CAMCTRL_API int __stdcall MV_GIGE_SetGevSCPD(IN void* handle, IN const unsigned int nValue);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_GIGE_GetGevSCDA(IN void* handle, unsigned int* pnIP);
@@ -1790,7 +1735,7 @@ MV_CAMCTRL_API int __stdcall MV_GIGE_SetGevSCPD(IN void * handle, IN const unsig
  *  @param  unsigned int* pnIP          [IN][OUT]   Receiver IP address
  *  @return Success, return MV_OK. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_GIGE_GetGevSCDA(IN void * handle, unsigned int * pnIP);
+MV_CAMCTRL_API int __stdcall MV_GIGE_GetGevSCDA(IN void* handle, unsigned int* pnIP);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_GIGE_SetGevSCDA(IN void* handle, unsigned int nIP);
@@ -1805,7 +1750,7 @@ MV_CAMCTRL_API int __stdcall MV_GIGE_GetGevSCDA(IN void * handle, unsigned int *
  *          unsigned int nIP            [IN]        Receiver IP address to set
  *  @return Success, return MV_OK, and change receiver IP address to setting value. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_GIGE_SetGevSCDA(IN void * handle, unsigned int nIP);
+MV_CAMCTRL_API int __stdcall MV_GIGE_SetGevSCDA(IN void* handle, unsigned int nIP);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_GIGE_GetGevSCSP(IN void* handle, unsigned int* pnPort);
@@ -1820,7 +1765,7 @@ MV_CAMCTRL_API int __stdcall MV_GIGE_SetGevSCDA(IN void * handle, unsigned int n
  *  @param  unsigned int* pnPort        [IN][OUT]   Transmitter port number
  *  @return Success, return MV_OK. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_GIGE_GetGevSCSP(IN void * handle, unsigned int * pnPort);
+MV_CAMCTRL_API int __stdcall MV_GIGE_GetGevSCSP(IN void* handle, unsigned int* pnPort);
 
 /************************************************************************
  *  @fn     MV_CAMCTRL_API int __stdcall MV_GIGE_SetGevSCSP(IN void* handle, unsigned int nPort);
@@ -1835,9 +1780,9 @@ MV_CAMCTRL_API int __stdcall MV_GIGE_GetGevSCSP(IN void * handle, unsigned int *
  *          unsigned int nPort          [IN]        Transmitter port number to set
  *  @return Success, return MV_OK, and change transmitter port number to setting value. Failure, return error code
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_GIGE_SetGevSCSP(IN void * handle, unsigned int nPort);
+MV_CAMCTRL_API int __stdcall MV_GIGE_SetGevSCSP(IN void* handle, unsigned int nPort);
 
-/********************************************************************/ /**
+/********************************************************************//**
  *  @~chinese
  *  @brief  设置设备波特率
  *  @param  handle                      [IN]            设备句柄
@@ -1852,9 +1797,9 @@ MV_CAMCTRL_API int __stdcall MV_GIGE_SetGevSCSP(IN void * handle, unsigned int n
  *  @return Success, return MV_OK. Failure, return error code 
  *  @remarks (This interface is abandoned, it is recommended to use the MV_CAML_SetDeviceBaudrate)
 ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CAML_SetDeviceBauderate(IN void * handle, unsigned int nBaudrate);
+MV_CAMCTRL_API int __stdcall MV_CAML_SetDeviceBauderate(IN void* handle, unsigned int nBaudrate);
 
-/********************************************************************/ /**
+/********************************************************************//**
  *  @~chinese
  *  @brief  获取设备波特率
  *  @param  handle                      [IN]            设备句柄
@@ -1869,10 +1814,9 @@ MV_CAMCTRL_API int __stdcall MV_CAML_SetDeviceBauderate(IN void * handle, unsign
  *  @return Success, return MV_OK. Failure, return error code 
  *  @remarks (This interface is abandoned, it is recommended to use the MV_CAML_GetDeviceBaudrate)
 ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CAML_GetDeviceBauderate(
-  IN void * handle, unsigned int * pnCurrentBaudrate);
+MV_CAMCTRL_API int __stdcall MV_CAML_GetDeviceBauderate(IN void* handle,unsigned int* pnCurrentBaudrate);
 
-/********************************************************************/ /**
+/********************************************************************//**
  *  @~chinese
  *  @brief  获取设备与主机间连接支持的波特率
  *  @param  handle                      [IN]            设备句柄
@@ -1887,10 +1831,26 @@ MV_CAMCTRL_API int __stdcall MV_CAML_GetDeviceBauderate(
  *  @return Success, return MV_OK. Failure, return error code 
  *  @remarks (This interface is abandoned, it is recommended to use the MV_CAML_GetSupportBaudrates)
 ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CAML_GetSupportBauderates(
-  IN void * handle, unsigned int * pnBaudrateAblity);
+MV_CAMCTRL_API int __stdcall MV_CAML_GetSupportBauderates(IN void* handle,unsigned int* pnBaudrateAblity);
 
-/********************************************************************/ /**
+/********************************************************************//**
+*  @~chinese
+*  @brief  注册流异常消息回调，在打开设备之后调用（只支持U3V相机，不支持GenTL设备）
+*  @param  handle                      [IN]            设备句柄
+*  @param  cbException                 [IN]            异常回调函数指针
+*  @param  pUser                       [IN]            用户自定义变量
+*  @return 成功,返回MV_OK,失败,返回错误码
+
+*  @~english
+*  @brief  Register exception stream callBack, call after open device (only support U3V Camera, don't support GenTL Device)
+*  @param  handle                      [IN]            Device handle
+*  @param  cbException                 [IN]            Exception callback function pointer
+*  @param  pUser                       [IN]            User defined variable
+*  @return Success, return MV_OK. Failure, return error code
+************************************************************************/
+MV_CAMCTRL_API int __stdcall MV_USB_RegisterStreamExceptionCallBack(IN void* handle, IN void(__stdcall* cbException)(MV_CC_STREAM_EXCEPTION_TYPE enExceptionType, void* pUser), IN void* pUser);
+
+/********************************************************************//**
  *  @~chinese
  *  @brief  保存图片，支持Bmp和Jpeg.
  *  @param  handle                      [IN]            设备句柄
@@ -1909,10 +1869,10 @@ MV_CAMCTRL_API int __stdcall MV_CAML_GetSupportBauderates(
              You can also call MV_CC_GetOneFrameTimeout or MV_CC_RegisterImageCallBackEx or MV_CC_GetImageBuffer to get one image frame and set the callback function, and then call this API to convert the format.
              Comparing with the API MV_CC_SaveImageEx, this API added the parameter handle to ensure the unity with other API. 
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_SaveImageEx2(
-  IN void * handle, MV_SAVE_IMAGE_PARAM_EX * pstSaveParam);
+MV_CAMCTRL_API int __stdcall MV_CC_SaveImageEx2(IN void* handle, MV_SAVE_IMAGE_PARAM_EX* pstSaveParam);
 
-/********************************************************************/ /**
+
+/********************************************************************//**
  *  @~chinese
  *  @brief  保存图像到文件
  *  @param  handle                      [IN]            设备句柄
@@ -1927,10 +1887,10 @@ MV_CAMCTRL_API int __stdcall MV_CC_SaveImageEx2(
  *  @return Success, return MV_OK. Failure, return error code
  *  @remarks This API support BMP/JPEG/PNG/TIFF.
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_SaveImageToFile(
-  IN void * handle, MV_SAVE_IMG_TO_FILE_PARAM * pstSaveFileParam);
+MV_CAMCTRL_API int __stdcall MV_CC_SaveImageToFile(IN void* handle, MV_SAVE_IMG_TO_FILE_PARAM* pstSaveFileParam);
 
-/********************************************************************/ /**
+
+/********************************************************************//**
  *  @~chinese
  *  @brief  像素格式转换
  *  @param  handle                      [IN]            设备句柄
@@ -1950,11 +1910,239 @@ MV_CAMCTRL_API int __stdcall MV_CC_SaveImageToFile(
              First call MV_CC_GetOneFrameTimeout or MV_CC_RegisterImageCallBackEx to set callback function, and get a frame of image data,
              then call this API to transform the format.
  ************************************************************************/
-MV_CAMCTRL_API int __stdcall MV_CC_ConvertPixelType(
-  IN void * handle, IN OUT MV_CC_PIXEL_CONVERT_PARAM * pstCvtParam);
+MV_CAMCTRL_API int __stdcall MV_CC_ConvertPixelType(IN void* handle, IN OUT MV_CC_PIXEL_CONVERT_PARAM* pstCvtParam);
+
+/********************************************************************//**
+*  @~chinese
+*  @brief  设置SDK日志路径
+*  @param  strSDKLogPath      [IN]   SDK日志路径
+*  @return 成功，返回MV_OK；错误，返回错误码
+*  @remarks 设置路径之后，可以指定路径存放日志, V2.4.1版本新增日志服务，开启服务之后该接口无效，默认日志服务为开启状态。
+
+*  @~english
+*  @brief  Set SDK log path
+*  @param  strSDKLogPath             [IN]           SDK log path
+*  @return Access, return true. Not access, return false
+*  @remarks For version V2.4.1, added log service, this API is invalid when the service is enabled.And The logging service is enabled by default
+            This API is used to set the log file storing path.
+************************************************************************/
+MV_CAMCTRL_API int __stdcall MV_CC_SetSDKLogPath(IN const char * strSDKLogPath);
+
+/********************************************************************//**
+ *  @~chinese
+ *  @brief  显示一帧图像
+ *  @param  handle                      [IN]            设备句柄
+ *  @param  pstDisplayInfo              [IN]            图像信息
+ *  @return 成功，返回MV_OK；错误，返回错误码 
+ *  @remarks 与设备类型无关，渲染模式为D3D时，支持的最大分辨率为16384 * 163840
+
+ *  @~english
+ *  @brief  Display one frame image
+ *  @param  handle                      [IN]            Device handle
+ *  @param  pstDisplayInfo              [IN]            Frame Info
+ *  @return Success, return MV_OK. Failure, return error code
+ *  @remarks Not related to device type，When the render mode is D3D, the maximum resolution supported is 16384 * 163840
+ ***********************************************************************/
+MV_CAMCTRL_API int __stdcall MV_CC_DisplayOneFrame(IN void* handle, IN MV_DISPLAY_FRAME_INFO* pstDisplayInfo);
+
+/********************************************************************//**
+ *  @~chinese
+ *  @brief  获取支持的传输层
+ *  @return 支持的传输层编号 
+ *  @remarks 返回是设备的传输层，比如（ MV_GIGE_DEVICE | MV_USB_DEVICE |MV_GENTL_XOF_DEVICE 等），不包含采集卡的类型
+
+ *  @~english
+ *  @brief  Get supported Transport Layer
+ *  @return Supported Transport Layer number
+ *  @remarks The return is the transport layer of the device, such as (MV_GIGE-DEVICE | MV_USBDEVICE | MV_GENTL-XOF-DEVICE, etc.), excluding the type of Frame grabber
+ ************************************************************************/
+MV_CAMCTRL_API int __stdcall MV_CC_EnumerateTls();
+
+/********************************************************************//**
+ *  @~chinese
+ *  @brief  创建设备句柄，不生成日志
+ *  @param  handle                      [IN][OUT]       设备句柄
+ *  @param  pstDevInfo                  [IN]            设备信息结构体
+ *  @return 成功，返回MV_OK；错误，返回错误码 
+ *  @remarks 根据输入的设备信息，创建库内部必须的资源和初始化内部模块
+             通过该接口创建句柄，调用SDK接口，不会默认生成SDK日志文件，如果需要生成日志文件可以通过MV_CC_CreateHandle创建句柄，日志文件自动生成
+ 
+ *  @~english
+ *  @brief  Create Device Handle without log
+ *  @param  handle                      [IN][OUT]       Device handle
+ *  @param  pstDevInfo                  [IN]            Device Information Structure
+ *  @return Success, return MV_OK. Failure, return error code
+ *  @remarks Create required resources within library and initialize internal module according to input device information.
+             Create handle and call SDK interface through this interface, and SDK log file will not be created. To create logs,
+             create handle through MV_CC_CreateHandle, and log files will be automatically generated.
+ ************************************************************************/
+MV_CAMCTRL_API int __stdcall MV_CC_CreateHandleWithoutLog(IN OUT void ** handle, IN const MV_CC_DEVICE_INFO* pstDevInfo);
+
+/********************************************************************//**
+ *  @~chinese
+ *  @brief  注册图像数据回调，RGB
+ *  @param  handle                      [IN]            设备句柄
+ *  @param  cbOutput                    [IN]            回调函数指针
+ *  @param  pUser                       [IN]            用户自定义变量
+ *  @return 成功，返回MV_OK；错误，返回错误码
+ *  @remarks 通过该接口可以设置图像数据回调函数，在MV_CC_CreateHandle之后即可调用。图像数据采集有两种方式，两种方式不能复用：
+             方式一：调用MV_CC_RegisterImageCallBackForRGB设置RGB24格式图像数据回调函数，然后调用MV_CC_StartGrabbing开始采集，采集的图像数据在设置的回调函数中返回。
+             方式二：调用MV_CC_StartGrabbing开始采集，然后在应用层循环调用MV_CC_GetImageForRGB获取RGB24格式的帧数据,
+                      获取帧数据时上层应用程序需要根据帧率控制好调用该接口的频率。
+             该接口不支持MV_CAMERALINK_DEVICE 类型的设备。  
+ 
+ *  @~english
+ *  @brief  register image data callback, RGB
+ *  @param  handle                      [IN]            Device handle
+ *  @param  cbOutput                    [IN]            Callback function pointer
+ *  @param  pUser                       [IN]            User defined variable
+ *  @return Success, return MV_OK. Failure, return error code
+ *  @remarks Before calling this API to set image data callback function, you should call this API MV_CC_CreateHandle.There are two image acquisition modes, the two modes cannot be reused:
+             Mode 1: Call MV_CC_RegisterImageCallBackForRGB to set RGB24 format image data callback function, and then call MV_CC_StartGrabbing to start acquisition, the collected image data will be returned in the configured callback function.
+             Mode 2: Call MV_CC_StartGrabbing to start acquisition, and the call MV_CC_GetImageForRGB repeatedly in application layer to get frame data with RGB24 format.
+                     When getting frame data, the upper application program should control the frequency of calling this API according to frame rate.
+             This interface does not support devices of type MV_CAMERALINK_DEVICE
+ ***********************************************************************/
+MV_CAMCTRL_API int __stdcall MV_CC_RegisterImageCallBackForRGB(IN void* handle, 
+                                                         IN void(__stdcall* cbOutput)(unsigned char * pData, MV_FRAME_OUT_INFO_EX* pFrameInfo, void* pUser), IN void* pUser);
+
+/********************************************************************//**
+ *  @~chinese
+ *  @brief  注册图像数据回调，BGR
+ *  @param  handle                      [IN]            设备句柄
+ *  @param  cbOutput                    [IN]            回调函数指针
+ *  @param  pUser                       [IN]            用户自定义变量
+ *  @return 成功，返回MV_OK；错误，返回错误码
+ *  @remarks 通过该接口可以设置图像数据回调函数，在MV_CC_CreateHandle之后即可调用。图像数据采集有两种方式，两种方式不能复用:
+             方式一：调用MV_CC_RegisterImageCallBackForBGR设置BGR24图像数据回调函数，然后调用MV_CC_StartGrabbing开始采集，采集的图像数据在设置的回调函数中返回。
+             方式二：调用MV_CC_StartGrabbing开始采集，然后在应用层循环调用MV_CC_GetImageForBGR获取BGR24格式的帧数据,
+                      获取帧数据时上层应用程序需要根据帧率控制好调用该接口的频率。
+             该接口不支持MV_CAMERALINK_DEVICE 类型的设备。 
+ 
+ *  @~english
+ *  @brief  register image data callback, BGR
+ *  @param  handle                      [IN]            Device handle
+ *  @param  cbOutput                    [IN]            Callback function pointer
+ *  @param  pUser                       [IN]            User defined variable
+ *  @return Success, return MV_OK. Failure, return error code
+ *  @remarks Before calling this API to set image data callback function, you should call this API MV_CC_CreateHandle.There are two image acquisition modes, the two modes cannot be reused:
+             Mode 1: Call MV_CC_RegisterImageCallBackForBGR to set RGB24 format image data callback function, and then call MV_CC_StartGrabbing to start acquisition, the collected image data will be returned in the configured callback function.
+             Mode 2: Call MV_CC_StartGrabbing to start acquisition, and the call MV_CC_GetImageForBGR repeatedly in application layer to get frame data with BGR24 format.
+                     When getting frame data,the upper application program should control the frequency of calling this API according to frame rate.
+            This interface does not support devices of type MV_CAMERALINK_DEVICE
+ ***********************************************************************/
+MV_CAMCTRL_API int __stdcall MV_CC_RegisterImageCallBackForBGR(IN void* handle, 
+                                                         IN void(__stdcall* cbOutput)(unsigned char * pData, MV_FRAME_OUT_INFO_EX* pFrameInfo, void* pUser), IN void* pUser);
+
+/********************************************************************//**
+ *  @~chinese
+ *  @brief  获取一帧RGB数据，此函数为查询式获取，每次调用查询内部
+            缓存有无数据，有数据则获取数据，无数据返回错误码
+ *  @param  handle                      [IN]            设备句柄
+ *  @param  pData                       [IN][OUT]       图像数据接收指针
+ *  @param  nDataSize                   [IN]            接收缓存大小
+ *  @param  pstFrameInfo                [IN][OUT]       图像信息结构体
+ *  @param  nMsec                       [IN]            等待超时时间
+ *  @return 成功，返回MV_OK；错误，返回错误码
+ *  @remarks 每次调用该接口，将查询内部缓存是否有数据，如果有数据则转换成RGB24格式返回，如果没有数据则返回错误码。
+             因为图像转换成RGB24格式有耗时，所以当数据帧率过高时该接口可能会导致丢帧。调用该接口获取图像数据帧之前需要先调用MV_CC_StartGrabbing启动图像采集。
+             该接口为主动式获取帧数据，上层应用程序需要根据帧率，控制好调用该接口的频率。
+             该接口不支持MV_CAMERALINK_DEVICE设备。
+ 
+ *  @~english
+ *  @brief  Get one frame of RGB data, this function is using query to get data
+            query whether the internal cache has data, get data if there has, return error code if no data
+ *  @param  handle                      [IN]            Device handle
+ *  @param  pData                       [IN][OUT]       Image data receiving buffer
+ *  @param  nDataSize                   [IN]            Buffer size
+ *  @param  pstFrameInfo                [IN][OUT]       Image information structure
+ *  @param  nMsec                       [IN]            Waiting timeout
+ *  @return Success, return MV_OK. Failure, return error code
+ *  @remarks Each time the API is called, the internal cache is checked for data. If there is data, it will be transformed as RGB24 format for return, if there is no data, return error code. 
+             As time-consuming exists when transform the image to RGB24 format,this API may cause frame loss when the data frame rate is too high.
+             Before calling this API to get image data frame, call MV_CC_StartGrabbing to start image acquisition.
+             This API can get frame data actively, the upper layer program should control the frequency of calling this API according to the frame rate.
+             This API is not supported by MV_CAMERALINK_DEVICE device.
+ ***********************************************************************/
+MV_CAMCTRL_API int __stdcall MV_CC_GetImageForRGB(IN void* handle, IN OUT unsigned char * pData , IN unsigned int nDataSize, IN OUT MV_FRAME_OUT_INFO_EX* pstFrameInfo, IN int nMsec);
+
+/********************************************************************//**
+ *  @~chinese
+ *  @brief  获取一帧BGR数据，此函数为查询式获取，每次调用查询内部
+            缓存有无数据，有数据则获取数据，无数据返回错误码
+ *  @param  handle                      [IN]            设备句柄
+ *  @param  pData                       [IN][OUT]       图像数据接收指针
+ *  @param  nDataSize                   [IN]            接收缓存大小
+ *  @param  pstFrameInfo                [IN][OUT]       图像信息结构体
+ *  @param  nMsec                       [IN]            等待超时时间
+ *  @return 成功，返回MV_OK；错误，返回错误码
+ *  @remarks 每次调用该接口，将查询内部缓存是否有数据，如果有数据则转换成BGR24格式返回，如果没有数据则返回错误码。
+             因为图像转换成BGR24格式有耗时，所以当数据帧率过高时该接口可能会导致丢帧.调用该接口获取图像数据帧之前需要先调用MV_CC_StartGrabbing启动图像采集。
+             该接口为主动式获取帧数据，上层应用程序需要根据帧率，控制好调用该接口的频率。
+             该接口不支持CameraLink设备。
+ 
+ *  @~english
+ *  @brief  Get one frame of BGR data, this function is using query to get data
+            query whether the internal cache has data, get data if there has, return error code if no data
+ *  @param  handle                      [IN]            Device handle
+ *  @param  pData                       [IN][OUT]       Image data receiving buffer
+ *  @param  nDataSize                   [IN]            Buffer size
+ *  @param  pstFrameInfo                [IN][OUT]       Image information structure
+ *  @param  nMsec                       [IN]            Waiting timeout
+ *  @return Success, return MV_OK. Failure, return error code
+ *  @remarks Before calling this API to set image data callback function, you should call this API MV_CC_CreateHandle.
+             There are two image acquisition modes, the two modes cannot be reused: 
+             Mode 1: Call MV_CC_RegisterImageCallBackForBGR to set RGB24 format image data callback function, and then call MV_CC_StartGrabbing to start acquisition, the collected image data will be returned in the configured callback function.
+             Mode 2: Call MV_CC_StartGrabbing to start acquisition, and the call MV_CC_GetImageForBGR repeatedly in application layer to get frame data with BGR24 format.
+             When getting frame data, the upper application program should control the frequency of calling this API according to frame rate.
+             This API is not supported by CameraLink device.
+ ***********************************************************************/
+MV_CAMCTRL_API int __stdcall MV_CC_GetImageForBGR(IN void* handle, IN OUT unsigned char * pData , IN unsigned int nDataSize, IN OUT MV_FRAME_OUT_INFO_EX* pstFrameInfo, IN int nMsec);
+
+/********************************************************************//**
+ *  @~chinese
+ *  @brief  打开获取或设置相机参数的GUI界面
+ *  @param  handle                      [IN]            设备句柄
+ *  @return 成功，返回MV_OK，失败，返回错误码。
+ *  @remarks 通过MV_CC_OpenDevice连接设备后，可以通过该接口获取或设置设备参数。
+ *  @remarks 限制：在同一线程中多相机同时调用该接口，只能打开当前一个GUI界面，需要关闭当前相机GUI界面后，才可打开另一个相机的GUI界面（后续版本优化）
+			 该接口仅支持windows平台
+
+ *  @~english
+ *  @brief  Open the GUI interface for getting or setting camera parameters
+ *  @param  handle                      [IN]            Device handle
+ *  @return Success, return MV_OK, Failure, return error code.
+ *  @remarks After connecting to device through MV_CC_OpenDevice, use this interface to get or set device params.
+ *  @remarks Limit: calling this interface multiple times in the same thread can only open one GUI interface. 
+             You need to wait until the previous GUI interface is closed before opening the next GUI interface.(Subsequent version optimization)
+			 This interface only supports windows platform.
+ ************************************************************************/
+MV_CAMCTRL_API int __stdcall MV_CC_OpenParamsGUI(IN void* handle);
+
+/********************************************************************//**
+ *  @~chinese
+ *  @brief  保存3D点云数据，支持PLY、CSV和OBJ三种格式
+ *  @param  handle                      [IN]            设备句柄
+ *  @param  pstPointDataParam           [IN][OUT]       保存点云数据参数结构体
+ *  @return 成功，返回MV_OK；错误，返回错误码 
+ *  @remarks 3D数据格式保存成3D文件格式，支持PLY/CSV/OBJ，
+             目前支持PixelType_Gvsp_Coord3D_ABC32、PixelType_Gvsp_Coord3D_ABC32f、PixelType_Gvsp_Coord3D_AB32、PixelType_Gvsp_Coord3D_AB32f、PixelType_Gvsp_Coord3D_AC32、PixelType_Gvsp_Coord3D_AC32f,
+             暂不支持其他3D格式。
+ 
+ *  @~english
+ *  @brief  Save 3D point data, support PLY、CSV and OBJ
+ *  @param  handle                      [IN]            Device handle
+ *  @param  pstPointDataParam           [IN][OUT]       Save 3D point data parameters structure
+ *  @return Success, return MV_OK. Failure, return error code
+ *  @remarks Save the 3D data format to 3D file format，support PLY、CSV and OBJ,
+             only support PixelType_Gvsp_Coord3D_ABC32、PixelType_Gvsp_Coord3D_ABC32f、PixelType_Gvsp_Coord3D_AB32、PixelType_Gvsp_Coord3D_AB32f、PixelType_Gvsp_Coord3D_AC32、PixelType_Gvsp_Coord3D_AC32f
+             Other 3D format is not supported now.
+ ************************************************************************/
+MV_CAMCTRL_API int __stdcall MV_CC_SavePointCloudData(IN void* handle, IN OUT MV_SAVE_POINT_CLOUD_PARAM* pstPointDataParam);
+
 
 #ifdef __cplusplus
 }
-#endif
+#endif 
 
-#endif  //_MV_OBSOLETE_INTERFACES_H_
+#endif //_MV_OBSOLETE_INTERFACES_H_

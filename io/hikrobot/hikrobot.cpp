@@ -132,16 +132,26 @@ void HikRobot::capture_start()
       // ret = MV_CC_ConvertPixelType(handle_, &cvt_param);
       const auto & frame_info = raw.stFrameInfo;
       auto pixel_type = frame_info.enPixelType;
-      cv::Mat dst_image;
       const static std::unordered_map<MvGvspPixelType, cv::ColorConversionCodes> type_map = {
         {PixelType_Gvsp_BayerGR8, cv::COLOR_BayerGR2RGB},
         {PixelType_Gvsp_BayerRG8, cv::COLOR_BayerRG2RGB},
         {PixelType_Gvsp_BayerGB8, cv::COLOR_BayerGB2RGB},
         {PixelType_Gvsp_BayerBG8, cv::COLOR_BayerBG2RGB}};
-      cv::cvtColor(img, dst_image, type_map.at(pixel_type));
-      img = dst_image;
-
-      queue_.push({img, timestamp});
+      if (pixel_type == PixelType_Gvsp_RGB8_Packed) {
+        // 将img重新解释为三通道图像
+        img = cv::Mat(frame_info.nHeight, frame_info.nWidth, CV_8UC3, raw.pBufAddr);
+        cv::cvtColor(img, img, cv::COLOR_RGB2BGR);
+        queue_.push({img, timestamp});
+      } 
+      // else if (type_map.find(pixel_type) == type_map.end()) {
+      //   tools::logger()->warn("Unsupported pixel type: {:#x}", pixel_type);
+      //   break;
+      // }
+      else {
+        cv::Mat dst_image;
+        cv::cvtColor(img, dst_image, type_map.at(pixel_type));
+        queue_.push({dst_image, timestamp});
+      }
 
       ret = MV_CC_FreeImageBuffer(handle_, &raw);
       if (ret != MV_OK) {
