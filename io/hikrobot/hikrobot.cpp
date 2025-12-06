@@ -8,8 +8,9 @@ using namespace std::chrono_literals;
 
 namespace io
 {
-HikRobot::HikRobot(double exposure_ms, double gain, const std::string & vid_pid)
-: exposure_us_(exposure_ms * 1e3), gain_(gain), queue_(1), daemon_quit_(false), vid_(-1), pid_(-1)
+HikRobot::HikRobot(double exposure_ms, double gain, const std::string & vid_pid, int rotation_angle)
+: exposure_us_(exposure_ms * 1e3), gain_(gain), queue_(1), 
+  daemon_quit_(false), vid_(-1), pid_(-1), rotation_angle_(rotation_angle)
 {
   set_vid_pid(vid_pid);
   if (libusb_init(NULL)) tools::logger()->warn("Unable to init libusb!");
@@ -132,6 +133,7 @@ void HikRobot::capture_start()
       // ret = MV_CC_ConvertPixelType(handle_, &cvt_param);
       const auto & frame_info = raw.stFrameInfo;
       auto pixel_type = frame_info.enPixelType;
+      cv::Mat dst_image;
       const static std::unordered_map<MvGvspPixelType, cv::ColorConversionCodes> type_map = {
         {PixelType_Gvsp_BayerGR8, cv::COLOR_BayerGR2RGB},
         {PixelType_Gvsp_BayerRG8, cv::COLOR_BayerRG2RGB},
@@ -140,18 +142,31 @@ void HikRobot::capture_start()
       if (pixel_type == PixelType_Gvsp_RGB8_Packed) {
         // 将img重新解释为三通道图像
         img = cv::Mat(frame_info.nHeight, frame_info.nWidth, CV_8UC3, raw.pBufAddr);
-        cv::cvtColor(img, img, cv::COLOR_RGB2BGR);
-        queue_.push({img, timestamp});
+        cv::cvtColor(img, dst_image, cv::COLOR_RGB2BGR);
       } 
       // else if (type_map.find(pixel_type) == type_map.end()) {
       //   tools::logger()->warn("Unsupported pixel type: {:#x}", pixel_type);
       //   break;
       // }
       else {
-        cv::Mat dst_image;
         cv::cvtColor(img, dst_image, type_map.at(pixel_type));
-        queue_.push({dst_image, timestamp});
       }
+      // 旋转图像
+      switch (rotation_angle_) {
+        case 90:
+          cv::rotate(dst_image, dst_image, cv::ROTATE_90_CLOCKWISE);
+          break;
+        case 180:
+          cv::rotate(dst_image, dst_image, cv::ROTATE_180);
+          break;
+        case 270:
+          cv::rotate(dst_image, dst_image, cv::ROTATE_90_COUNTERCLOCKWISE);
+          break;
+        default:
+          // 不旋转
+          break;
+      }
+      queue_.push({dst_image, timestamp});
 
       ret = MV_CC_FreeImageBuffer(handle_, &raw);
       if (ret != MV_OK) {
