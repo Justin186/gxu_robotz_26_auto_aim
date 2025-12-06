@@ -86,6 +86,10 @@ void HikRobot::capture_start()
   set_enum_value("BalanceWhiteAuto", MV_BALANCEWHITE_AUTO_CONTINUOUS);
   set_enum_value("ExposureAuto", MV_EXPOSURE_AUTO_MODE_OFF);
   set_enum_value("GainAuto", MV_GAIN_MODE_OFF);
+  if (need_rotation_) {
+    set_bool_value("ReverseX", true);
+    set_bool_value("ReverseY", true);
+  }
   set_float_value("ExposureTime", exposure_us_);
   set_float_value("Gain", gain_);
   MV_CC_SetFrameRate(handle_, 150);
@@ -151,9 +155,6 @@ void HikRobot::capture_start()
       else {
         cv::cvtColor(img, dst_image, type_map.at(pixel_type));
       }
-      // 旋转图像
-      if (need_rotation_)
-          cv::rotate(dst_image, dst_image, cv::ROTATE_180);
       queue_.push({dst_image, timestamp});
 
       ret = MV_CC_FreeImageBuffer(handle_, &raw);
@@ -214,6 +215,18 @@ void HikRobot::set_enum_value(const std::string & name, unsigned int value)
 
   if (ret != MV_OK) {
     tools::logger()->warn("MV_CC_SetEnumValue(\"{}\", {}) failed: {:#x}", name, value, ret);
+    return;
+  }
+}
+
+void HikRobot::set_bool_value(const std::string & name, bool value)
+{
+  unsigned int ret;
+
+  ret = MV_CC_SetBoolValue(handle_, name.c_str(), value);
+
+  if (ret != MV_OK) {
+    tools::logger()->warn("MV_CC_SetBoolValue(\"{}\", {}) failed: {:#x}", name, value, ret);
     return;
   }
 }
