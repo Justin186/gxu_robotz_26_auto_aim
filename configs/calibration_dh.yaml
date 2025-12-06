@@ -1,8 +1,6 @@
-pattern_cols: 10
-pattern_rows: 7
+pattern_cols: 9
+pattern_rows: 6
 square: 40
-
-R_pitchlink2imubody: [1, 0, 0, 0, 1, 0,  0, 0, 1]
 
 camera_name: "hikrobot"
 exposure_ms: 3
@@ -15,5 +13,12 @@ bullet_speed_canid: 0x110
 send_canid: 0xff
 can_interface: "can0"
 
-#  云台dh参数
+#####-----云台dh参数-----#####
+com_port: "/dev/ttyACM0"
+
+# 重投影误差: 0.0558px
+camera_matrix: [2212.953155644831, 0, 709.23110029219231, 0, 2213.4870323367472, 543.4508870986034, 0, 0, 1]
+distort_coeffs: [-0.068105521078041673, 0.046654000615522849, -2.1873922329399632e-05, -0.00052146987953391314, 0]
+
+R_pitchlink2imubody: [-1, 0, 0, 0, -1, 0,  0, 0, 1]
 t_pitchlink2yawlink: [31, 0, 0]  # 单位mm
