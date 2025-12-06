@@ -8,9 +8,9 @@ using namespace std::chrono_literals;
 
 namespace io
 {
-HikRobot::HikRobot(double exposure_ms, double gain, const std::string & vid_pid, int rotation_angle)
+HikRobot::HikRobot(double exposure_ms, double gain, const std::string & vid_pid, bool need_rotation)
 : exposure_us_(exposure_ms * 1e3), gain_(gain), queue_(1), 
-  daemon_quit_(false), vid_(-1), pid_(-1), rotation_angle_(rotation_angle)
+  daemon_quit_(false), vid_(-1), pid_(-1), need_rotation_(need_rotation)
 {
   set_vid_pid(vid_pid);
   if (libusb_init(NULL)) tools::logger()->warn("Unable to init libusb!");
@@ -152,20 +152,8 @@ void HikRobot::capture_start()
         cv::cvtColor(img, dst_image, type_map.at(pixel_type));
       }
       // 旋转图像
-      switch (rotation_angle_) {
-        case 90:
-          cv::rotate(dst_image, dst_image, cv::ROTATE_90_CLOCKWISE);
-          break;
-        case 180:
+      if (need_rotation_)
           cv::rotate(dst_image, dst_image, cv::ROTATE_180);
-          break;
-        case 270:
-          cv::rotate(dst_image, dst_image, cv::ROTATE_90_COUNTERCLOCKWISE);
-          break;
-        default:
-          // 不旋转
-          break;
-      }
       queue_.push({dst_image, timestamp});
 
       ret = MV_CC_FreeImageBuffer(handle_, &raw);

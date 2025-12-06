@@ -16,7 +16,7 @@ namespace io
 class HikRobot : public CameraBase
 {
 public:
-  HikRobot(double exposure_ms, double gain, const std::string & vid_pid, int rotation_angle = 0);
+  HikRobot(double exposure_ms, double gain, const std::string & vid_pid, bool need_rotation);
   ~HikRobot() override;
   void read(cv::Mat & img, std::chrono::steady_clock::time_point & timestamp) override;
 
@@ -30,7 +30,7 @@ private:
   double exposure_us_;
   double gain_;
 
-  int rotation_angle_;  // 0, 90, 180, 270 (顺时针)
+  bool need_rotation_;
 
   std::thread daemon_thread_;
   std::atomic<bool> daemon_quit_;
