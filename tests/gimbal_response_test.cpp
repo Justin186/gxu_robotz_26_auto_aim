@@ -3,8 +3,7 @@
 #include <opencv2/opencv.hpp>
 #include <thread>
 
-#include "io/cboard.hpp"
-#include "io/command.hpp"
+#include "io/gimbal/gimbal.hpp"
 #include "tools/exiter.hpp"
 #include "tools/logger.hpp"
 #include "tools/math_tools.hpp"
@@ -52,7 +51,7 @@ int main(int argc, char * argv[])
   tools::Exiter exiter;
   tools::Plotter plotter;
 
-  io::CBoard cboard(config_path);
+  io::Gimbal gimbal(config_path);
 
   auto init_angle = 0;
   double slice = circle * 100;  //切片数=周期*帧率
@@ -64,12 +63,12 @@ int main(int argc, char * argv[])
   double error = 0;
   int count = 0;
 
-  io::Command init_command{1, 0, 0, 0};
-  cboard.send(init_command);
-  std::this_thread::sleep_for(5s);  //等待云台归零
+  // 让云台归零并等待5s
+  gimbal.send(false, false, 0, 0, 0, 0, 0, 0);
+  std::this_thread::sleep_for(5s);
 
-  io::Command command{0};
-  io::Command last_command{0};
+  double last_cmd_yaw = 0;
+  double last_cmd_pitch = 0;
 
   double t = 0;
   auto last_t = t;
@@ -83,83 +82,98 @@ int main(int argc, char * argv[])
 
     std::this_thread::sleep_for(1ms);
 
-    Eigen::Quaterniond q = cboard.imu_at(timestamp);
-
+    Eigen::Quaterniond q = gimbal.q(timestamp);
     Eigen::Vector3d eulers = tools::eulers(q, 2, 1, 0);
 
+    // 三角波模式
     if (signal_mode == "triangle_wave") {
+      double current_yaw = 0, current_pitch = 0;
+      
       if (count == slice) {
         cmd_angle = init_angle;
-        command = {1, 0, 0, 0};
-        if (axis_index == 0)
-          command.yaw = cmd_angle / 57.3;
-        else
-          command.pitch = cmd_angle / 57.3;
+        // 重置到初始位置
+        if (axis_index == 0) {
+          current_yaw = cmd_angle / 57.3;
+          last_cmd_yaw = current_yaw * 57.3;
+        } else {
+          current_pitch = cmd_angle / 57.3;
+          last_cmd_pitch = current_pitch * 57.3;
+        }
         count = 0;
-
       } else {
         cmd_angle += dangle;
-        if (axis_index == 0)
-          command.yaw = cmd_angle / 57.3;
-        else
-          command.pitch = cmd_angle / 57.3;
+        if (axis_index == 0) {
+          current_yaw = cmd_angle / 57.3;
+          last_cmd_yaw = current_yaw * 57.3;
+        } else {
+          current_pitch = cmd_angle / 57.3;
+          last_cmd_pitch = current_pitch * 57.3;
+        }
         count++;
       }
 
-      cboard.send(command);
+      // 发送云台控制命令
+      gimbal.send(true, false, current_yaw, 0, 0, current_pitch, 0, 0);
+      
+      // 记录数据
       if (axis_index == 0) {
-        data["cmd_yaw"] = command.yaw * 57.3;
-        data["last_cmd_yaw"] = last_command.yaw * 57.3;
+        data["cmd_yaw"] = current_yaw * 57.3;
+        data["last_cmd_yaw"] = last_cmd_yaw;
         data["gimbal_yaw"] = eulers[0] * 57.3;
       } else {
-        data["cmd_pitch"] = command.pitch * 57.3;
-        data["last_cmd_pitch"] = last_command.pitch * 57.3;
+        data["cmd_pitch"] = current_pitch * 57.3;
+        data["last_cmd_pitch"] = last_cmd_pitch;
         data["gimbal_pitch"] = eulers[1] * 57.3;
       }
       data["t"] = tools::delta_time(std::chrono::steady_clock::now(), t0);
-      last_command = command;
       plotter.plot(data);
-      std::this_thread::sleep_for(8ms);  //模拟自瞄100fps
+      std::this_thread::sleep_for(8ms);  // 模拟自瞄100fps
     }
 
+    // 阶跃信号模式
     else if (signal_mode == "step") {
       if (count == 300) {
         cmd_angle += delta_angle;
         count = 0;
       }
-      command = {1, 0, tools::limit_rad(cmd_angle / 57.3), 0};
+      
+      double current_yaw = tools::limit_rad(cmd_angle / 57.3);
+      gimbal.send(true, false, current_yaw, 0, 0, 0, 0, 0);
       count++;
 
-      cboard.send(command);
-      data["cmd_yaw"] = command.yaw * 57.3;
-      data["last_cmd_yaw"] = last_command.yaw * 57.3;
+      data["cmd_yaw"] = current_yaw * 57.3;
+      data["last_cmd_yaw"] = last_cmd_yaw;
       data["gimbal_yaw"] = eulers[0] * 57.3;
-      last_command = command;
+      last_cmd_yaw = current_yaw * 57.3;
       plotter.plot(data);
-      std::this_thread::sleep_for(8ms);  //模拟自瞄100fps
+      std::this_thread::sleep_for(8ms);  // 模拟自瞄100fps
     }
 
+    // 圆形轨迹模式
     else if (signal_mode == "circle") {
       std::cout << "t: " << t << std::endl;
-      command.yaw = yaw_cal(t) / 57.3;
-      command.pitch = pitch_cal(t) / 57.3;
-      command.control = 1;
-      command.shoot = 0;
+      double yaw = yaw_cal(t) / 57.3;
+      double pitch = pitch_cal(t) / 57.3;
+      
+      gimbal.send(true, false, yaw, 0, 0, pitch, 0, 0);
       t += dt;
+      
       if (t - last_t > 2) {
         t += 2.4;
         last_t = t;
       }
-      cboard.send(command);
 
       data["t"] = t;
-      data["cmd_yaw"] = command.yaw * 57.3;
-      data["cmd_pitch"] = command.pitch * 57.3;
+      data["cmd_yaw"] = yaw * 57.3;
+      data["cmd_pitch"] = pitch * 57.3;
       data["gimbal_yaw"] = eulers[0] * 57.3;
       data["gimbal_pitch"] = eulers[1] * 57.3;
       plotter.plot(data);
       std::this_thread::sleep_for(9ms);
     }
   }
+  
+  // 程序退出前发送停止命令
+  gimbal.send(false, false, 0, 0, 0, 0, 0, 0);
   return 0;
 }
