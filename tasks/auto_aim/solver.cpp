@@ -77,7 +77,7 @@ void Solver::solve(Armor & armor) const
   armor.ypr_in_world = tools::eulers(R_armor2world, 2, 1, 0);
 
   armor.ypd_in_world = tools::xyz2ypd(armor.xyz_in_world);
-
+  
   // 平衡不做yaw优化，因为pitch假设不成立
   auto is_balance = (armor.type == ArmorType::big) &&
                     (armor.name == ArmorName::three || armor.name == ArmorName::four ||
@@ -109,6 +109,12 @@ std::vector<cv::Point2f> Solver::reproject_armor(
   const Eigen::Vector3d & t_armor2world = xyz_in_world;
   Eigen::Matrix3d R_armor2camera =
     R_camera2gimbal_.transpose() * R_gimbal2world_.transpose() * R_armor2world;
+
+  // t_armor2world = R_gimbal2world_ * t_armor2gimbal + t_gimbal2world = R_gimbal2world_ * t_armor2gimbal
+  // => t_armor2gimbal = R_gimbal2world_.transpose() * t_armor2world
+  // t_armor2gimbal = R_camera2gimbal_ * t_armor2camera + t_camera2gimbal_
+  // => t_armor2camera = R_camera2gimbal_.transpose() * (t_armor2gimbal - t_camera2gimbal_)
+  // = R_camera2gimbal_.transpose() * (R_gimbal2world_.transpose() * t_armor2world - t_camera2gimbal_)  
   Eigen::Vector3d t_armor2camera =
     R_camera2gimbal_.transpose() * (R_gimbal2world_.transpose() * t_armor2world - t_camera2gimbal_);
 
@@ -125,6 +131,8 @@ std::vector<cv::Point2f> Solver::reproject_armor(
   cv::projectPoints(object_points, rvec, tvec, camera_matrix_, distort_coeffs_, image_points);
   return image_points;
 }
+
+
 
 double Solver::oupost_reprojection_error(Armor armor, const double & pitch)
 {
