@@ -106,6 +106,9 @@ target_link_libraries(minimum_vision_system ${OpenCV_LIBS} fmt::fmt yaml-cpp too
 add_executable(gimbal_test tests/gimbal_test.cpp)
 target_link_libraries(gimbal_test ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim tools io)
 
+add_executable(xrobot_imu_test tests/xrobot_imu_test.cpp)
+target_link_libraries(xrobot_imu_test ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim tools io)
+
 add_executable(planner_test tests/planner_test.cpp)
 target_link_libraries(planner_test ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim tools io)
 
