@@ -120,6 +120,7 @@ find_package(ament_cmake QUIET)
 find_package(rclcpp QUIET)
 find_package(std_msgs QUIET)
 find_package(rosidl_typesupport_cpp QUIET)
+set(sp_msgs_DIR ${CMAKE_SOURCE_DIR}/sp_msgs/share/sp_msgs/cmake)
 find_package(sp_msgs QUIET)
 # 只有在找到 ROS 环境时才会添加 sentry 和 publish_test
 if(ament_cmake_FOUND AND rclcpp_FOUND AND std_msgs_FOUND AND rosidl_typesupport_cpp_FOUND AND sp_msgs_FOUND)

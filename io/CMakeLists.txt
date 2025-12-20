@@ -43,6 +43,7 @@ find_package(ament_cmake QUIET)
 find_package(rclcpp QUIET)
 find_package(std_msgs QUIET)
 find_package(rosidl_typesupport_cpp QUIET)
+set(sp_msgs_DIR ${CMAKE_SOURCE_DIR}/sp_msgs/share/sp_msgs/cmake)
 find_package(sp_msgs QUIET)
 
 # 如果找不到 ROS 环境，则跳过 ROS 相关的部分
