@@ -2,7 +2,6 @@
 
 #include "tools/crc.hpp"
 #include "tools/logger.hpp"
-#include "tools/math_tools.hpp"
 #include "tools/yaml.hpp"
 
 namespace io
@@ -22,7 +21,6 @@ Gimbal::Gimbal(const std::string & config_path)
 
   thread_ = std::thread(&Gimbal::read_thread, this);
 
-  queue_.pop();
   tools::logger()->info("[Gimbal] First q received.");
 }
 
@@ -61,22 +59,6 @@ std::string Gimbal::str(GimbalMode mode) const
   }
 }
 
-Eigen::Quaterniond Gimbal::q(std::chrono::steady_clock::time_point t)
-{
-  while (true) {
-    auto [q_a, t_a] = queue_.pop();
-    auto [q_b, t_b] = queue_.front();
-    auto t_ab = tools::delta_time(t_a, t_b);
-    auto t_ac = tools::delta_time(t_a, t);
-    auto k = t_ac / t_ab;
-    Eigen::Quaterniond q_c = q_a.slerp(k, q_b).normalized();
-    if (t < t_a) return q_c;
-    if (!(t_a < t && t <= t_b)) continue;
-
-    return q_c;
-  }
-}
-
 void Gimbal::send(io::VisionToGimbal VisionToGimbal)
 {
   tx_data_.mode = VisionToGimbal.mode;
@@ -97,7 +79,7 @@ void Gimbal::send(io::VisionToGimbal VisionToGimbal)
 }
 
 void Gimbal::send(
-  bool control, bool fire, float yaw, float yaw_vel, float yaw_acc, float pitch, float pitch_vel,
+  bool control, bool fire, float raw_yaw, float raw_pitch, float yaw, float yaw_vel, float yaw_acc, float pitch, float pitch_vel,
   float pitch_acc)
 {
   tx_data_.mode = control ? (fire ? 2 : 1) : 0;
@@ -162,15 +144,9 @@ void Gimbal::read_thread()
     }
 
     error_count = 0;
-    Eigen::Quaterniond q(rx_data_.q[0], rx_data_.q[1], rx_data_.q[2], rx_data_.q[3]);
-    queue_.push({q, t});
 
     std::lock_guard<std::mutex> lock(mutex_);
 
-    state_.yaw = rx_data_.yaw;
-    state_.yaw_vel = rx_data_.yaw_vel;
-    state_.pitch = rx_data_.pitch;
-    state_.pitch_vel = rx_data_.pitch_vel;
     state_.bullet_speed = rx_data_.bullet_speed;
     state_.bullet_count = rx_data_.bullet_count;
 
@@ -210,7 +186,6 @@ void Gimbal::reconnect()
 
     try {
       serial_.open();  // 尝试重新打开
-      queue_.clear();
       tools::logger()->info("[Gimbal] Reconnected serial successfully.");
       break;
     } catch (const std::exception & e) {
