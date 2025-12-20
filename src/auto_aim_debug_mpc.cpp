@@ -8,13 +8,13 @@
 
 #include "io/camera.hpp"
 #include "io/gimbal/gimbal.hpp"
+#include "io/xrobot_imu/xrobot_imu.hpp"
 #include "tasks/auto_aim/planner/planner.hpp"
 #include "tasks/auto_aim/solver.hpp"
 #include "tasks/auto_aim/tracker.hpp"
 #include "tasks/auto_aim/yolo.hpp"
 #include "tools/exiter.hpp"
 #include "tools/img_tools.hpp"
-#include "tools/logger.hpp"
 #include "tools/math_tools.hpp"
 #include "tools/plotter.hpp"
 #include "tools/thread_safe_queue.hpp"
@@ -38,6 +38,7 @@ int main(int argc, char * argv[])
   }
 
   io::Gimbal gimbal(config_path);
+  io::XrobotImu imu(config_path);
   io::Camera camera(config_path);
 
   auto_aim::YOLO yolo(config_path, true);
@@ -58,9 +59,17 @@ int main(int argc, char * argv[])
       auto gs = gimbal.state();
       auto plan = planner.plan(target, gs.bullet_speed);
 
+      // 从IMU获取当前姿态作为raw_yaw和raw_pitch
+      auto current_time = std::chrono::steady_clock::now();
+      Eigen::Vector3d current_euler = imu.euler(current_time);
+      float raw_yaw = current_euler[2];    // yaw
+      float raw_pitch = current_euler[1];  // pitch
+
       gimbal.send(
-        plan.control, plan.fire, plan.yaw, plan.yaw_vel, plan.yaw_acc, plan.pitch, plan.pitch_vel,
-        plan.pitch_acc);
+        plan.control, plan.fire,
+        raw_yaw, raw_pitch,
+        plan.yaw, plan.yaw_vel, plan.yaw_acc,
+        plan.pitch, plan.pitch_vel, plan.pitch_acc);
 
       auto fired = gs.bullet_count > last_bullet_count;
       last_bullet_count = gs.bullet_count;
@@ -68,10 +77,14 @@ int main(int argc, char * argv[])
       nlohmann::json data;
       data["t"] = tools::delta_time(std::chrono::steady_clock::now(), t0);
 
-      data["gimbal_yaw"] = gs.yaw;
-      data["gimbal_yaw_vel"] = gs.yaw_vel;
-      data["gimbal_pitch"] = gs.pitch;
-      data["gimbal_pitch_vel"] = gs.pitch_vel;
+      // 从IMU获取的当前姿态数据
+      data["gimbal_yaw"] = raw_yaw;
+      data["gimbal_pitch"] = raw_pitch;
+      
+      // 从IMU获取的角速度
+      Eigen::Vector3d current_gyro = imu.gyro(current_time);
+      data["gimbal_yaw_vel"] = current_gyro[2];
+      data["gimbal_pitch_vel"] = current_gyro[1];
 
       data["target_yaw"] = plan.target_yaw;
       data["target_pitch"] = plan.target_pitch;
@@ -109,7 +122,9 @@ int main(int argc, char * argv[])
 
   while (!exiter.exit()) {
     camera.read(img, t);
-    auto q = gimbal.q(t);
+    
+    // 从IMU获取姿态而不是从Gimbal
+    auto q = imu.q(t);
 
     solver.set_R_gimbal2world(q);
     auto armors = yolo.detect(img);
@@ -144,7 +159,7 @@ int main(int argc, char * argv[])
 
   quit = true;
   if (plan_thread.joinable()) plan_thread.join();
-  gimbal.send(false, false, 0, 0, 0, 0, 0, 0);
+  gimbal.send(false, false, 0, 0, 0, 0, 0, 0, 0, 0);
 
   return 0;
 }

@@ -5,6 +5,7 @@
 #include <deque>
 
 #include "io/gimbal/gimbal.hpp"
+#include "io/xrobot_imu/xrobot_imu.hpp"
 #include "tools/exiter.hpp"
 #include "tools/math_tools.hpp"
 #include "tools/plotter.hpp"
@@ -40,6 +41,7 @@ int main(int argc, char * argv[])
   tools::Plotter plotter;
 
   io::Gimbal gimbal(config_path);
+  io::XrobotImu imu(config_path);
 
   auto init_angle = 0;
   double slice = circle * 200;  // 切片数 = 周期 * 帧率
@@ -50,10 +52,6 @@ int main(int argc, char * argv[])
 
   double error = 0;
   int count = 0;
-
-  // // 让云台归零并等待5s
-  // gimbal.send(false, false, 0, 0, 0, 0, 0, 0);
-  // std::this_thread::sleep_for(5s);
 
   // 历史数据存储（用于计算角加速度）
   std::deque<double> yaw_vel_history;    // yaw角速度历史（rad/s）
@@ -84,17 +82,19 @@ int main(int argc, char * argv[])
 
     std::this_thread::sleep_for(5ms);
 
-    // 获取云台状态
+    // 从IMU获取姿态数据
+    Eigen::Vector3d current_euler = imu.euler(current_time);  // 插值获取当前时刻的欧拉角
+    
+    double gimbal_yaw = current_euler[2];    // 弧度 (yaw)
+    double gimbal_pitch = current_euler[1];  // 弧度 (pitch)
+    
+    // 从IMU获取角速度数据
+    Eigen::Vector3d current_gyro = imu.gyro(current_time);
+    double gimbal_yaw_vel = current_gyro[2];    // 实际yaw角速度(rad/s)
+    double gimbal_pitch_vel = current_gyro[1];  // 实际pitch角速度(rad/s)
+
+    // 获取Gimbal状态（模式、子弹信息等）
     auto gimbal_state = gimbal.state();
-    Eigen::Quaterniond q = gimbal.q(current_time);
-    Eigen::Vector3d eulers = tools::eulers(q, 2, 1, 0);
-    
-    double gimbal_yaw = eulers[0];    // 弧度
-    double gimbal_pitch = eulers[1];  // 弧度
-    
-    // 从云台状态获取角速度（单位：rad/s）
-    double gimbal_yaw_vel = gimbal_state.yaw_vel;    // 实际yaw角速度(rad/s)
-    double gimbal_pitch_vel = gimbal_state.pitch_vel; // 实际pitch角速度(rad/s)
 
     // 更新历史数据用于计算角加速度
     yaw_vel_history.push_back(gimbal_yaw_vel);
@@ -113,27 +113,21 @@ int main(int argc, char * argv[])
     double gimbal_pitch_acc = 0;
     
     if (yaw_vel_history.size() >= 2) {
-      // 计算角加速度的函数
-      if (yaw_vel_history.size() >= 2) {
-        double vel_diff = yaw_vel_history.back() - yaw_vel_history.front();
-        auto time_diff = std::chrono::duration<double>(time_history.back() - time_history.front()).count();
-        if (time_diff > 0) {
-          gimbal_yaw_acc = vel_diff / time_diff;  // rad/s²
-        }
+      double vel_diff = yaw_vel_history.back() - yaw_vel_history.front();
+      auto time_diff = std::chrono::duration<double>(time_history.back() - time_history.front()).count();
+      if (time_diff > 0) {
+        gimbal_yaw_acc = vel_diff / time_diff;  // rad/s²
       }
       
-      if (pitch_vel_history.size() >= 2) {
-        double vel_diff = pitch_vel_history.back() - pitch_vel_history.front();
-        auto time_diff = std::chrono::duration<double>(time_history.back() - time_history.front()).count();
-        if (time_diff > 0) {
-          gimbal_pitch_acc = vel_diff / time_diff;  // rad/s²
-        }
+      double pitch_vel_diff = pitch_vel_history.back() - pitch_vel_history.front();
+      if (time_diff > 0) {
+        gimbal_pitch_acc = pitch_vel_diff / time_diff;  // rad/s²
       }
     }
 
     // 三角波模式
     if (signal_mode == "triangle_wave") {
-      double cmd_yaw = 0, current_pitch = 0;
+      double cmd_yaw = 0, cmd_pitch = 0;
       auto now = std::chrono::steady_clock::now();
       double time_diff = std::chrono::duration<double>(now - last_cmd_time).count();
       
@@ -145,9 +139,9 @@ int main(int argc, char * argv[])
           cmd_yaw_vel = (cmd_yaw - last_cmd_yaw) / time_diff;
           last_cmd_yaw = cmd_yaw;
         } else {
-          current_pitch = cmd_angle / 57.3;
-          cmd_pitch_vel = (current_pitch - last_cmd_pitch) / time_diff;
-          last_cmd_pitch = current_pitch;
+          cmd_pitch = cmd_angle / 57.3;
+          cmd_pitch_vel = (cmd_pitch - last_cmd_pitch) / time_diff;
+          last_cmd_pitch = cmd_pitch;
         }
         count = 0;
       } else {
@@ -158,10 +152,10 @@ int main(int argc, char * argv[])
           cmd_yaw_acc = 0;  // 三角波的角加速度为0（匀速运动）
           last_cmd_yaw = cmd_yaw;
         } else {
-          current_pitch = cmd_angle / 57.3;
+          cmd_pitch = cmd_angle / 57.3;
           cmd_pitch_vel = dangle / 57.3 / 0.005;
           cmd_pitch_acc = 0;
-          last_cmd_pitch = current_pitch;
+          last_cmd_pitch = cmd_pitch;
         }
         count++;
       }
@@ -169,7 +163,16 @@ int main(int argc, char * argv[])
       last_cmd_time = now;
 
       // 发送云台控制命令（包括角速度和加速度）
-      gimbal.send(true, false, cmd_yaw, cmd_yaw_vel, cmd_yaw_acc, current_pitch, cmd_pitch_vel, cmd_pitch_acc);
+      // raw_yaw和raw_pitch从IMU读取
+      gimbal.send(true, false, 
+                  gimbal_yaw,     // raw_yaw: 当前yaw
+                  gimbal_pitch,   // raw_pitch: 当前pitch
+                  cmd_yaw,        // 目标yaw
+                  cmd_yaw_vel,    // 目标yaw速度
+                  cmd_yaw_acc,    // 目标yaw加速度
+                  cmd_pitch,      // 目标pitch
+                  cmd_pitch_vel,  // 目标pitch速度
+                  cmd_pitch_acc); // 目标pitch加速度
       
       // 记录数据 - 全部转换为度
       if (axis_index == 0) {
@@ -180,7 +183,7 @@ int main(int argc, char * argv[])
         data["gimbal_yaw_vel"] = gimbal_yaw_vel * 57.3;     // 度/s
         data["gimbal_yaw_acc"] = gimbal_yaw_acc * 57.3;     // 度/s²
       } else {
-        data["cmd_pitch"] = current_pitch * 57.3;               // 度
+        data["cmd_pitch"] = cmd_pitch * 57.3;               // 度
         data["cmd_pitch_vel"] = cmd_pitch_vel * 57.3;           // 度/s
         data["cmd_pitch_acc"] = cmd_pitch_acc * 57.3;           // 度/s²
         data["gimbal_pitch"] = gimbal_pitch * 57.3;        // 度
@@ -201,8 +204,17 @@ int main(int argc, char * argv[])
         count = 0;
       }
       
-      double cmd_yaw = tools::limit_rad(cmd_angle / 57.3);
-      gimbal.send(true, false, cmd_yaw, 0, 0, 0, 0, 0);
+      double cmd_yaw = cmd_angle / 57.3;
+      // 发送云台控制命令
+      gimbal.send(true, false, 
+                  gimbal_yaw,     // raw_yaw: 当前yaw
+                  gimbal_pitch,   // raw_pitch: 当前pitch
+                  cmd_yaw,        // 目标yaw
+                  0,              // 目标yaw速度
+                  0,              // 目标yaw加速度
+                  0,              // 目标pitch
+                  0,              // 目标pitch速度
+                  0);             // 目标pitch加速度
       count++;
       
       last_cmd_time = now;
@@ -241,7 +253,16 @@ int main(int argc, char * argv[])
       double yaw_acc = yaw_acc_deg / 57.3;      // rad/s²
       double pitch_acc = pitch_acc_deg / 57.3;  // rad/s²
       
-      gimbal.send(true, false, yaw, yaw_vel, yaw_acc, pitch, pitch_vel, pitch_acc);
+      // 发送云台控制命令
+      gimbal.send(true, false, 
+                  gimbal_yaw,     // raw_yaw: 当前yaw
+                  gimbal_pitch,   // raw_pitch: 当前pitch
+                  yaw,            // 目标yaw
+                  yaw_vel,        // 目标yaw速度
+                  yaw_acc,        // 目标yaw加速度
+                  pitch,          // 目标pitch
+                  pitch_vel,      // 目标pitch速度
+                  pitch_acc);     // 目标pitch加速度
       t += dt;
       
       if (t >= period) {
@@ -268,6 +289,6 @@ int main(int argc, char * argv[])
   }
   
   // 程序退出前发送停止命令
-  gimbal.send(false, false, 0, 0, 0, 0, 0, 0);
+  gimbal.send(false, false, 0, 0, 0, 0, 0, 0, 0, 0);
   return 0;
 }
