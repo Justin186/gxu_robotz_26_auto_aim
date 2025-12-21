@@ -62,6 +62,8 @@ std::string Gimbal::str(GimbalMode mode) const
 void Gimbal::send(io::VisionToGimbal VisionToGimbal)
 {
   tx_data_.mode = VisionToGimbal.mode;
+  tx_data_.raw_yaw = VisionToGimbal.raw_yaw;
+  tx_data_.raw_pitch = VisionToGimbal.raw_pitch;
   tx_data_.yaw = VisionToGimbal.yaw;
   tx_data_.yaw_vel = VisionToGimbal.yaw_vel;
   tx_data_.yaw_acc = VisionToGimbal.yaw_acc;
@@ -83,6 +85,8 @@ void Gimbal::send(
   float pitch_acc)
 {
   tx_data_.mode = control ? (fire ? 2 : 1) : 0;
+  tx_data_.raw_yaw = raw_yaw;
+  tx_data_.raw_pitch = raw_pitch;
   tx_data_.yaw = yaw;
   tx_data_.yaw_vel = yaw_vel;
   tx_data_.yaw_acc = yaw_acc;
