@@ -60,6 +60,9 @@ private:
   ImuData rx_data_;
   ImuState state_;
   
+  double filter_alpha_ = 1.0;
+  bool first_packet_ = true;
+
   // 队列存储四元数和时间戳，用于插值
   tools::ThreadSafeQueue<std::tuple<Eigen::Quaterniond, std::chrono::steady_clock::time_point>>
     q_queue_{1000};
@@ -76,7 +79,6 @@ private:
   bool read(uint8_t * buffer, size_t size);
   void read_thread();
   void reconnect();
-  void update_state();
 };
 
 }  // namespace io
