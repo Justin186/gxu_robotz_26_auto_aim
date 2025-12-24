@@ -17,6 +17,9 @@ GimbalNode::GimbalNode(const std::string & config_path) : Gimbal(config_path), N
             std::placeholders::_1
         ));
 }
+GimbalNode::~GimbalNode()
+{
+}
 
 void GimbalNode::send_cmd_vel(const geometry_msgs::msg::Twist::SharedPtr msg)
 {

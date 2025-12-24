@@ -33,6 +33,8 @@ class GimbalNode : public Gimbal, public rclcpp::Node
 public:
     GimbalNode(const std::string & config_path);
     ~GimbalNode();
+    using Gimbal::send;
+    
     void send_cmd_vel(const geometry_msgs::msg::Twist::SharedPtr msg);  // 订阅回调函数
     void send(io::VisionToGimbal VisionToGimbal);
 private:
