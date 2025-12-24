@@ -82,7 +82,6 @@ public:
   void send(io::VisionToGimbal VisionToGimbal);
 
 private:
-  serial::Serial serial_;
 
   std::thread thread_;
   std::atomic<bool> quit_ = false;
@@ -99,6 +98,9 @@ private:
   bool read(uint8_t * buffer, size_t size);
   void read_thread();
   void reconnect();
+
+protected:
+  serial::Serial serial_;
 };
 
 }  // namespace io
