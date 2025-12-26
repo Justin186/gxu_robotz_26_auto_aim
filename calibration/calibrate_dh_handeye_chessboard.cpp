@@ -1,5 +1,4 @@
 #include <fmt/core.h>
-#include <yaml-cpp/yaml.h>
 
 #include <Eigen/Dense>  // 必须在opencv2/core/eigen.hpp上面
 #include <fstream>
@@ -8,6 +7,7 @@
 
 #include "tools/img_tools.hpp"
 #include "tools/math_tools.hpp"
+#include "tools/yaml.hpp"
 
 const std::string keys =
   "{help h usage ? |                             | 输出命令行参数说明}"
@@ -35,24 +35,24 @@ Eigen::Quaterniond read_q(const std::string & q_path)
 
 void load(
   const std::string & input_folder, const std::string & config_path,
-  std::vector<double> & R_pitchlink2imubody_data, std::vector<double> & t_pitchlink2yawlink_data,
+  std::vector<double> & R_gimbal2imubody_data, std::vector<double> & t_pitchlink2gimbal_data,
   std::vector<cv::Mat> & R_pitchlink2world_list, std::vector<cv::Mat> & t_pitchlink2world_list,
   std::vector<cv::Mat> & rvecs, std::vector<cv::Mat> & tvecs)
 {
   // 读取yaml参数
-  auto yaml = YAML::LoadFile(config_path);
-  auto pattern_cols = yaml["pattern_cols"].as<int>();
-  auto pattern_rows = yaml["pattern_rows"].as<int>();
-  auto center_distance_mm = yaml["square"].as<double>();
-  R_pitchlink2imubody_data = yaml["R_pitchlink2imubody"].as<std::vector<double>>();
-  t_pitchlink2yawlink_data = yaml["t_pitchlink2yawlink"].as<std::vector<double>>();
+  auto yaml = tools::load(config_path);
+  auto pattern_cols = tools::read<int>(yaml, "pattern_cols");
+  auto pattern_rows = tools::read<int>(yaml, "pattern_rows");
+  auto center_distance_mm = tools::read<double>(yaml, "center_distance_mm");
+  R_gimbal2imubody_data = tools::read<std::vector<double>>(yaml, "R_gimbal2imubody");
+  t_pitchlink2gimbal_data = tools::read<std::vector<double>>(yaml, "t_pitchlink2gimbal");
   
-  auto camera_matrix_data = yaml["camera_matrix"].as<std::vector<double>>();
-  auto distort_coeffs_data = yaml["distort_coeffs"].as<std::vector<double>>();
+  auto camera_matrix_data = tools::read<std::vector<double>>(yaml, "camera_matrix");
+  auto distort_coeffs_data = tools::read<std::vector<double>>(yaml, "distort_coeffs");
 
   cv::Size pattern_size(pattern_cols, pattern_rows);
-  Eigen::Matrix<double, 3, 3, Eigen::RowMajor> R_pitchlink2imubody(R_pitchlink2imubody_data.data());
-  Eigen::Map<Eigen::Vector3d> t_pitchlink2yawlink(t_pitchlink2yawlink_data.data());
+  Eigen::Matrix<double, 3, 3, Eigen::RowMajor> R_pitchlink2imubody(R_gimbal2imubody_data.data());
+  Eigen::Map<Eigen::Vector3d> t_pitchlink2gimbal(t_pitchlink2gimbal_data.data());
   cv::Matx33d camera_matrix(camera_matrix_data.data());
   cv::Mat distort_coeffs(distort_coeffs_data);
 
@@ -65,22 +65,22 @@ void load(
     if (img.empty()) break;
 
     // 计算云台的欧拉角
-    // 均认为world、imubody、yawlink在同一点（yaw与pitch旋转轴水平平移相交后的交点），并且坐标系都认为是前左上
+    // 均认为world、imubody、gimbal在同一点（yaw与pitch旋转轴水平平移相交后的交点），并且坐标系都认为是前左上
     // pitchlink是pitch旋转轴中心，坐标系前左上
     // camera与标定版坐标系都是右下前
     Eigen::Matrix3d R_imubody2world = q.toRotationMatrix(); // IMU机体坐标系到绝对IMU世界坐标系
 
     Eigen::Matrix3d R_pitchlink2world = R_imubody2world * R_pitchlink2imubody;
-
-    Eigen::Vector3d t_pitchlink2world = R_pitchlink2world * t_pitchlink2yawlink;
-    
     
     // 在图片上显示云台的欧拉角，用来检验R_pitchlink2imubody是否正确
-    Eigen::Vector3d ypr = tools::eulers(R_pitchlink2world, 2, 1, 0) * 57.3;
+    Eigen::Vector3d ypr = tools::eulers(R_pitchlink2world, 0, 1, 2) * 57.3;
     auto drawing = img.clone();
     tools::draw_text(drawing, fmt::format("yaw   {:.2f}", ypr[0]), {40, 40}, {0, 0, 255});
     tools::draw_text(drawing, fmt::format("pitch {:.2f}", ypr[1]), {40, 80}, {0, 0, 255});
     tools::draw_text(drawing, fmt::format("roll  {:.2f}", ypr[2]), {40, 120}, {0, 0, 255});
+    // 构造绕 Z 轴的 yaw 旋转矩阵（gimbal到world）
+    Eigen::Matrix3d R_gimbal2world = tools::rotation_matrix(Eigen::Vector3d(ypr[0]/57.3, 0, 0));
+    Eigen::Vector3d t_pitchlink2world = R_gimbal2world * t_pitchlink2gimbal;
 
     // 识别标定板（棋盘格）
     std::vector<cv::Point2f> centers_2d;
@@ -126,7 +126,7 @@ void load(
 }
 
 void print_yaml(
-  const std::vector<double> & R_pitchlink2imubody_data, const cv::Mat & R_camera2pitchlink,
+  const std::vector<double> & R_gimbal2imubody_data, const cv::Mat & R_camera2pitchlink,
   const cv::Mat & t_camera2pitchlink, const Eigen::Vector3d & ypr)
 {
   YAML::Emitter result;
@@ -136,8 +136,8 @@ void print_yaml(
     t_camera2pitchlink.begin<double>(), t_camera2pitchlink.end<double>());
 
   result << YAML::BeginMap;
-  result << YAML::Key << "R_pitchlink2imubody";
-  result << YAML::Value << YAML::Flow << R_pitchlink2imubody_data;
+  result << YAML::Key << "R_gimbal2imubody";
+  result << YAML::Value << YAML::Flow << R_gimbal2imubody_data;
   result << YAML::Newline;
   result << YAML::Newline;
   result << YAML::Comment(fmt::format(
@@ -164,12 +164,12 @@ int main(int argc, char * argv[])
   auto config_path = cli.get<std::string>("config-path");
 
   // 从输入文件夹中加载标定所需的数据
-  std::vector<double> R_pitchlink2imubody_data;
+  std::vector<double> R_gimbal2imubody_data;
   std::vector<cv::Mat> R_pitchlink2world_list, t_pitchlink2world_list;
-  std::vector<double> t_pitchlink2yawlink;
+  std::vector<double> t_pitchlink2gimbal_data;
   std::vector<cv::Mat> rvecs, tvecs;
   load(
-    input_folder, config_path, R_pitchlink2imubody_data, t_pitchlink2yawlink, R_pitchlink2world_list, t_pitchlink2world_list,
+    input_folder, config_path, R_gimbal2imubody_data, t_pitchlink2gimbal_data, R_pitchlink2world_list, t_pitchlink2world_list,
     rvecs, tvecs);
 
   // 手眼标定
@@ -186,5 +186,5 @@ int main(int argc, char * argv[])
   Eigen::Vector3d ypr = tools::eulers(R_camera2ideal, 1, 0, 2) * 57.3;  // degree
 
   // 输出yaml
-  print_yaml(R_pitchlink2imubody_data, R_camera2pitchlink, t_camera2pitchlink, ypr);
+  print_yaml(R_gimbal2imubody_data, R_camera2pitchlink, t_camera2pitchlink, ypr);
 }
