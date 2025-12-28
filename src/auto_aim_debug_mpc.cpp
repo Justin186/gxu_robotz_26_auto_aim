@@ -18,6 +18,7 @@
 #include "tools/math_tools.hpp"
 #include "tools/plotter.hpp"
 #include "tools/thread_safe_queue.hpp"
+#include "tools/yaml.hpp"
 
 using namespace std::chrono_literals;
 
@@ -40,6 +41,9 @@ int main(int argc, char * argv[])
   io::Gimbal gimbal(config_path);
   io::XrobotImu imu(config_path);
   io::Camera camera(config_path);
+  auto yaml = tools::load(config_path);
+  auto R_gimbal2imubody_data = tools::read<std::vector<double>>(yaml, "R_gimbal2imubody");
+  Eigen::Matrix<double, 3, 3, Eigen::RowMajor> R_gimbal2imubody(R_gimbal2imubody_data.data());
 
   auto_aim::YOLO yolo(config_path, true);
   auto_aim::Solver solver(config_path);
@@ -59,11 +63,13 @@ int main(int argc, char * argv[])
       auto gs = gimbal.state();
       auto plan = planner.plan(target, gs.bullet_speed);
 
-      // 从IMU获取当前姿态作为raw_yaw和raw_pitch
+      // 从IMU获取四元数并乘上校准矩阵得到云台姿态
       auto current_time = std::chrono::steady_clock::now();
-      Eigen::Vector3d current_euler = imu.euler(current_time);
-      float raw_yaw = current_euler[2];    // yaw
-      float raw_pitch = current_euler[1];  // pitch
+      auto q = imu.q(current_time);
+      Eigen::Matrix3d R_gimbal2world = q.toRotationMatrix() * R_gimbal2imubody;
+      Eigen::Vector3d ypr = tools::eulers(R_gimbal2world, 2, 1, 0);
+      double raw_yaw = ypr[0];
+      double raw_pitch = ypr[1];
 
       gimbal.send(
         plan.control, plan.fire,
@@ -81,10 +87,10 @@ int main(int argc, char * argv[])
       data["gimbal_yaw"] = raw_yaw;
       data["gimbal_pitch"] = raw_pitch;
       
-      // 从IMU获取的角速度
-      Eigen::Vector3d current_gyro = imu.gyro(current_time);
-      data["gimbal_yaw_vel"] = current_gyro[2];
-      data["gimbal_pitch_vel"] = current_gyro[1];
+      // // 从IMU获取的角速度
+      // Eigen::Vector3d current_gyro = imu.gyro(current_time);
+      // data["gimbal_yaw_vel"] = current_gyro[2];
+      // data["gimbal_pitch_vel"] = current_gyro[1];
 
       data["target_yaw"] = plan.target_yaw;
       data["target_pitch"] = plan.target_pitch;
@@ -112,8 +118,6 @@ int main(int argc, char * argv[])
       }
 
       plotter.plot(data);
-
-      std::this_thread::sleep_for(10ms);
     }
   });
 
