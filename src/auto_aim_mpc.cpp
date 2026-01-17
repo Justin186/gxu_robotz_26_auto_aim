@@ -40,7 +40,7 @@ int main(int argc, char * argv[])
   io::Gimbal gimbal(config_path);
   io::Camera camera(config_path);
 
-  auto_aim::YOLO yolo(config_path, true);
+  auto_aim::YOLO yolo(config_path, false);
   auto_aim::Solver solver(config_path);
   auto_aim::Tracker tracker(config_path, solver);
   auto_aim::Planner planner(config_path);
@@ -114,13 +114,20 @@ int main(int argc, char * argv[])
 
   cv::Mat img;
   std::chrono::steady_clock::time_point t;
-  auto last_t = std::chrono::steady_clock::now();
+  auto last_time = std::chrono::steady_clock::now();
+  int frame_count = 0;
 
   while (!exiter.exit()) {
     camera.read(img, t);
+    frame_count++;
     auto now = std::chrono::steady_clock::now();
-    double fps = 1.0 / std::chrono::duration<double>(now - last_t).count();
-    last_t = now;
+    if (std::chrono::duration<double>(now - last_time).count() >= 1.0) {
+      double fps = frame_count / std::chrono::duration<double>(now - last_time).count();
+      fmt::print("FPS: {:.2f}\n", fps);
+      frame_count = 0;
+      last_time = now;
+    }
+
     auto q = gimbal.q(t);
 
     solver.set_R_gimbal2world(q);
@@ -148,10 +155,8 @@ int main(int argc, char * argv[])
       tools::draw_points(img, image_points, {0, 0, 255});
     }
 
-    tools::draw_text(img, fmt::format("FPS: {:.2f}", fps), {10, 30});
-
     cv::resize(img, img, {}, 0.5, 0.5);  // 显示时缩小图片尺寸
-    cv::imshow("reprojection", img);
+    // cv::imshow("reprojection", img);
     auto key = cv::waitKey(1);
     if (key == 'q') break;
   }

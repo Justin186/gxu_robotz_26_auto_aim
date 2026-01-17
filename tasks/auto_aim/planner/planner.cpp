@@ -16,9 +16,13 @@ Planner::Planner(const std::string & config_path)
   yaw_offset_ = tools::read<double>(yaml, "yaw_offset") / 57.3;
   pitch_offset_ = tools::read<double>(yaml, "pitch_offset") / 57.3;
   fire_thresh_ = tools::read<double>(yaml, "fire_thresh");
+  max_armor_angle_ = tools::read<double>(yaml, "max_armor_angle", 45.0) / 57.3;
   decision_speed_ = tools::read<double>(yaml, "decision_speed");
   high_speed_delay_time_ = tools::read<double>(yaml, "high_speed_delay_time");
   low_speed_delay_time_ = tools::read<double>(yaml, "low_speed_delay_time");
+
+  auto R_gimbal2imubody_data = tools::read<std::vector<double>>(yaml, "R_gimbal2imubody");
+  R_gimbal2imubody_ = Eigen::Matrix<double, 3, 3, Eigen::RowMajor>(R_gimbal2imubody_data.data());
 
   setup_yaw_solver(config_path);
   setup_pitch_solver(config_path);
@@ -47,8 +51,10 @@ Plan Planner::plan(Target target, double bullet_speed)
   // 2. Get trajectory
   double yaw0;
   Trajectory traj;
+  double current_armor_yaw;
   try {
     yaw0 = aim(target, bullet_speed)(0);
+    current_armor_yaw = debug_xyza[3];
     traj = get_trajectory(target, yaw0, bullet_speed);
   } catch (const std::exception & e) {
     tools::logger()->warn("Unsolvable target {:.2f}", bullet_speed);
@@ -84,12 +90,16 @@ Plan Planner::plan(Target target, double bullet_speed)
   plan.pitch_vel = pitch_solver_->work->x(1, HALF_HORIZON);
   plan.pitch_acc = pitch_solver_->work->u(0, HALF_HORIZON);
 
-  auto shoot_offset_ = 2;
+  auto shoot_offset_ = 0;
+  auto center_yaw = std::atan2(target.ekf_x()[2], target.ekf_x()[0]);
+  auto delta_angle = std::abs(tools::limit_rad(current_armor_yaw - center_yaw));
+
   plan.fire =
     std::hypot(
       traj(0, HALF_HORIZON + shoot_offset_) - yaw_solver_->work->x(0, HALF_HORIZON + shoot_offset_),
       traj(2, HALF_HORIZON + shoot_offset_) -
-        pitch_solver_->work->x(0, HALF_HORIZON + shoot_offset_)) < fire_thresh_;
+        pitch_solver_->work->x(0, HALF_HORIZON + shoot_offset_)) < fire_thresh_ &&
+    delta_angle < max_armor_angle_;
   return plan;
 }
 
@@ -157,12 +167,13 @@ Eigen::Matrix<double, 2, 1> Planner::aim(const Target & target, double bullet_sp
 {
   Eigen::Vector3d xyz;
   double yaw;
-  auto min_dist = 1e10;
+  auto center_yaw = std::atan2(target.ekf_x()[2], target.ekf_x()[0]);
+  auto min_delta_angle = 1e10;
 
   for (auto & xyza : target.armor_xyza_list()) {
-    auto dist = xyza.head<2>().norm();
-    if (dist < min_dist) {
-      min_dist = dist;
+    auto delta_angle = std::abs(tools::limit_rad(xyza[3] - center_yaw));
+    if (delta_angle < min_delta_angle) {
+      min_delta_angle = delta_angle;
       xyz = xyza.head<3>();
       yaw = xyza[3];
     }
@@ -170,10 +181,18 @@ Eigen::Matrix<double, 2, 1> Planner::aim(const Target & target, double bullet_sp
   debug_xyza = Eigen::Vector4d(xyz.x(), xyz.y(), xyz.z(), yaw);
 
   auto azim = std::atan2(xyz.y(), xyz.x());
-  auto bullet_traj = tools::Trajectory(bullet_speed, min_dist, xyz.z());
+  auto dist = xyz.head<2>().norm();
+  auto bullet_traj = tools::Trajectory(bullet_speed, dist, xyz.z());
   if (bullet_traj.unsolvable) throw std::runtime_error("Unsolvable bullet trajectory!");
 
-  return {tools::limit_rad(azim + yaw_offset_), -bullet_traj.pitch - pitch_offset_};
+  double yaw_world = tools::limit_rad(azim + yaw_offset_);
+  double pitch_world = -bullet_traj.pitch - pitch_offset_;
+
+  Eigen::Vector3d v_world = tools::ypd2xyz({yaw_world, -pitch_world, 1.0});
+  Eigen::Vector3d v_gimbal = R_gimbal2imubody_.transpose() * v_world;
+  Eigen::Vector3d ypd_gimbal = tools::xyz2ypd(v_gimbal);
+
+  return {ypd_gimbal[0], -ypd_gimbal[1]};
 }
 
 Trajectory Planner::get_trajectory(Target & target, double yaw0, double bullet_speed)

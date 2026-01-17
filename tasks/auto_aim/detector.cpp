@@ -213,7 +213,7 @@ bool Detector::detect(Armor & armor, const cv::Mat & bgr_img)
 
   if ( // 找到了左右灯条且距离误差小于设定阈值
     closest_left_lightbar && closest_right_lightbar &&
-    min_distance_br_tr + min_distance_tl_bl < 60) {
+    min_distance_br_tr + min_distance_tl_bl < 10) {
     // 将四个点从armor_roi坐标系转换到原始图像坐标系
     armor.points[0] = closest_left_lightbar->top + cv::Point2f(expanded_bbox.x, expanded_bbox.y);
     armor.points[1] = closest_right_lightbar->top + cv::Point2f(expanded_bbox.x, expanded_bbox.y);

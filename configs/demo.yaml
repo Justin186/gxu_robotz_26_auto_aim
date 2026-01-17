@@ -7,7 +7,7 @@ classify_model: assets/tiny_resnet.onnx
 yolo11_model_path: assets/yolo11.xml
 yolov8_model_path: assets/yolov8.xml
 yolov5_model_path: assets/yolov5.xml
-device: CPU
+device: GPU
 min_confidence: 0.8
 use_traditional: true
 
@@ -77,7 +77,7 @@ send_canid: 0xff
 can_interface: "can0"
 
 #####-----gimbal参数-----#####
-com_port: "/dev/gimbal"
+com_port: "/dev/ttyACM0"
 
 #####-----planner-----#####
 fire_thresh: 0.003

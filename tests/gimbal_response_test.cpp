@@ -69,7 +69,7 @@ int main(int argc, char * argv[])
   double cmd_pitch_acc = 0;    // 命令的pitch角加速度
 
   double t = 0;
-  double dt = 0.005;  // 5ms, 模拟200fps
+  double dt = 0.001;  // 5ms, 模拟200fps
 
   auto t0 = std::chrono::steady_clock::now();
   
@@ -82,7 +82,7 @@ int main(int argc, char * argv[])
     nlohmann::json data;
     auto current_time = std::chrono::steady_clock::now();
 
-    std::this_thread::sleep_for(5ms);
+    std::this_thread::sleep_for(1ms);
 
     // 获取云台状态
     auto gimbal_state = gimbal.state();
@@ -196,13 +196,15 @@ int main(int argc, char * argv[])
       auto now = std::chrono::steady_clock::now();
       double time_diff = std::chrono::duration<double>(now - last_cmd_time).count();
       
-      if (count == 300) {
-        cmd_angle += delta_angle;
+      if (count == 1000) {
+        cmd_angle = -7;
         count = 0;
       }
+      else
+        cmd_angle = 7;
       
       double cmd_yaw = tools::limit_rad(cmd_angle / 57.3);
-      gimbal.send(true, false, cmd_yaw, 0, 0, 0, 0, 0);
+      gimbal.send(true, false, cmd_yaw, 0, 0, cmd_yaw, 0, 0);
       count++;
       
       last_cmd_time = now;

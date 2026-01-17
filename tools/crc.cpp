@@ -84,7 +84,8 @@ uint16_t get_crc16(const uint8_t * data, uint32_t len)
 
 bool check_crc16(const uint8_t * data, uint32_t len)
 {
-  uint16_t crc16 = (data[len - 1] << 8) | data[len - 2];
+  uint16_t crc16 = (data[len - 2] << 8) | data[len - 1];
+  // uint16_t crc16 = (data[len - 1] << 8) | data[len - 2];
   return get_crc16(data, len - 2) == crc16;
 }
 

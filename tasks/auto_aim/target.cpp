@@ -297,7 +297,7 @@ Eigen::Vector3d Target::h_armor_xyz(const Eigen::VectorXd & x, int id) const
   // 计算第id个装甲板中心在世界坐标系中的坐标
   // id用于区分不同的装甲板，id=0时表示最开始观测到的装甲板，id=1表示逆时针旋转90度/120度(2π/armor_num_)后的装甲板，依此类推
   auto angle = tools::limit_rad(x[6] + id * 2 * CV_PI / armor_num_);
-  auto use_l_h = (armor_num_ == 4) && (id == 1 || id == 3); // 这里不知道为什么只判断4号步兵，按理说是车的话长短轴都不一样
+  auto use_l_h = (armor_num_ == 4 || armor_num_ == 3) && (id == 1 || id == 3); // 这里不知道为什么只判断4号步兵，按理说是车的话长短轴都不一样
 
   auto r = (use_l_h) ? x[8] + x[9] : x[8];
   auto armor_x = x[0] - r * std::cos(angle);

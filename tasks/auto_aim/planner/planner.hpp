@@ -43,7 +43,10 @@ private:
   double yaw_offset_;
   double pitch_offset_;
   double fire_thresh_;
+  double max_armor_angle_;
   double low_speed_delay_time_, high_speed_delay_time_, decision_speed_;
+
+  Eigen::Matrix3d R_gimbal2imubody_;
 
   TinySolver * yaw_solver_;
   TinySolver * pitch_solver_;

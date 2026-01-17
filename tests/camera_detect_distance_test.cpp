@@ -86,11 +86,18 @@ int main(int argc, char * argv[])
         object_points, armor.points, camera_matrix, distort_coeffs, rvec, tvec, false,
         cv::SOLVEPNP_IPPE);
 
+      double distance = std::sqrt(tvec[0]*tvec[0] + tvec[1]*tvec[1] + tvec[2]*tvec[2]);
+
       tools::draw_text(
         img,
         fmt::format(
           "tvec: {:.2f} {:.2f} {:.2f} rvec: {:.2f} {:.2f} {:.2f}", tvec[0], tvec[1], tvec[2], rvec[0], rvec[1], rvec[2]),
         {10, 48}, {255, 255, 255},1.5,4);
+
+      tools::draw_text(
+        img,
+        fmt::format("Distance: {:.2f} m", distance),
+        {10, 80}, {0, 255, 0},2,8);
 
       auto info = fmt::format(
         "{:.2f} {:.2f} {:.1f} {:.2f} {} {}", armor.ratio, armor.side_ratio,
@@ -98,7 +105,7 @@ int main(int argc, char * argv[])
         auto_aim::ARMOR_TYPES[armor.type]);
       tools::draw_points(img, armor.points, {0, 255, 0});
       tools::draw_text(img, info, armor.left.bottom, {0, 255, 0});
-      data["distance"] = tvec[2];
+      data["distance"] = distance;
     }
 
     cv::resize(img, img, {}, 0.5, 0.5);
