@@ -1,24 +1,32 @@
-#include "gimbal_node.h"
+#include "gimbal_node.hpp"
 #include "tools/crc.hpp"
 #include "tools/logger.hpp"
-#include "tools/yaml.hpp"
+#include "io/ros2/ros2.hpp"
 
 namespace io
 {
 
-GimbalNode::GimbalNode(const std::string & config_path) : Gimbal(config_path), Node("gimbal_node")
+GimbalNode::GimbalNode(const std::string & config_path) : Gimbal(config_path)
 {
-    auto yaml = tools::load(config_path);
-    auto cmd_vel_topic = tools::read<std::string>(yaml, "cmd_vel_topic");
-    cmd_vel_subscription_ = this->create_subscription<geometry_msgs::msg::Twist>(
-        cmd_vel_topic, 10, std::bind(
-            &GimbalNode::send_cmd_vel,
-            this,
-            std::placeholders::_1
-        ));
+    ros2_ = std::make_shared<ROS2>();
+    
+    thread_ = std::make_unique<std::thread>([this]() {
+        while (rclcpp::ok() && !node_quit_) {
+            auto cmd_vel = ros2_->subscribe_cmd_vel();
+            this->send_cmd_vel(std::make_shared<geometry_msgs::msg::Twist>(cmd_vel));
+            ros2_->publish(this->yaw());
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+    });
+
+    tools::logger()->info("GimbalNode thread started.");
 }
 GimbalNode::~GimbalNode()
 {
+    node_quit_ = true;
+    if (thread_ && thread_->joinable()) {
+        thread_->join();
+    }
 }
 
 void GimbalNode::send_cmd_vel(const geometry_msgs::msg::Twist::SharedPtr msg)

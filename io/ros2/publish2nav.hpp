@@ -11,6 +11,7 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/string.hpp"
+#include "sp_msgs/msg/float32_stamped.hpp"
 
 namespace io
 {
@@ -23,11 +24,13 @@ public:
 
   void start();
 
-  void send_data(const Eigen::Vector4d & data);
+  void send_target_pos(const Eigen::Vector4d & data);
+  void send_yaw(const float & yaw);
 
 private:
   // ROS2 发布者
-  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr publisher_;
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr target_pos_pub_;
+  rclcpp::Publisher<sp_msgs::msg::Float32Stamped>::SharedPtr yaw_pub_;
 };
 
 }  // namespace io

@@ -14,24 +14,9 @@ public:
   ~ROS2();
 
   void publish(const Eigen::Vector4d & target_pos);
+  void publish(const float & yaw);
 
-  std::vector<int8_t> subscribe_enemy_status();
-
-  std::vector<int8_t> subscribe_autoaim_target();
-
-  template <typename T>
-  std::shared_ptr<rclcpp::Publisher<T>> create_publisher(
-    const std::string & node_name, const std::string & topic_name, size_t queue_size)
-  {
-    auto node = std::make_shared<rclcpp::Node>(node_name);
-
-    auto publisher = node->create_publisher<T>(topic_name, queue_size);
-
-    // 运行一个单独的线程来 spin 这个节点，确保消息可以被正确发布
-    std::thread([node]() { rclcpp::spin(node); }).detach();
-
-    return publisher;
-  }
+  geometry_msgs::msg::Twist subscribe_cmd_vel();
 
 private:
   std::shared_ptr<Publish2Nav> publish2nav_;

@@ -1,3 +1,4 @@
+#include <geometry_msgs/msg/twist.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <thread>
 
@@ -9,27 +10,21 @@ int main(int argc, char ** argv)
 {
   tools::Exiter exiter;
   io::ROS2 ros2;
-  rclcpp::Clock clock;
-  auto string_publisher =
-    ros2.create_publisher<sp_msgs::msg::EnemyStatusMsg>("temp_node", "enemy_status", 10);
+  auto node = std::make_shared<rclcpp::Node>("topic_loop_tester");
+  auto publisher = node->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 10);
 
   int i = 0;
   while (!exiter.exit()) {
-    sp_msgs::msg::EnemyStatusMsg msg;
-    msg.invincible_enemy_ids = {1, 2, 3};
-    msg.timestamp = clock.now();
-    string_publisher->publish(msg);
-    RCLCPP_INFO(
-      rclcpp::get_logger("msg send timestamp is"), "msg.timestamp: %d.%09u", msg.timestamp.sec,
-      msg.timestamp.nanosec);
+    geometry_msgs::msg::Twist msg;
+    msg.linear.x = i;
+    publisher->publish(msg);
+    RCLCPP_INFO(node->get_logger(), "msg send linear.x: %f", msg.linear.x);
 
     i++;
-    std::this_thread::sleep_for(std::chrono::microseconds(5));
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    if (i % 3 == 0) {
-      auto x = ros2.subscribe_enemy_status();
-      // tools::logger()->info("invincible enemy ids size is{}", x.size());
-    }
+    auto x = ros2.subscribe_cmd_vel();
+    tools::logger()->info("receive linear.x: {}", x.linear.x);
 
     std::this_thread::sleep_for(std::chrono::seconds(1));
     if (i > 1000) break;

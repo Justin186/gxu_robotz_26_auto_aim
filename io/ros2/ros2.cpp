@@ -21,16 +21,12 @@ ROS2::~ROS2()
   subscribe_spin_thread_->join();
 }
 
-void ROS2::publish(const Eigen::Vector4d & target_pos) { publish2nav_->send_data(target_pos); }
+void ROS2::publish(const Eigen::Vector4d & target_pos) { publish2nav_->send_target_pos(target_pos); }
+void ROS2::publish(const float & yaw) { publish2nav_->send_yaw(yaw); }
 
-std::vector<int8_t> ROS2::subscribe_enemy_status()
+geometry_msgs::msg::Twist ROS2::subscribe_cmd_vel()
 {
-  return subscribe2nav_->subscribe_enemy_status();
-}
-
-std::vector<int8_t> ROS2::subscribe_autoaim_target()
-{
-  return subscribe2nav_->subscribe_autoaim_target();
+  return subscribe2nav_->subscribe_cmd_vel();
 }
 
 }  // namespace io

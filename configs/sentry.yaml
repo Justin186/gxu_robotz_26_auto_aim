@@ -7,8 +7,8 @@ yolo_name: yolov5
 classify_model: assets/tiny_resnet.onnx
 yolo11_model_path: assets/yolo11.xml
 yolov8_model_path: assets/yolov8.xml
-yolov5_model_path: assets/yolov5.xml
-device: GPU
+yolov5_model_path: assets/0526.xml
+device: CPU
 min_confidence: 0.8
 use_traditional: true
 
@@ -95,4 +95,5 @@ distort_coeffs: [-0.0209453389287673, 0.15028138841073832, -0.000651772211323450
 R_camera2gimbal: [0.01928451708725664, 0.00012696140743255463, 0.99981402834802846, -0.99981344688553653, -0.0010834913551969569, 0.019284643459122196, 0.0010857382619952124, -0.99999940496346484, 0.00010604311483339372]
 t_camera2gimbal: [0.13089617453251859, 0.0038468007459533785, 0.094139945222010288]
 
-cmd_vel_topic: "/cmd_vel"
+#####-----gimbal参数-----#####
+com_port: "/dev/gimbal"
