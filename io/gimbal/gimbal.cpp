@@ -61,6 +61,12 @@ std::string Gimbal::str(GimbalMode mode) const
   }
 }
 
+float Gimbal::yaw() const
+{
+  std::lock_guard<std::mutex> lock(mutex_);
+  return rx_data_.gimbal_yaw;
+}
+
 Eigen::Quaterniond Gimbal::q(std::chrono::steady_clock::time_point t)
 {
   while (true) {
@@ -133,7 +139,8 @@ void Gimbal::read_thread()
   int error_count = 0;
 
   while (!quit_) {
-    if (error_count > 5000) {
+    // tools::logger()->info("[Gimbal] Error count: {}", error_count);
+    if (error_count > 10000) {
       error_count = 0;
       tools::logger()->warn("[Gimbal] Too many errors, attempting to reconnect...");
       reconnect();

@@ -25,6 +25,7 @@ struct __attribute__((packed)) GimbalToVision
   float pitch_vel;
   float bullet_speed;
   uint16_t bullet_count;  // 子弹累计发送次数
+  float gimbal_yaw;
   uint16_t crc16;
 };
 
@@ -73,6 +74,7 @@ public:
   GimbalMode mode() const;
   GimbalState state() const;
   std::string str(GimbalMode mode) const;
+  float yaw() const;
   Eigen::Quaterniond q(std::chrono::steady_clock::time_point t);
 
   void send(
@@ -82,7 +84,6 @@ public:
   void send(io::VisionToGimbal VisionToGimbal);
 
 private:
-
   std::thread thread_;
   std::atomic<bool> quit_ = false;
   mutable std::mutex mutex_;
