@@ -46,6 +46,31 @@ struct __attribute__((packed)) VisionToGimbal
 
 static_assert(sizeof(VisionToGimbal) <= 64);
 
+struct __attribute__((packed)) NavToGimbal
+{
+    uint8_t head = 0xA5;
+    float linear_x;
+    float linear_y;
+    float linear_z;
+    float angular_x;
+    float angular_y;
+    float angular_z;
+    uint16_t crc16;
+};
+
+struct __attribute__((packed)) GimbalToNav
+{
+    uint8_t head = 0xA5;
+    uint8_t game_progress; // 当前比赛阶段
+    uint16_t stage_remain_time; // 当前阶段剩余时间
+    bool rfid_supply_arrived; // 我方哨兵补给区
+    bool rfid_control_arrived; // 控制区交互卡反馈
+    uint16_t current_hp; // 哨兵当前血量
+    uint8_t is_attacked; // 是否受到攻击 0->未受到攻击 1->受到攻击
+    float gimbal_yaw; // 云台与底盘的相对角度
+    uint16_t crc16;
+};
+
 enum class GimbalMode
 {
   IDLE,        // 空闲
@@ -73,6 +98,12 @@ public:
 
   GimbalMode mode() const;
   GimbalState state() const;
+  GimbalToNav nav_state() const;
+  
+  // 新增接口：设置视觉自瞄状态
+  void set_aim_status(bool detect_enemy);
+  bool is_detect_enemy() const;
+
   std::string str(GimbalMode mode) const;
   float yaw() const;
   Eigen::Quaterniond q(std::chrono::steady_clock::time_point t);
@@ -90,6 +121,9 @@ private:
 
   GimbalToVision rx_data_;
   VisionToGimbal tx_data_;
+  GimbalToNav rx_nav_data_;
+
+  bool aim_detect_enemy_ = false;
 
   GimbalMode mode_ = GimbalMode::IDLE;
   GimbalState state_;

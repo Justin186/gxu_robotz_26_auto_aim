@@ -12,26 +12,6 @@ namespace io
 {
 class ROS2;
 
-struct __attribute__((packed)) NavToGimbal
-{
-    uint8_t head = 0xA5;
-    float linear_x;
-    float linear_y;
-    float linear_z;
-    float angular_x;
-    float angular_y;
-    float angular_z;
-    uint16_t crc16;
-};
-
-struct __attribute__((packed)) GimbalToNav
-{
-    uint8_t head = 0xA5;
-    uint8_t mode;
-    uint8_t hp;
-    uint16_t crc16;
-};
-
 class GimbalNode : public Gimbal
 {
 public:
@@ -43,6 +23,8 @@ public:
     void send(io::VisionToGimbal VisionToGimbal);
 
 private:
+    void thread_loop();
+
     std::mutex mutex_;
 
     NavToGimbal nav_tx_data_;

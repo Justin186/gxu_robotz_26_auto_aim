@@ -12,9 +12,11 @@ int main(int argc, char ** argv)
 
   while (!exiter.exit()) {
     auto x = ros2.subscribe_cmd_vel();
-    tools::logger()->info(
-      "linear x:{}, y:{}, z:{} angular x:{}, y:{}, z:{}", x.linear.x, x.linear.y, x.linear.z,
-      x.angular.x, x.angular.y, x.angular.z);
+    if (x.has_value()) {
+      tools::logger()->info(
+        "linear x:{}, y:{}, z:{} angular x:{}, y:{}, z:{}", x->linear.x, x->linear.y, x->linear.z,
+        x->angular.x, x->angular.y, x->angular.z);
+    }
 
     std::this_thread::sleep_for(std::chrono::microseconds(500));
   }

@@ -4,6 +4,7 @@
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp/timer.hpp>
 #include <vector>
+#include <optional>
 
 #include <geometry_msgs/msg/twist.hpp>
 #include "tools/thread_safe_queue.hpp"
@@ -19,7 +20,7 @@ public:
 
   void start();
 
-  geometry_msgs::msg::Twist subscribe_cmd_vel();
+  std::optional<geometry_msgs::msg::Twist> subscribe_cmd_vel();
 
 private:
   void cmd_vel_callback(const geometry_msgs::msg::Twist::SharedPtr msg);

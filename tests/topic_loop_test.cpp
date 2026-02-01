@@ -24,7 +24,11 @@ int main(int argc, char ** argv)
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     auto x = ros2.subscribe_cmd_vel();
-    tools::logger()->info("receive linear.x: {}", x.linear.x);
+    if (x.has_value()) {
+      tools::logger()->info("receive linear.x: {}", x->linear.x);
+    } else {
+      tools::logger()->info("receive no cmd_vel");
+    }
 
     std::this_thread::sleep_for(std::chrono::seconds(1));
     if (i > 1000) break;

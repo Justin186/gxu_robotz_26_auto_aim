@@ -45,6 +45,24 @@ GimbalState Gimbal::state() const
   return state_;
 }
 
+GimbalToNav Gimbal::nav_state() const
+{
+  std::lock_guard<std::mutex> lock(mutex_);
+  return rx_nav_data_;
+}
+
+void Gimbal::set_aim_status(bool detect_enemy)
+{
+  std::lock_guard<std::mutex> lock(mutex_);
+  aim_detect_enemy_ = detect_enemy;
+}
+
+bool Gimbal::is_detect_enemy() const
+{
+  std::lock_guard<std::mutex> lock(mutex_);
+  return aim_detect_enemy_;
+}
+
 std::string Gimbal::str(GimbalMode mode) const
 {
   switch (mode) {
@@ -147,57 +165,86 @@ void Gimbal::read_thread()
       continue;
     }
 
-    if (!read(reinterpret_cast<uint8_t *>(&rx_data_), sizeof(rx_data_.head))) {
+    uint8_t head;
+    if (!read(&head, 1)) {
       error_count++;
       continue;
     }
 
-    if (rx_data_.head[0] != 'S' || rx_data_.head[1] != 'P') continue;
+    if (head == 'S') {
+      uint8_t second_byte;
+      if (!read(&second_byte, 1)) {
+        error_count++;
+        continue;
+      }
+      if (second_byte != 'P') {
+        continue;
+      }
+      rx_data_.head[0] = 'S';
+      rx_data_.head[1] = 'P';
+      
+      auto t = std::chrono::steady_clock::now();
 
-    auto t = std::chrono::steady_clock::now();
+      if (!read(
+            reinterpret_cast<uint8_t *>(&rx_data_) + 2,
+            sizeof(rx_data_) - 2)) {
+        error_count++;
+        continue;
+      }
 
-    if (!read(
-          reinterpret_cast<uint8_t *>(&rx_data_) + sizeof(rx_data_.head),
-          sizeof(rx_data_) - sizeof(rx_data_.head))) {
-      error_count++;
+      if (!tools::check_crc16(reinterpret_cast<uint8_t *>(&rx_data_), sizeof(rx_data_))) {
+        tools::logger()->debug("[Gimbal] GimbalToVision CRC16 check failed.");
+        continue;
+      }
+
+      error_count = 0;
+      Eigen::Quaterniond q(rx_data_.q[0], rx_data_.q[1], rx_data_.q[2], rx_data_.q[3]);
+      queue_.push({q, t});
+
+      std::lock_guard<std::mutex> lock(mutex_);
+
+      state_.yaw = rx_data_.yaw;
+      state_.yaw_vel = rx_data_.yaw_vel;
+      state_.pitch = rx_data_.pitch;
+      state_.pitch_vel = rx_data_.pitch_vel;
+      state_.bullet_speed = rx_data_.bullet_speed;
+      state_.bullet_count = rx_data_.bullet_count;
+
+      switch (rx_data_.mode) {
+        case 0:
+          mode_ = GimbalMode::IDLE;
+          break;
+        case 1:
+          mode_ = GimbalMode::AUTO_AIM;
+          break;
+        case 2:
+          mode_ = GimbalMode::SMALL_BUFF;
+          break;
+        case 3:
+          mode_ = GimbalMode::BIG_BUFF;
+          break;
+        default:
+          mode_ = GimbalMode::IDLE;
+          tools::logger()->warn("[Gimbal] Invalid mode: {}", rx_data_.mode);
+          break;
+      }
+    } else if (head == 0xA5) {
+      rx_nav_data_.head = head;
+      if (!read(
+            reinterpret_cast<uint8_t *>(&rx_nav_data_) + 1, sizeof(rx_nav_data_) - 1)) {
+        error_count++;
+        continue;
+      }
+      if (!tools::check_crc16(
+            reinterpret_cast<uint8_t *>(&rx_nav_data_), sizeof(rx_nav_data_))) {
+          tools::logger()->debug("[Gimbal] NavToGimbal CRC16 check failed.");
+          continue;
+      }
+      
+      error_count = 0;
+    } else {
+      // Invalid header
       continue;
-    }
-
-    if (!tools::check_crc16(reinterpret_cast<uint8_t *>(&rx_data_), sizeof(rx_data_))) {
-      tools::logger()->debug("[Gimbal] CRC16 check failed.");
-      continue;
-    }
-
-    error_count = 0;
-    Eigen::Quaterniond q(rx_data_.q[0], rx_data_.q[1], rx_data_.q[2], rx_data_.q[3]);
-    queue_.push({q, t});
-
-    std::lock_guard<std::mutex> lock(mutex_);
-
-    state_.yaw = rx_data_.yaw;
-    state_.yaw_vel = rx_data_.yaw_vel;
-    state_.pitch = rx_data_.pitch;
-    state_.pitch_vel = rx_data_.pitch_vel;
-    state_.bullet_speed = rx_data_.bullet_speed;
-    state_.bullet_count = rx_data_.bullet_count;
-
-    switch (rx_data_.mode) {
-      case 0:
-        mode_ = GimbalMode::IDLE;
-        break;
-      case 1:
-        mode_ = GimbalMode::AUTO_AIM;
-        break;
-      case 2:
-        mode_ = GimbalMode::SMALL_BUFF;
-        break;
-      case 3:
-        mode_ = GimbalMode::BIG_BUFF;
-        break;
-      default:
-        mode_ = GimbalMode::IDLE;
-        tools::logger()->warn("[Gimbal] Invalid mode: {}", rx_data_.mode);
-        break;
     }
   }
 

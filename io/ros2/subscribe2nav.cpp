@@ -49,19 +49,13 @@ void Subscribe2Nav::start()
   rclcpp::spin(this->shared_from_this());
 }
 
-geometry_msgs::msg::Twist Subscribe2Nav::subscribe_cmd_vel()
+std::optional<geometry_msgs::msg::Twist> Subscribe2Nav::subscribe_cmd_vel()
 {
-  geometry_msgs::msg::Twist msg;
   if (cmd_vel_queue_.empty()) {
-    return msg;
+    return std::nullopt;
   }
 
-  cmd_vel_queue_.back(msg);
-  // RCLCPP_INFO(
-  //   this->get_logger(), "Subscribe cmd_vel at: linear(%f, %f, %f), angular(%f, %f, %f)",
-  //   msg.linear.x, msg.linear.y, msg.linear.z, msg.angular.x, msg.angular.y, msg.angular.z);
-
-  return msg;
+  return cmd_vel_queue_.pop();
 }
 
 }  // namespace io

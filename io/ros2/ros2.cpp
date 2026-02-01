@@ -4,6 +4,8 @@ namespace io
 ROS2::ROS2()
 {
   rclcpp::init(0, nullptr);
+  node_ = std::make_shared<rclcpp::Node>("ros2_interface_node");
+  rmul_publisher_ = node_->create_publisher<sp_msgs::msg::RMUL>("/robot_status", 10);
 
   publish2nav_ = std::make_shared<Publish2Nav>();
 
@@ -23,8 +25,9 @@ ROS2::~ROS2()
 
 void ROS2::publish(const Eigen::Vector4d & target_pos) { publish2nav_->send_target_pos(target_pos); }
 void ROS2::publish(const float & yaw) { publish2nav_->send_yaw(yaw); }
+void ROS2::publish(const sp_msgs::msg::RMUL & msg) { rmul_publisher_->publish(msg); }
 
-geometry_msgs::msg::Twist ROS2::subscribe_cmd_vel()
+std::optional<geometry_msgs::msg::Twist> ROS2::subscribe_cmd_vel()
 {
   return subscribe2nav_->subscribe_cmd_vel();
 }
