@@ -12,7 +12,6 @@ XrobotImu::XrobotImu(const std::string & config_path)
   auto yaml = tools::load(config_path);
   auto com_port = tools::read<std::string>(yaml, "imu_com_port");
   auto baudrate = tools::read<int>(yaml, "imu_baudrate", 1000000);
-  filter_alpha_ = tools::read<double>(yaml, "imu_filter_alpha", 0.01);
 
   try {
     serial_.setPort(com_port);
@@ -164,27 +163,23 @@ void XrobotImu::read_thread()
       
       // 四元数 (注意：IMU中的q0是实部，Eigen的Quaterniond构造参数为(w, x, y, z))
       Eigen::Quaterniond q(rx_data_.q[0], rx_data_.q[1], rx_data_.q[2], rx_data_.q[3]);
+      state_.q = q;
+      q_queue_.push({q, t});
+      
+      // 角速度
       Eigen::Vector3d gyro(rx_data_.gyro[0], rx_data_.gyro[1], rx_data_.gyro[2]);
+      state_.gyro = gyro;
+      gyro_queue_.push({gyro, t});
+      
+      // 加速度
       Eigen::Vector3d accl(rx_data_.accl[0], rx_data_.accl[1], rx_data_.accl[2]);
+      state_.accl = accl;
+      accl_queue_.push({accl, t});
+      
+      // 欧拉角 (roll, pitch, yaw)
       Eigen::Vector3d euler(rx_data_.euler[0], rx_data_.euler[1], rx_data_.euler[2]);
-
-      if (first_packet_) {
-        state_.q = q;
-        state_.gyro = gyro;
-        state_.accl = accl;
-        state_.euler = euler;
-        first_packet_ = false;
-      } else {
-        state_.q = state_.q.slerp(filter_alpha_, q).normalized();
-        state_.gyro = state_.gyro * (1.0 - filter_alpha_) + gyro * filter_alpha_;
-        state_.accl = state_.accl * (1.0 - filter_alpha_) + accl * filter_alpha_;
-        state_.euler = state_.euler * (1.0 - filter_alpha_) + euler * filter_alpha_;
-      }
-
-      q_queue_.push({state_.q, t});
-      gyro_queue_.push({state_.gyro, t});
-      accl_queue_.push({state_.accl, t});
-      euler_queue_.push({state_.euler, t});
+      state_.euler = euler;
+      euler_queue_.push({euler, t});
       
       // 时间戳
       state_.time = rx_data_.time;
@@ -212,7 +207,6 @@ void XrobotImu::reconnect()
       euler_queue_.clear();
       gyro_queue_.clear();
       accl_queue_.clear();
-      first_packet_ = true;
       tools::logger()->info("[XrobotImu] Reconnected serial successfully.");
       break;
     } catch (const std::exception & e) {

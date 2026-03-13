@@ -214,7 +214,7 @@ void Target::update_ypda(const Armor & armor, int id)
   // 算出观测噪声协方差矩阵R的对角线元素
   Eigen::VectorXd R_dig{
       {4e-3,  // 固定yaw噪声
-      4e-3,  // 固定pitch噪声
+      4e-2,  // 固定pitch噪声
       log(std::abs(delta_angle) + 1) + 1,  // 自适应距离噪声：当装甲板不在正对时（delta_angle大），距离估计不准，增大噪声
       log(std::abs(armor.ypd_in_world[2]) + 1) / 200 + 9e-2}};  // 自适应角度噪声：距离越远，角度估计越不准
 
@@ -242,6 +242,24 @@ void Target::update_ypda(const Armor & armor, int id)
   const Eigen::VectorXd & ypd = armor.ypd_in_world;
   const Eigen::VectorXd & ypr = armor.ypr_in_world;
   Eigen::VectorXd z{{ypd[0], ypd[1], ypd[2], ypr[0]}};  //获得观测量
+
+  // 计算预测值和观测值的残差 (Innovation)
+  Eigen::VectorXd z_predict = h(ekf_.x);
+  Eigen::VectorXd residual = z_subtract(z, z_predict);
+  
+  // 核心逻辑：如果预测的角度 (yaw) 或距离误差异常大，说明目标发生了不可预测的机动（如急速换向）
+  // 此时惩罚滤波器，增大状态协方差矩阵P中与速度和位置相关的对角线元素，让其重新快速收敛到最新观测
+  if (std::abs(residual[0]) > 0.08 || std::abs(residual[1]) > 0.08) { 
+    // 角度残差大于约4.5度，或者距离残差过大
+    // 主动为 x, vx, y, vy, z, vz 的协方差增加不确定性
+    ekf_.P.diagonal()[0] += 0.05;  // x
+    ekf_.P.diagonal()[1] += 5.0;   // vx
+    ekf_.P.diagonal()[2] += 0.05;  // y
+    ekf_.P.diagonal()[3] += 5.0;   // vy
+    ekf_.P.diagonal()[4] += 0.05;  // z
+    ekf_.P.diagonal()[5] += 5.0;   // vz
+    tools::logger()->warn("[Target] Target Manuevering Detected! Residual yaw: {:.3f}", residual[0]);
+  }
 
   ekf_.update(z, H, R, h, z_subtract); // 送进EKF进行更新
 }

@@ -8,7 +8,6 @@
 
 #include "io/camera.hpp"
 #include "io/gimbal/gimbal.hpp"
-#include "io/xrobot_imu/xrobot_imu.hpp"
 #include "tasks/auto_aim/planner/planner.hpp"
 #include "tasks/auto_aim/solver.hpp"
 #include "tasks/auto_aim/tracker.hpp"
@@ -24,7 +23,7 @@ using namespace std::chrono_literals;
 
 const std::string keys =
   "{help h usage ? |                        | 输出命令行参数说明}"
-  "{@config-path   | configs/sentry.yaml | 位置参数，yaml配置文件路径 }";
+  "{@config-path   | configs/hero.yaml | 位置参数，yaml配置文件路径 }";
 
 int main(int argc, char * argv[])
 {
@@ -39,7 +38,6 @@ int main(int argc, char * argv[])
   }
 
   io::Gimbal gimbal(config_path);
-  io::XrobotImu imu(config_path);
   io::Camera camera(config_path);
 
   auto_aim::YOLO yolo(config_path, true);
@@ -55,7 +53,7 @@ int main(int argc, char * argv[])
     camera.read(img, t);
     
     // 使用IMU获取姿态
-    auto q = imu.q(t);
+    auto q = gimbal.q(t);
 
     solver.set_R_gimbal2world(q);
     
@@ -80,7 +78,10 @@ int main(int argc, char * argv[])
       
       cv::putText(img, "LOCKED (Press 'r' to reset)", {50, 50}, cv::FONT_HERSHEY_SIMPLEX, 1, {0, 0, 255}, 2);
     }
-
+    Eigen::Vector3d zyx = tools::eulers(q, 2, 1, 0) * 57.3;  // degree
+    tools::draw_text(img, fmt::format("Z {:.2f}", zyx[0]), {40, 40}, {0, 0, 255});
+    tools::draw_text(img, fmt::format("Y {:.2f}", zyx[1]), {40, 80}, {0, 0, 255});
+    tools::draw_text(img, fmt::format("X {:.2f}", zyx[2]), {40, 120}, {0, 0, 255});
     cv::resize(img, img, {}, 0.5, 0.5);
     cv::imshow("reprojection", img);
     auto key = cv::waitKey(1);
@@ -91,7 +92,7 @@ int main(int argc, char * argv[])
     }
   }
 
-  gimbal.send(false, false, 0, 0, 0, 0, 0, 0, 0, 0);
+  gimbal.send(false, false, 0, 0, 0, 0, 0, 0);
 
   return 0;
 }

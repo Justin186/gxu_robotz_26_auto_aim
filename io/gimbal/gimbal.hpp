@@ -3,11 +3,14 @@
 
 #include <Eigen/Geometry>
 #include <atomic>
+#include <chrono>
 #include <mutex>
 #include <string>
 #include <thread>
+#include <tuple>
 
 #include "serial/serial.h"
+#include "tools/thread_safe_queue.hpp"
 
 namespace io
 {
@@ -15,8 +18,14 @@ struct __attribute__((packed)) GimbalToVision
 {
   uint8_t head[2] = {'S', 'P'};
   uint8_t mode;  // 0: 空闲, 1: 自瞄, 2: 小符, 3: 大符
+  float q[4];    // wxyz顺序
+  float yaw;
+  float yaw_vel;
+  float pitch;
+  float pitch_vel;
   float bullet_speed;
   uint16_t bullet_count;  // 子弹累计发送次数
+  float gimbal_yaw;
   uint16_t crc16;
 };
 
@@ -26,8 +35,6 @@ struct __attribute__((packed)) VisionToGimbal
 {
   uint8_t head[2] = {'S', 'P'};
   uint8_t mode;  // 0: 不控制, 1: 控制云台但不开火，2: 控制云台且开火
-  float raw_yaw;
-  float raw_pitch;
   float yaw;
   float yaw_vel;
   float yaw_acc;
@@ -49,6 +56,10 @@ enum class GimbalMode
 
 struct GimbalState
 {
+  float yaw;
+  float yaw_vel;
+  float pitch;
+  float pitch_vel;
   float bullet_speed;
   uint16_t bullet_count;
 };
@@ -63,9 +74,10 @@ public:
   GimbalMode mode() const;
   GimbalState state() const;
   std::string str(GimbalMode mode) const;
+  Eigen::Quaterniond q(std::chrono::steady_clock::time_point t);
 
   void send(
-    bool control, bool fire, float raw_yaw, float raw_pitch, float yaw, float yaw_vel, float yaw_acc, float pitch, float pitch_vel,
+    bool control, bool fire, float yaw, float yaw_vel, float yaw_acc, float pitch, float pitch_vel,
     float pitch_acc);
 
   void send(io::VisionToGimbal VisionToGimbal);
@@ -82,6 +94,8 @@ private:
 
   GimbalMode mode_ = GimbalMode::IDLE;
   GimbalState state_;
+  tools::ThreadSafeQueue<std::tuple<Eigen::Quaterniond, std::chrono::steady_clock::time_point>>
+    queue_{1000};
 
   bool read(uint8_t * buffer, size_t size);
   void read_thread();

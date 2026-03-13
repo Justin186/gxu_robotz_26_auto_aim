@@ -40,8 +40,6 @@ int main(int argc, char * argv[])
     gimbal.send(
       true,                         // control
       false,                          // fire
-      current_euler[2],            // raw_yaw（从IMU获取的当前yaw）
-      current_euler[1],            // raw_pitch（从IMU获取的当前pitch）
       0.0f,                        // yaw（目标yaw，设为0）
       0.0f,                        // yaw_vel（目标yaw速度，设为0）
       0.0f,                        // yaw_acc（目标yaw加速度，设为0）

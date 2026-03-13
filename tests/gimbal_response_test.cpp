@@ -165,8 +165,6 @@ int main(int argc, char * argv[])
       // 发送云台控制命令（包括角速度和加速度）
       // raw_yaw和raw_pitch从IMU读取
       gimbal.send(true, false, 
-                  gimbal_yaw,     // raw_yaw: 当前yaw
-                  gimbal_pitch,   // raw_pitch: 当前pitch
                   cmd_yaw,        // 目标yaw
                   cmd_yaw_vel,    // 目标yaw速度
                   cmd_yaw_acc,    // 目标yaw加速度
@@ -207,8 +205,6 @@ int main(int argc, char * argv[])
       double cmd_yaw = cmd_angle / 57.3;
       // 发送云台控制命令
       gimbal.send(true, false, 
-                  gimbal_yaw,     // raw_yaw: 当前yaw
-                  gimbal_pitch,   // raw_pitch: 当前pitch
                   cmd_yaw,        // 目标yaw
                   0,              // 目标yaw速度
                   0,              // 目标yaw加速度
@@ -255,8 +251,6 @@ int main(int argc, char * argv[])
       
       // 发送云台控制命令
       gimbal.send(true, false, 
-                  gimbal_yaw,     // raw_yaw: 当前yaw
-                  gimbal_pitch,   // raw_pitch: 当前pitch
                   yaw,            // 目标yaw
                   yaw_vel,        // 目标yaw速度
                   yaw_acc,        // 目标yaw加速度
@@ -289,6 +283,6 @@ int main(int argc, char * argv[])
   }
   
   // 程序退出前发送停止命令
-  gimbal.send(false, false, 0, 0, 0, 0, 0, 0, 0, 0);
+  gimbal.send(false, false, 0, 0, 0, 0, 0, 0);
   return 0;
 }

@@ -67,13 +67,7 @@ void Solver::solve(Armor & armor) const
 
   // 从 R_gimbal2world_ 中提取欧拉角
   Eigen::Vector3d gimbal_ypr = tools::eulers(R_gimbal2world_, 2, 1, 0);
-  double pitch = gimbal_ypr[1];
-  
-  // 构造绕 Y 轴的 pitch 旋转矩阵（pitchlink 到 gimbal）
-  double cos_p = cos(pitch);
-  double sin_p = sin(pitch);
-  Eigen::Matrix3d R_pitchlink2gimbal;
-  R_pitchlink2gimbal << cos_p, 0, sin_p, 0, 1, 0, -sin_p, 0, cos_p;
+  Eigen::Matrix3d R_pitchlink2gimbal = tools::rotation_matrix(Eigen::Vector3d(0, gimbal_ypr[1], 0));
   Eigen::Vector3d xyz_in_pitchlink = R_camera2pitchlink_ * xyz_in_camera + t_camera2pitchlink_;
   armor.xyz_in_gimbal = R_pitchlink2gimbal * xyz_in_pitchlink + t_pitchlink2gimbal_;
   armor.xyz_in_world = R_gimbal2world_ * R_pitchlink2gimbal.transpose() * armor.xyz_in_gimbal;
@@ -117,11 +111,7 @@ std::vector<cv::Point2f> Solver::reproject_armor(
   // clang-format on
 
   Eigen::Vector3d gimbal_ypr = tools::eulers(R_gimbal2world_, 2, 1, 0);
-  double gimbal_pitch = gimbal_ypr[1];
-  double cos_p = cos(gimbal_pitch);
-  double sin_p = sin(gimbal_pitch);
-  Eigen::Matrix3d R_pitchlink2gimbal;
-  R_pitchlink2gimbal << cos_p, 0, sin_p, 0, 1, 0, -sin_p, 0, cos_p;
+  Eigen::Matrix3d R_pitchlink2gimbal = tools::rotation_matrix(Eigen::Vector3d(0, gimbal_ypr[1], 0));
   // get R_armor2camera t_armor2camera
   const Eigen::Vector3d & t_armor2world = xyz_in_world;
   Eigen::Matrix3d R_armor2camera =
