@@ -36,8 +36,8 @@ public:
   Eigen::Vector4d debug_xyza;
   Planner(const std::string & config_path);
 
-  Plan plan(Target target, double bullet_speed);
-  Plan plan(std::optional<Target> target, double bullet_speed);
+  Plan plan(Target target, double bullet_speed, double current_yaw = 0.0, double current_pitch = 0.0);
+  Plan plan(std::optional<Target> target, double bullet_speed, double current_yaw = 0.0, double current_pitch = 0.0);
 
 private:
   double yaw_offset_;
@@ -45,9 +45,9 @@ private:
   double fire_thresh_;
   double max_armor_angle_;
   double low_speed_delay_time_, high_speed_delay_time_, decision_speed_;
+  double defult_bullet_speed_;
 
   Eigen::Matrix3d R_gimbal2imubody_;
-
   TinySolver * yaw_solver_;
   TinySolver * pitch_solver_;
 

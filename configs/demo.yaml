@@ -77,7 +77,7 @@ send_canid: 0xff
 can_interface: "can0"
 
 #####-----gimbal参数-----#####
-com_port: "/dev/ttyACM0"
+com_port: "gimbal"
 
 #####-----planner-----#####
 fire_thresh: 0.003

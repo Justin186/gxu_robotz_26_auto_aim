@@ -243,7 +243,32 @@ void Target::update_ypda(const Armor & armor, int id)
   const Eigen::VectorXd & ypr = armor.ypr_in_world;
   Eigen::VectorXd z{{ypd[0], ypd[1], ypd[2], ypr[0]}};  //获得观测量
 
+  // 计算上一帧估计的速度 (vx, vy, vz) 和角速度 (w)
+  Eigen::Vector3d last_v(ekf_.x[1], ekf_.x[3], ekf_.x[5]);
+  double last_w = ekf_.x[7];
+
   ekf_.update(z, H, R, h, z_subtract); // 送进EKF进行更新
+  
+  // 计算更新后新估计的速度和角速度
+  Eigen::Vector3d current_v(ekf_.x[1], ekf_.x[3], ekf_.x[5]);
+  double current_w = ekf_.x[7];
+  
+  // 提取前后两帧的速度变化量（即隐含的加速度/角加速度大小）
+  // 这里的差值实际上反映了EKF对速度状态的瞬间修正量（也就是"由于模型不符导致的突变加速度"）
+  double delta_v = (current_v - last_v).norm();
+  double delta_w = std::abs(current_w - last_w);
+  
+  // 核心逻辑：如果速度变化极大（强机动/急停/急转），或者基于观测算出的残差极大
+  // 则重置机动倒计时，并根据情况膨胀协方差
+  if (delta_v > 0.5 || delta_w > 0.5) { 
+    // 发生了极大的速度或角速度突变（说明正在剧烈加速或减速、换向）
+    tools::logger()->warn("[Target] Acceleration/Maneuver Detected! delta_v: {:.3f}, delta_w: {:.3f}", delta_v, delta_w);
+    maneuver_ticks = 10; // 设置机动状态，暂缓开火
+  } else {
+    if (maneuver_ticks > 0) {
+      maneuver_ticks--;
+    }
+  }
 }
 
 Eigen::VectorXd Target::ekf_x() const { return ekf_.x; }
@@ -312,7 +337,7 @@ Eigen::MatrixXd Target::h_jacobian(const Eigen::VectorXd & x, int id) const
   // 计算观测函数h对状态量x的雅可比矩阵H
   // 先算H_armor_xyza[∂(xyza)/∂状态]，再算H_armor_ypda[∂(ypda)/∂(xyza)]，最后相乘得到真正的H_ypda（链式法则）
   auto angle = tools::limit_rad(x[6] + id * 2 * CV_PI / armor_num_);
-  auto use_l_h = (armor_num_ == 4) && (id == 1 || id == 3);
+  auto use_l_h = (armor_num_ == 4 || armor_num_ == 3) && (id == 1 || id == 3);
 
   auto r = (use_l_h) ? x[8] + x[9] : x[8];
   auto dx_da = r * std::sin(angle);

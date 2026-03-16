@@ -16,10 +16,11 @@ Planner::Planner(const std::string & config_path)
   yaw_offset_ = tools::read<double>(yaml, "yaw_offset") / 57.3;
   pitch_offset_ = tools::read<double>(yaml, "pitch_offset") / 57.3;
   fire_thresh_ = tools::read<double>(yaml, "fire_thresh");
-  max_armor_angle_ = tools::read<double>(yaml, "max_armor_angle", 45.0) / 57.3;
+  max_armor_angle_ = tools::read<double>(yaml, "max_armor_angle", 30.0) / 57.3;
   decision_speed_ = tools::read<double>(yaml, "decision_speed");
   high_speed_delay_time_ = tools::read<double>(yaml, "high_speed_delay_time");
   low_speed_delay_time_ = tools::read<double>(yaml, "low_speed_delay_time");
+  defult_bullet_speed_ = tools::read<double>(yaml, "defult_bullet_speed", 22);
 
   auto R_gimbal2imubody_data = tools::read<std::vector<double>>(yaml, "R_gimbal2imubody");
   R_gimbal2imubody_ = Eigen::Matrix<double, 3, 3, Eigen::RowMajor>(R_gimbal2imubody_data.data());
@@ -28,11 +29,11 @@ Planner::Planner(const std::string & config_path)
   setup_pitch_solver(config_path);
 }
 
-Plan Planner::plan(Target target, double bullet_speed)
+Plan Planner::plan(Target target, double bullet_speed, double current_yaw, double current_pitch)
 {
   // 0. Check bullet speed
   if (bullet_speed < 10 || bullet_speed > 25) {
-    bullet_speed = 22;
+    bullet_speed = defult_bullet_speed_;
   }
 
   // 1. Predict fly_time
@@ -55,7 +56,9 @@ Plan Planner::plan(Target target, double bullet_speed)
   try {
     yaw0 = aim(target, bullet_speed)(0);
     current_armor_yaw = debug_xyza[3];
+    Eigen::Vector4d final_aim_xyza = debug_xyza; // 记录真正的击打点，防止被下方的循环覆盖
     traj = get_trajectory(target, yaw0, bullet_speed);
+    debug_xyza = final_aim_xyza; // 恢复真正的击打点供外部红框绘制
   } catch (const std::exception & e) {
     tools::logger()->warn("Unsolvable target {:.2f}", bullet_speed);
     return {false};
@@ -63,7 +66,7 @@ Plan Planner::plan(Target target, double bullet_speed)
 
   // 3. Solve yaw
   Eigen::VectorXd x0(2);
-  x0 << traj(0, 0), traj(1, 0);
+  x0 << traj(0, 0), traj(1, 0); // 恢复MPC原有的纯前馈平滑生成模式
   tiny_set_x0(yaw_solver_, x0);
 
   yaw_solver_->work->Xref = traj.block(0, 0, 2, HORIZON);
@@ -90,20 +93,26 @@ Plan Planner::plan(Target target, double bullet_speed)
   plan.pitch_vel = pitch_solver_->work->x(1, HALF_HORIZON);
   plan.pitch_acc = pitch_solver_->work->u(0, HALF_HORIZON);
 
-  auto shoot_offset_ = 0;
+  auto shoot_offset_ = 1;
   auto center_yaw = std::atan2(target.ekf_x()[2], target.ekf_x()[0]);
   auto delta_angle = std::abs(tools::limit_rad(current_armor_yaw - center_yaw));
 
+  double real_yaw_error = tools::limit_rad(current_yaw - plan.target_yaw);
+  double real_pitch_error = current_pitch - plan.target_pitch;
+
   plan.fire =
+    target.maneuver_ticks > 0 ? false :
+    real_yaw_error < fire_thresh_ && real_pitch_error < fire_thresh_ &&
     std::hypot(
       traj(0, HALF_HORIZON + shoot_offset_) - yaw_solver_->work->x(0, HALF_HORIZON + shoot_offset_),
       traj(2, HALF_HORIZON + shoot_offset_) -
         pitch_solver_->work->x(0, HALF_HORIZON + shoot_offset_)) < fire_thresh_ &&
     delta_angle < max_armor_angle_;
+
   return plan;
 }
 
-Plan Planner::plan(std::optional<Target> target, double bullet_speed)
+Plan Planner::plan(std::optional<Target> target, double bullet_speed, double current_yaw, double current_pitch)
 {
   if (!target.has_value()) return {false};
 
@@ -114,7 +123,7 @@ Plan Planner::plan(std::optional<Target> target, double bullet_speed)
 
   target->predict(future);
 
-  return plan(*target, bullet_speed);
+  return plan(*target, bullet_speed, current_yaw, current_pitch);
 }
 
 void Planner::setup_yaw_solver(const std::string & config_path)
