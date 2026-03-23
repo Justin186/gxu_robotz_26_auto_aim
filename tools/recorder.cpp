@@ -52,6 +52,7 @@ void Recorder::save_to_file()
     auto since_begin = tools::delta_time(frame.timestamp, start_time_);
     text_writer_ << fmt::format(
       "{} {} {} {} {}\n", since_begin, xyzw[3], xyzw[0], xyzw[1], xyzw[2]);
+    text_writer_.flush(); // 强制刷新缓冲区，防止突然关机丢失文本数据
   }
 }
 

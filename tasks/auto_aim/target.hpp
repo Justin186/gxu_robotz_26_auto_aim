@@ -45,6 +45,8 @@ public:
 
   bool checkinit();
 
+  int maneuver_ticks = 0;
+
 private:
   int armor_num_;
   int switch_count_;

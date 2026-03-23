@@ -19,25 +19,26 @@
 #include "tools/plotter.hpp"
 #include "tools/thread_safe_queue.hpp"
 #include "tools/yaml.hpp"
+#include "tools/recorder.hpp"
 
 using namespace std::chrono_literals;
 
 const std::string keys =
   "{help h usage ? |                        | 输出命令行参数说明}"
-  "{ip             | 192.168.1.18           | Rerun 查看器的IP地址}"
   "{f              | true                   | 是否开火}"
+  "{rec            | false                  | 是否强制录制数据}"
   "{@config-path   | configs/hero.yaml      | 位置参数，yaml配置文件路径 }";
 
 int main(int argc, char * argv[])
 {
   tools::Exiter exiter;
   // tools::Plotter plotter;
+  tools::Recorder recorder;
 
   cv::CommandLineParser cli(argc, argv, keys);
   auto config_path = cli.get<std::string>(0);
-  auto rerun_ip = cli.get<std::string>("ip");
   auto fire = cli.get<bool>("f");
-
+  auto record = cli.get<bool>("rec");
   if (cli.has("help") || config_path.empty()) {
     cli.printMessage();
     return 0;
@@ -89,15 +90,25 @@ int main(int argc, char * argv[])
 
   cv::Mat img;
   std::chrono::steady_clock::time_point t;
-  auto last_t = std::chrono::steady_clock::now();
+  auto last_fps_t = std::chrono::steady_clock::now();
+  int frame_count = 0;
 
   while (!exiter.exit()) {
     camera.read(img, t);
     auto now = std::chrono::steady_clock::now();
-    double fps = 1.0 / std::chrono::duration<double>(now - last_t).count();
-    last_t = now;
+    frame_count++;
+    if (std::chrono::duration_cast<std::chrono::seconds>(now - last_fps_t).count() >= 10) {
+      double fps = frame_count / std::chrono::duration<double>(now - last_fps_t).count();
+      tools::logger()->info("FPS: {:.2f}", fps);
+      frame_count = 0;
+      last_fps_t = now;
+    }
     
     auto q = gimbal.q(t);
+    auto gs = gimbal.state();
+    if (gimbal.mode() != io::GimbalMode::IDLE || record) {
+      recorder.record(img, q, t);
+    }
 
     solver.set_R_gimbal2world(q);
     auto armors = yolo.detect(img);
@@ -107,26 +118,6 @@ int main(int argc, char * argv[])
     else
       target_queue.push(std::nullopt);
 
-    // if (!targets.empty()) {
-    //   auto target = targets.front();
-
-    //   // 当前帧target更新后
-    //   std::vector<Eigen::Vector4d> armor_xyza_list = target.armor_xyza_list();
-    //   for (const Eigen::Vector4d & xyza : armor_xyza_list) {
-    //     auto image_points =
-    //       solver.reproject_armor(xyza.head(3), xyza[3], target.armor_type, target.name);
-    //     tools::draw_points(img, image_points, {0, 255, 0});
-    //   }
-
-    //   Eigen::Vector4d aim_xyza = planner.debug_xyza;
-    //   auto image_points =
-    //     solver.reproject_armor(aim_xyza.head(3), aim_xyza[3], target.armor_type, target.name);
-    //   tools::draw_points(img, image_points, {0, 0, 255});
-    // }
-
-    // tools::draw_text(img, fmt::format("FPS: {:.2f}", fps), {10, 30});
-    // cv::resize(img, img, {}, 0.5, 0.5);  // 显示时缩小图片尺寸
-    // cv::imshow("reprojection", img);
     auto key = cv::waitKey(1);
     if (key == 'q') break;
   }

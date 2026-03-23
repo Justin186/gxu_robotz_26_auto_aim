@@ -101,6 +101,7 @@ Plan Planner::plan(Target target, double bullet_speed, double current_yaw, doubl
   double real_pitch_error = current_pitch - plan.target_pitch;
 
   plan.fire =
+    target.maneuver_ticks > 0 ? false :  // 机动状态暂缓开火
     std::hypot(real_yaw_error, real_pitch_error) < fire_thresh_ &&
     std::hypot(
       traj(0, HALF_HORIZON + shoot_offset_) - yaw_solver_->work->x(0, HALF_HORIZON + shoot_offset_),
