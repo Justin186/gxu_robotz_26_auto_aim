@@ -27,6 +27,8 @@ const std::string keys =
   "{help h usage ? |                        | 输出命令行参数说明}"
   "{ip             | 192.168.1.18           | Rerun 查看器的IP地址}"
   "{f              | true                   | 是否开火}"
+  "{imshow         | true                   | 是否显示图像窗口}"
+  "{rerun          | false                  | 是否将数据记录到Rerun}"
   "{@config-path   | configs/hero.yaml      | 位置参数，yaml配置文件路径 }";
 
 int main(int argc, char * argv[])
@@ -38,20 +40,26 @@ int main(int argc, char * argv[])
   auto config_path = cli.get<std::string>(0);
   auto rerun_ip = cli.get<std::string>("ip");
   auto fire = cli.get<bool>("f");
+  auto imshow = cli.get<bool>("imshow");
+  auto rerun = cli.get<bool>("rerun");
 
   if (cli.has("help") || config_path.empty()) {
     cli.printMessage();
     return 0;
   }
 
-  const auto rec = rerun::RecordingStream("gxu_auto_aim_debug");
+  std::optional<rerun::RecordingStream> rec; 
+  if (rerun) {
+    rec.emplace("gxu_auto_aim_debug");
+    rec->connect_grpc("rerun+http://" + rerun_ip + ":9876/proxy").exit_on_failure();
+  }
   // 连接到你场下大电脑(调试机)的 IP 地址
-  rec.connect_grpc("rerun+http://" + rerun_ip + ":9876/proxy").exit_on_failure();
+    // rec.connect_grpc("rerun+http://" + rerun_ip + ":9876/proxy").exit_on_failure();
 
   io::Gimbal gimbal(config_path);
   io::Camera camera(config_path);
 
-  auto_aim::YOLO yolo(config_path, false);
+  auto_aim::YOLO yolo(config_path, imshow);
   auto_aim::Solver solver(config_path);
   auto_aim::Tracker tracker(config_path, solver);
   auto_aim::Planner planner(config_path);
@@ -101,7 +109,7 @@ int main(int argc, char * argv[])
       Eigen::Vector3d t_gimbal2world = R_gimbal2world * (-t_pitchlink2gimbal);
       
       // 以云台中心作为原点，绘制云台当前坐标系。利用 TransformAxes3D 能够画出红绿蓝(XYZ)三个箭头的坐标轴
-      rec.log("world/gimbal", 
+      if (rerun) rec->log("world/gimbal", 
         rerun::Transform3D(
           rerun::Vec3D{(float)t_gimbal2world.x(), (float)t_gimbal2world.y(), (float)t_gimbal2world.z()},
           rerun::Mat3x3({ // Rerun的Mat3x3为【列主序】(Column-Major)！必须修成这样，否则矩阵就是转置的，会导致所有旋转颠倒。
@@ -134,27 +142,6 @@ int main(int argc, char * argv[])
          (float)(local_offset.z() + 8.0 * local_dir.z())}
       }));
 
-      // 因为 Rerun 自动对子层应用正向旋转，这正好抵消了我们刚刚乘的逆向转置矩阵（且R_gimbal矩阵已被正确修复），现在肯定完全水平了！
-      rec.log("world/gimbal/yaw_line",
-        rerun::LineStrips3D(strips).with_colors({{255, 165, 0}}) // 橙色直线
-      );
-
-      rec.log("yaw/plan_yaw", rerun::Scalars(plan.yaw));
-      rec.log("yaw/target_yaw", rerun::Scalars(plan.target_yaw));
-      rec.log("yaw/gimbal_yaw", rerun::Scalars(gs.yaw));
-      rec.log("yaw/gimbal_yaw_vel", rerun::Scalars(gs.yaw_vel));
-      rec.log("yaw/plan_yaw_vel", rerun::Scalars(plan.yaw_vel));
-      rec.log("yaw/plan_yaw_acc", rerun::Scalars(plan.yaw_acc));
-      
-
-      rec.log("pitch/plan_pitch", rerun::Scalars(plan.pitch));
-      rec.log("pitch/target_pitch", rerun::Scalars(plan.target_pitch));
-      rec.log("pitch/gimbal_pitch", rerun::Scalars(gs.pitch));
-      rec.log("pitch/plan_pitch_vel", rerun::Scalars(plan.pitch_vel));
-      rec.log("pitch/plan_pitch_acc", rerun::Scalars(plan.pitch_acc));
-
-      rec.log("fire/fired", rerun::Scalars(fired ? 1.0f : 0.0f));
-
       fire_history.push_back(plan.fire);
       if (fire_history.size() > history_max_size) {
         fire_history.pop_front();
@@ -165,8 +152,29 @@ int main(int argc, char * argv[])
       }
       fire_duty /= fire_history.size();
 
-      rec.log("fire/plan_fire", rerun::Scalars(plan.fire ? 1.0f : 0.0f));
-      rec.log("fire/duty_cycle", rerun::Scalars(fire_duty));
+      // 因为 Rerun 自动对子层应用正向旋转，这正好抵消了我们刚刚乘的逆向转置矩阵（且R_gimbal矩阵已被正确修复），现在肯定完全水平了！
+      if (rerun) { 
+        rec->log("world/gimbal/yaw_line",
+          rerun::LineStrips3D(strips).with_colors({{255, 165, 0}}) // 橙色直线
+        );
+        rec->log("yaw/plan_yaw", rerun::Scalars(plan.yaw));
+        rec->log("yaw/target_yaw", rerun::Scalars(plan.target_yaw));
+        rec->log("yaw/gimbal_yaw", rerun::Scalars(gs.yaw));
+        rec->log("yaw/gimbal_yaw_vel", rerun::Scalars(gs.yaw_vel));
+        rec->log("yaw/plan_yaw_vel", rerun::Scalars(plan.yaw_vel));
+        rec->log("yaw/plan_yaw_acc", rerun::Scalars(plan.yaw_acc));
+      
+
+        rec->log("pitch/plan_pitch", rerun::Scalars(plan.pitch));
+        rec->log("pitch/target_pitch", rerun::Scalars(plan.target_pitch));
+        rec->log("pitch/gimbal_pitch", rerun::Scalars(gs.pitch));
+        rec->log("pitch/plan_pitch_vel", rerun::Scalars(plan.pitch_vel));
+        rec->log("pitch/plan_pitch_acc", rerun::Scalars(plan.pitch_acc));
+
+        rec->log("fire/fired", rerun::Scalars(fired ? 1.0f : 0.0f));
+        rec->log("fire/plan_fire", rerun::Scalars(plan.fire ? 1.0f : 0.0f));
+        rec->log("fire/duty_cycle", rerun::Scalars(fire_duty));
+      }
 
       // 记录目标位置 (如果有)
       if (target.has_value()) {
@@ -184,22 +192,22 @@ int main(int argc, char * argv[])
         };
         
         // 用一个绿色小球表示各个正在估计的装甲板空间位置
-        rec.log("world/target/armors", rerun::Points3D(armor_points)
+        if (rerun) rec->log("world/target/armors", rerun::Points3D(armor_points)
           .with_radii({0.05f})
           .with_colors({{0, 255, 0}})); // 绿色代表当前装甲板
         
         // 用一个比较大的红色小球表示要打的点
-        rec.log("world/target/aim_point", rerun::Points3D(aim_points)
+        if (rerun) rec->log("world/target/aim_point", rerun::Points3D(aim_points)
           .with_radii({0.07f})
           .with_colors({{255, 0, 0}})); // 红色代表预测击打位置
           
-        rec.log("scalar/target/w", rerun::Scalars(target->ekf_x()[7])); // 记录目标的旋转角速度w
-        rec.log("scalar/target/z", rerun::Scalars(target->ekf_x()[4]));
-        rec.log("scalar/target/vz", rerun::Scalars(target->ekf_x()[5]));
+        if (rerun) rec->log("scalar/target/w", rerun::Scalars(target->ekf_x()[7])); // 记录目标的旋转角速度w
+        if (rerun) rec->log("scalar/target/z", rerun::Scalars(target->ekf_x()[4]));
+        if (rerun) rec->log("scalar/target/vz", rerun::Scalars(target->ekf_x()[5]));
       } else {
         // 丢失目标时清空绘制，防止屏幕上留着鬼影
-        rec.log("world/target/armors", rerun::Clear::FLAT);
-        rec.log("world/target/aim_point", rerun::Clear::FLAT);
+        if (rerun) rec->log("world/target/armors", rerun::Clear::FLAT);
+        if (rerun) rec->log("world/target/aim_point", rerun::Clear::FLAT);
       }
       // =========================
     }
@@ -225,27 +233,29 @@ int main(int argc, char * argv[])
     else
       target_queue.push(std::nullopt);
 
-    // if (!targets.empty()) {
-    //   auto target = targets.front();
+    if (imshow) {
+      if (!targets.empty()) {
+        auto target = targets.front();
 
-    //   // 当前帧target更新后
-    //   std::vector<Eigen::Vector4d> armor_xyza_list = target.armor_xyza_list();
-    //   for (const Eigen::Vector4d & xyza : armor_xyza_list) {
-    //     auto image_points =
-    //       solver.reproject_armor(xyza.head(3), xyza[3], target.armor_type, target.name);
-    //     tools::draw_points(img, image_points, {0, 255, 0});
-    //   }
+        // 当前帧target更新后
+        std::vector<Eigen::Vector4d> armor_xyza_list = target.armor_xyza_list();
+        for (const Eigen::Vector4d & xyza : armor_xyza_list) {
+          auto image_points =
+            solver.reproject_armor(xyza.head(3), xyza[3], target.armor_type, target.name);
+          tools::draw_points(img, image_points, {0, 255, 0});
+        }
 
-    //   Eigen::Vector4d aim_xyza = planner.debug_xyza;
-    //   auto image_points =
-    //     solver.reproject_armor(aim_xyza.head(3), aim_xyza[3], target.armor_type, target.name);
-    //   tools::draw_points(img, image_points, {0, 0, 255});
-    // }
+        Eigen::Vector4d aim_xyza = planner.debug_xyza;
+        auto image_points =
+          solver.reproject_armor(aim_xyza.head(3), aim_xyza[3], target.armor_type, target.name);
+        tools::draw_points(img, image_points, {0, 0, 255});
+      }
 
-    // tools::draw_text(img, fmt::format("FPS: {:.2f}", fps), {10, 30});
-    // cv::resize(img, img, {}, 0.5, 0.5);  // 显示时缩小图片尺寸
-    // cv::imshow("reprojection", img);
-    rec.log("scalar/fps", rerun::Scalars((float)fps));
+      tools::draw_text(img, fmt::format("FPS: {:.2f}", fps), {10, 30});
+      cv::resize(img, img, {}, 0.5, 0.5);  // 显示时缩小图片尺寸
+      cv::imshow("reprojection", img);
+    }
+    if (rerun) rec->log("scalar/fps", rerun::Scalars((float)fps));
     auto key = cv::waitKey(1);
     if (key == 'q') break;
   }
