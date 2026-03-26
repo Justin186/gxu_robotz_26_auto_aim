@@ -20,7 +20,11 @@ public:
     using Gimbal::send;
     
     void send_cmd_vel(const geometry_msgs::msg::Twist::SharedPtr msg);
+    void send_cmd_vel_zero(const geometry_msgs::msg::Twist::SharedPtr msg);
+    void send_cmd_vel_debug(const geometry_msgs::msg::Twist::SharedPtr msg);
     void send(io::VisionToGimbal VisionToGimbal);
+
+    static bool is_move;
 
 private:
     void thread_loop();

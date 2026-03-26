@@ -64,50 +64,56 @@ class RMUL(metaclass=Metaclass_RMUL):
         '_header',
         '_game_progress',
         '_stage_remain_time',
-        '_cmd_type',
-        '_emergency_stop',
+        '_current_hp',
+        '_is_attacked',
+        '_shooter_heat',
         '_rfid_supply_arrived',
         '_rfid_control_arrived',
+        '_cmd_type',
+        '_emergency_stop',
         '_stop_gimbal_scan',
         '_chassis_spin',
         '_x',
         '_y',
-        '_current_hp',
-        '_is_attacked',
         '_is_detect_enemy',
+        '_is_at_nav_goal',
     ]
 
     _fields_and_field_types = {
         'header': 'std_msgs/Header',
         'game_progress': 'uint8',
         'stage_remain_time': 'uint16',
-        'cmd_type': 'int32',
-        'emergency_stop': 'boolean',
+        'current_hp': 'uint16',
+        'is_attacked': 'uint8',
+        'shooter_heat': 'uint16',
         'rfid_supply_arrived': 'boolean',
         'rfid_control_arrived': 'boolean',
+        'cmd_type': 'int32',
+        'emergency_stop': 'boolean',
         'stop_gimbal_scan': 'boolean',
         'chassis_spin': 'boolean',
         'x': 'float',
         'y': 'float',
-        'current_hp': 'uint16',
-        'is_attacked': 'uint8',
         'is_detect_enemy': 'boolean',
+        'is_at_nav_goal': 'boolean',
     }
 
     SLOT_TYPES = (
         rosidl_parser.definition.NamespacedType(['std_msgs', 'msg'], 'Header'),  # noqa: E501
         rosidl_parser.definition.BasicType('uint8'),  # noqa: E501
         rosidl_parser.definition.BasicType('uint16'),  # noqa: E501
+        rosidl_parser.definition.BasicType('uint16'),  # noqa: E501
+        rosidl_parser.definition.BasicType('uint8'),  # noqa: E501
+        rosidl_parser.definition.BasicType('uint16'),  # noqa: E501
+        rosidl_parser.definition.BasicType('boolean'),  # noqa: E501
+        rosidl_parser.definition.BasicType('boolean'),  # noqa: E501
         rosidl_parser.definition.BasicType('int32'),  # noqa: E501
         rosidl_parser.definition.BasicType('boolean'),  # noqa: E501
         rosidl_parser.definition.BasicType('boolean'),  # noqa: E501
         rosidl_parser.definition.BasicType('boolean'),  # noqa: E501
-        rosidl_parser.definition.BasicType('boolean'),  # noqa: E501
-        rosidl_parser.definition.BasicType('boolean'),  # noqa: E501
         rosidl_parser.definition.BasicType('float'),  # noqa: E501
         rosidl_parser.definition.BasicType('float'),  # noqa: E501
-        rosidl_parser.definition.BasicType('uint16'),  # noqa: E501
-        rosidl_parser.definition.BasicType('uint8'),  # noqa: E501
+        rosidl_parser.definition.BasicType('boolean'),  # noqa: E501
         rosidl_parser.definition.BasicType('boolean'),  # noqa: E501
     )
 
@@ -119,17 +125,19 @@ class RMUL(metaclass=Metaclass_RMUL):
         self.header = kwargs.get('header', Header())
         self.game_progress = kwargs.get('game_progress', int())
         self.stage_remain_time = kwargs.get('stage_remain_time', int())
-        self.cmd_type = kwargs.get('cmd_type', int())
-        self.emergency_stop = kwargs.get('emergency_stop', bool())
+        self.current_hp = kwargs.get('current_hp', int())
+        self.is_attacked = kwargs.get('is_attacked', int())
+        self.shooter_heat = kwargs.get('shooter_heat', int())
         self.rfid_supply_arrived = kwargs.get('rfid_supply_arrived', bool())
         self.rfid_control_arrived = kwargs.get('rfid_control_arrived', bool())
+        self.cmd_type = kwargs.get('cmd_type', int())
+        self.emergency_stop = kwargs.get('emergency_stop', bool())
         self.stop_gimbal_scan = kwargs.get('stop_gimbal_scan', bool())
         self.chassis_spin = kwargs.get('chassis_spin', bool())
         self.x = kwargs.get('x', float())
         self.y = kwargs.get('y', float())
-        self.current_hp = kwargs.get('current_hp', int())
-        self.is_attacked = kwargs.get('is_attacked', int())
         self.is_detect_enemy = kwargs.get('is_detect_enemy', bool())
+        self.is_at_nav_goal = kwargs.get('is_at_nav_goal', bool())
 
     def __repr__(self):
         typename = self.__class__.__module__.split('.')
@@ -166,13 +174,19 @@ class RMUL(metaclass=Metaclass_RMUL):
             return False
         if self.stage_remain_time != other.stage_remain_time:
             return False
-        if self.cmd_type != other.cmd_type:
+        if self.current_hp != other.current_hp:
             return False
-        if self.emergency_stop != other.emergency_stop:
+        if self.is_attacked != other.is_attacked:
+            return False
+        if self.shooter_heat != other.shooter_heat:
             return False
         if self.rfid_supply_arrived != other.rfid_supply_arrived:
             return False
         if self.rfid_control_arrived != other.rfid_control_arrived:
+            return False
+        if self.cmd_type != other.cmd_type:
+            return False
+        if self.emergency_stop != other.emergency_stop:
             return False
         if self.stop_gimbal_scan != other.stop_gimbal_scan:
             return False
@@ -182,11 +196,9 @@ class RMUL(metaclass=Metaclass_RMUL):
             return False
         if self.y != other.y:
             return False
-        if self.current_hp != other.current_hp:
-            return False
-        if self.is_attacked != other.is_attacked:
-            return False
         if self.is_detect_enemy != other.is_detect_enemy:
+            return False
+        if self.is_at_nav_goal != other.is_at_nav_goal:
             return False
         return True
 
@@ -240,32 +252,49 @@ class RMUL(metaclass=Metaclass_RMUL):
         self._stage_remain_time = value
 
     @builtins.property
-    def cmd_type(self):
-        """Message field 'cmd_type'."""
-        return self._cmd_type
+    def current_hp(self):
+        """Message field 'current_hp'."""
+        return self._current_hp
 
-    @cmd_type.setter
-    def cmd_type(self, value):
+    @current_hp.setter
+    def current_hp(self, value):
         if __debug__:
             assert \
                 isinstance(value, int), \
-                "The 'cmd_type' field must be of type 'int'"
-            assert value >= -2147483648 and value < 2147483648, \
-                "The 'cmd_type' field must be an integer in [-2147483648, 2147483647]"
-        self._cmd_type = value
+                "The 'current_hp' field must be of type 'int'"
+            assert value >= 0 and value < 65536, \
+                "The 'current_hp' field must be an unsigned integer in [0, 65535]"
+        self._current_hp = value
 
     @builtins.property
-    def emergency_stop(self):
-        """Message field 'emergency_stop'."""
-        return self._emergency_stop
+    def is_attacked(self):
+        """Message field 'is_attacked'."""
+        return self._is_attacked
 
-    @emergency_stop.setter
-    def emergency_stop(self, value):
+    @is_attacked.setter
+    def is_attacked(self, value):
         if __debug__:
             assert \
-                isinstance(value, bool), \
-                "The 'emergency_stop' field must be of type 'bool'"
-        self._emergency_stop = value
+                isinstance(value, int), \
+                "The 'is_attacked' field must be of type 'int'"
+            assert value >= 0 and value < 256, \
+                "The 'is_attacked' field must be an unsigned integer in [0, 255]"
+        self._is_attacked = value
+
+    @builtins.property
+    def shooter_heat(self):
+        """Message field 'shooter_heat'."""
+        return self._shooter_heat
+
+    @shooter_heat.setter
+    def shooter_heat(self, value):
+        if __debug__:
+            assert \
+                isinstance(value, int), \
+                "The 'shooter_heat' field must be of type 'int'"
+            assert value >= 0 and value < 65536, \
+                "The 'shooter_heat' field must be an unsigned integer in [0, 65535]"
+        self._shooter_heat = value
 
     @builtins.property
     def rfid_supply_arrived(self):
@@ -292,6 +321,34 @@ class RMUL(metaclass=Metaclass_RMUL):
                 isinstance(value, bool), \
                 "The 'rfid_control_arrived' field must be of type 'bool'"
         self._rfid_control_arrived = value
+
+    @builtins.property
+    def cmd_type(self):
+        """Message field 'cmd_type'."""
+        return self._cmd_type
+
+    @cmd_type.setter
+    def cmd_type(self, value):
+        if __debug__:
+            assert \
+                isinstance(value, int), \
+                "The 'cmd_type' field must be of type 'int'"
+            assert value >= -2147483648 and value < 2147483648, \
+                "The 'cmd_type' field must be an integer in [-2147483648, 2147483647]"
+        self._cmd_type = value
+
+    @builtins.property
+    def emergency_stop(self):
+        """Message field 'emergency_stop'."""
+        return self._emergency_stop
+
+    @emergency_stop.setter
+    def emergency_stop(self, value):
+        if __debug__:
+            assert \
+                isinstance(value, bool), \
+                "The 'emergency_stop' field must be of type 'bool'"
+        self._emergency_stop = value
 
     @builtins.property
     def stop_gimbal_scan(self):
@@ -350,36 +407,6 @@ class RMUL(metaclass=Metaclass_RMUL):
         self._y = value
 
     @builtins.property
-    def current_hp(self):
-        """Message field 'current_hp'."""
-        return self._current_hp
-
-    @current_hp.setter
-    def current_hp(self, value):
-        if __debug__:
-            assert \
-                isinstance(value, int), \
-                "The 'current_hp' field must be of type 'int'"
-            assert value >= 0 and value < 65536, \
-                "The 'current_hp' field must be an unsigned integer in [0, 65535]"
-        self._current_hp = value
-
-    @builtins.property
-    def is_attacked(self):
-        """Message field 'is_attacked'."""
-        return self._is_attacked
-
-    @is_attacked.setter
-    def is_attacked(self, value):
-        if __debug__:
-            assert \
-                isinstance(value, int), \
-                "The 'is_attacked' field must be of type 'int'"
-            assert value >= 0 and value < 256, \
-                "The 'is_attacked' field must be an unsigned integer in [0, 255]"
-        self._is_attacked = value
-
-    @builtins.property
     def is_detect_enemy(self):
         """Message field 'is_detect_enemy'."""
         return self._is_detect_enemy
@@ -391,3 +418,16 @@ class RMUL(metaclass=Metaclass_RMUL):
                 isinstance(value, bool), \
                 "The 'is_detect_enemy' field must be of type 'bool'"
         self._is_detect_enemy = value
+
+    @builtins.property
+    def is_at_nav_goal(self):
+        """Message field 'is_at_nav_goal'."""
+        return self._is_at_nav_goal
+
+    @is_at_nav_goal.setter
+    def is_at_nav_goal(self, value):
+        if __debug__:
+            assert \
+                isinstance(value, bool), \
+                "The 'is_at_nav_goal' field must be of type 'bool'"
+        self._is_at_nav_goal = value

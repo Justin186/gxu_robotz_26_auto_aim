@@ -88,6 +88,7 @@ int main(int argc, char * argv[])
     data["fired"] = fired ? 1 : 0;
     data["fire"] = test_fire && fire ? 1 : 0;
     data["t"] = tools::delta_time(t, t0);
+    data["hp"] = (float)state.current_hp;
     plotter.plot(data);
 
     std::this_thread::sleep_for(9ms);

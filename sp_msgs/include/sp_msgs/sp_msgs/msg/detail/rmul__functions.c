@@ -28,17 +28,19 @@ sp_msgs__msg__RMUL__init(sp_msgs__msg__RMUL * msg)
   }
   // game_progress
   // stage_remain_time
-  // cmd_type
-  // emergency_stop
+  // current_hp
+  // is_attacked
+  // shooter_heat
   // rfid_supply_arrived
   // rfid_control_arrived
+  // cmd_type
+  // emergency_stop
   // stop_gimbal_scan
   // chassis_spin
   // x
   // y
-  // current_hp
-  // is_attacked
   // is_detect_enemy
+  // is_at_nav_goal
   return true;
 }
 
@@ -52,17 +54,19 @@ sp_msgs__msg__RMUL__fini(sp_msgs__msg__RMUL * msg)
   std_msgs__msg__Header__fini(&msg->header);
   // game_progress
   // stage_remain_time
-  // cmd_type
-  // emergency_stop
+  // current_hp
+  // is_attacked
+  // shooter_heat
   // rfid_supply_arrived
   // rfid_control_arrived
+  // cmd_type
+  // emergency_stop
   // stop_gimbal_scan
   // chassis_spin
   // x
   // y
-  // current_hp
-  // is_attacked
   // is_detect_enemy
+  // is_at_nav_goal
 }
 
 bool
@@ -85,12 +89,16 @@ sp_msgs__msg__RMUL__are_equal(const sp_msgs__msg__RMUL * lhs, const sp_msgs__msg
   if (lhs->stage_remain_time != rhs->stage_remain_time) {
     return false;
   }
-  // cmd_type
-  if (lhs->cmd_type != rhs->cmd_type) {
+  // current_hp
+  if (lhs->current_hp != rhs->current_hp) {
     return false;
   }
-  // emergency_stop
-  if (lhs->emergency_stop != rhs->emergency_stop) {
+  // is_attacked
+  if (lhs->is_attacked != rhs->is_attacked) {
+    return false;
+  }
+  // shooter_heat
+  if (lhs->shooter_heat != rhs->shooter_heat) {
     return false;
   }
   // rfid_supply_arrived
@@ -99,6 +107,14 @@ sp_msgs__msg__RMUL__are_equal(const sp_msgs__msg__RMUL * lhs, const sp_msgs__msg
   }
   // rfid_control_arrived
   if (lhs->rfid_control_arrived != rhs->rfid_control_arrived) {
+    return false;
+  }
+  // cmd_type
+  if (lhs->cmd_type != rhs->cmd_type) {
+    return false;
+  }
+  // emergency_stop
+  if (lhs->emergency_stop != rhs->emergency_stop) {
     return false;
   }
   // stop_gimbal_scan
@@ -117,16 +133,12 @@ sp_msgs__msg__RMUL__are_equal(const sp_msgs__msg__RMUL * lhs, const sp_msgs__msg
   if (lhs->y != rhs->y) {
     return false;
   }
-  // current_hp
-  if (lhs->current_hp != rhs->current_hp) {
-    return false;
-  }
-  // is_attacked
-  if (lhs->is_attacked != rhs->is_attacked) {
-    return false;
-  }
   // is_detect_enemy
   if (lhs->is_detect_enemy != rhs->is_detect_enemy) {
+    return false;
+  }
+  // is_at_nav_goal
+  if (lhs->is_at_nav_goal != rhs->is_at_nav_goal) {
     return false;
   }
   return true;
@@ -150,14 +162,20 @@ sp_msgs__msg__RMUL__copy(
   output->game_progress = input->game_progress;
   // stage_remain_time
   output->stage_remain_time = input->stage_remain_time;
-  // cmd_type
-  output->cmd_type = input->cmd_type;
-  // emergency_stop
-  output->emergency_stop = input->emergency_stop;
+  // current_hp
+  output->current_hp = input->current_hp;
+  // is_attacked
+  output->is_attacked = input->is_attacked;
+  // shooter_heat
+  output->shooter_heat = input->shooter_heat;
   // rfid_supply_arrived
   output->rfid_supply_arrived = input->rfid_supply_arrived;
   // rfid_control_arrived
   output->rfid_control_arrived = input->rfid_control_arrived;
+  // cmd_type
+  output->cmd_type = input->cmd_type;
+  // emergency_stop
+  output->emergency_stop = input->emergency_stop;
   // stop_gimbal_scan
   output->stop_gimbal_scan = input->stop_gimbal_scan;
   // chassis_spin
@@ -166,12 +184,10 @@ sp_msgs__msg__RMUL__copy(
   output->x = input->x;
   // y
   output->y = input->y;
-  // current_hp
-  output->current_hp = input->current_hp;
-  // is_attacked
-  output->is_attacked = input->is_attacked;
   // is_detect_enemy
   output->is_detect_enemy = input->is_detect_enemy;
+  // is_at_nav_goal
+  output->is_at_nav_goal = input->is_at_nav_goal;
   return true;
 }
 

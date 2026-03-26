@@ -16,6 +16,7 @@ uint16_t get_crc16(const uint8_t * data, uint32_t len);
 
 // len包括crc16
 bool check_crc16(const uint8_t * data, uint32_t len);
+bool check_crc16v2(const uint8_t * data, uint32_t len);
 
 }  // namespace tools
 

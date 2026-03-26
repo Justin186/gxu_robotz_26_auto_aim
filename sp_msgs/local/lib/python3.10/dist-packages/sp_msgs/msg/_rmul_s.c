@@ -83,22 +83,31 @@ bool sp_msgs__msg__rmul__convert_from_py(PyObject * _pymsg, void * _ros_message)
     ros_message->stage_remain_time = (uint16_t)PyLong_AsUnsignedLong(field);
     Py_DECREF(field);
   }
-  {  // cmd_type
-    PyObject * field = PyObject_GetAttrString(_pymsg, "cmd_type");
+  {  // current_hp
+    PyObject * field = PyObject_GetAttrString(_pymsg, "current_hp");
     if (!field) {
       return false;
     }
     assert(PyLong_Check(field));
-    ros_message->cmd_type = (int32_t)PyLong_AsLong(field);
+    ros_message->current_hp = (uint16_t)PyLong_AsUnsignedLong(field);
     Py_DECREF(field);
   }
-  {  // emergency_stop
-    PyObject * field = PyObject_GetAttrString(_pymsg, "emergency_stop");
+  {  // is_attacked
+    PyObject * field = PyObject_GetAttrString(_pymsg, "is_attacked");
     if (!field) {
       return false;
     }
-    assert(PyBool_Check(field));
-    ros_message->emergency_stop = (Py_True == field);
+    assert(PyLong_Check(field));
+    ros_message->is_attacked = (uint8_t)PyLong_AsUnsignedLong(field);
+    Py_DECREF(field);
+  }
+  {  // shooter_heat
+    PyObject * field = PyObject_GetAttrString(_pymsg, "shooter_heat");
+    if (!field) {
+      return false;
+    }
+    assert(PyLong_Check(field));
+    ros_message->shooter_heat = (uint16_t)PyLong_AsUnsignedLong(field);
     Py_DECREF(field);
   }
   {  // rfid_supply_arrived
@@ -117,6 +126,24 @@ bool sp_msgs__msg__rmul__convert_from_py(PyObject * _pymsg, void * _ros_message)
     }
     assert(PyBool_Check(field));
     ros_message->rfid_control_arrived = (Py_True == field);
+    Py_DECREF(field);
+  }
+  {  // cmd_type
+    PyObject * field = PyObject_GetAttrString(_pymsg, "cmd_type");
+    if (!field) {
+      return false;
+    }
+    assert(PyLong_Check(field));
+    ros_message->cmd_type = (int32_t)PyLong_AsLong(field);
+    Py_DECREF(field);
+  }
+  {  // emergency_stop
+    PyObject * field = PyObject_GetAttrString(_pymsg, "emergency_stop");
+    if (!field) {
+      return false;
+    }
+    assert(PyBool_Check(field));
+    ros_message->emergency_stop = (Py_True == field);
     Py_DECREF(field);
   }
   {  // stop_gimbal_scan
@@ -155,24 +182,6 @@ bool sp_msgs__msg__rmul__convert_from_py(PyObject * _pymsg, void * _ros_message)
     ros_message->y = (float)PyFloat_AS_DOUBLE(field);
     Py_DECREF(field);
   }
-  {  // current_hp
-    PyObject * field = PyObject_GetAttrString(_pymsg, "current_hp");
-    if (!field) {
-      return false;
-    }
-    assert(PyLong_Check(field));
-    ros_message->current_hp = (uint16_t)PyLong_AsUnsignedLong(field);
-    Py_DECREF(field);
-  }
-  {  // is_attacked
-    PyObject * field = PyObject_GetAttrString(_pymsg, "is_attacked");
-    if (!field) {
-      return false;
-    }
-    assert(PyLong_Check(field));
-    ros_message->is_attacked = (uint8_t)PyLong_AsUnsignedLong(field);
-    Py_DECREF(field);
-  }
   {  // is_detect_enemy
     PyObject * field = PyObject_GetAttrString(_pymsg, "is_detect_enemy");
     if (!field) {
@@ -180,6 +189,15 @@ bool sp_msgs__msg__rmul__convert_from_py(PyObject * _pymsg, void * _ros_message)
     }
     assert(PyBool_Check(field));
     ros_message->is_detect_enemy = (Py_True == field);
+    Py_DECREF(field);
+  }
+  {  // is_at_nav_goal
+    PyObject * field = PyObject_GetAttrString(_pymsg, "is_at_nav_goal");
+    if (!field) {
+      return false;
+    }
+    assert(PyBool_Check(field));
+    ros_message->is_at_nav_goal = (Py_True == field);
     Py_DECREF(field);
   }
 
@@ -240,22 +258,33 @@ PyObject * sp_msgs__msg__rmul__convert_to_py(void * raw_ros_message)
       }
     }
   }
-  {  // cmd_type
+  {  // current_hp
     PyObject * field = NULL;
-    field = PyLong_FromLong(ros_message->cmd_type);
+    field = PyLong_FromUnsignedLong(ros_message->current_hp);
     {
-      int rc = PyObject_SetAttrString(_pymessage, "cmd_type", field);
+      int rc = PyObject_SetAttrString(_pymessage, "current_hp", field);
       Py_DECREF(field);
       if (rc) {
         return NULL;
       }
     }
   }
-  {  // emergency_stop
+  {  // is_attacked
     PyObject * field = NULL;
-    field = PyBool_FromLong(ros_message->emergency_stop ? 1 : 0);
+    field = PyLong_FromUnsignedLong(ros_message->is_attacked);
     {
-      int rc = PyObject_SetAttrString(_pymessage, "emergency_stop", field);
+      int rc = PyObject_SetAttrString(_pymessage, "is_attacked", field);
+      Py_DECREF(field);
+      if (rc) {
+        return NULL;
+      }
+    }
+  }
+  {  // shooter_heat
+    PyObject * field = NULL;
+    field = PyLong_FromUnsignedLong(ros_message->shooter_heat);
+    {
+      int rc = PyObject_SetAttrString(_pymessage, "shooter_heat", field);
       Py_DECREF(field);
       if (rc) {
         return NULL;
@@ -278,6 +307,28 @@ PyObject * sp_msgs__msg__rmul__convert_to_py(void * raw_ros_message)
     field = PyBool_FromLong(ros_message->rfid_control_arrived ? 1 : 0);
     {
       int rc = PyObject_SetAttrString(_pymessage, "rfid_control_arrived", field);
+      Py_DECREF(field);
+      if (rc) {
+        return NULL;
+      }
+    }
+  }
+  {  // cmd_type
+    PyObject * field = NULL;
+    field = PyLong_FromLong(ros_message->cmd_type);
+    {
+      int rc = PyObject_SetAttrString(_pymessage, "cmd_type", field);
+      Py_DECREF(field);
+      if (rc) {
+        return NULL;
+      }
+    }
+  }
+  {  // emergency_stop
+    PyObject * field = NULL;
+    field = PyBool_FromLong(ros_message->emergency_stop ? 1 : 0);
+    {
+      int rc = PyObject_SetAttrString(_pymessage, "emergency_stop", field);
       Py_DECREF(field);
       if (rc) {
         return NULL;
@@ -328,33 +379,22 @@ PyObject * sp_msgs__msg__rmul__convert_to_py(void * raw_ros_message)
       }
     }
   }
-  {  // current_hp
-    PyObject * field = NULL;
-    field = PyLong_FromUnsignedLong(ros_message->current_hp);
-    {
-      int rc = PyObject_SetAttrString(_pymessage, "current_hp", field);
-      Py_DECREF(field);
-      if (rc) {
-        return NULL;
-      }
-    }
-  }
-  {  // is_attacked
-    PyObject * field = NULL;
-    field = PyLong_FromUnsignedLong(ros_message->is_attacked);
-    {
-      int rc = PyObject_SetAttrString(_pymessage, "is_attacked", field);
-      Py_DECREF(field);
-      if (rc) {
-        return NULL;
-      }
-    }
-  }
   {  // is_detect_enemy
     PyObject * field = NULL;
     field = PyBool_FromLong(ros_message->is_detect_enemy ? 1 : 0);
     {
       int rc = PyObject_SetAttrString(_pymessage, "is_detect_enemy", field);
+      Py_DECREF(field);
+      if (rc) {
+        return NULL;
+      }
+    }
+  }
+  {  // is_at_nav_goal
+    PyObject * field = NULL;
+    field = PyBool_FromLong(ros_message->is_at_nav_goal ? 1 : 0);
+    {
+      int rc = PyObject_SetAttrString(_pymessage, "is_at_nav_goal", field);
       Py_DECREF(field);
       if (rc) {
         return NULL;

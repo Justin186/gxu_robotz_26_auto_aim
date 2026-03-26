@@ -26,6 +26,8 @@ struct __attribute__((packed)) GimbalToVision
   float bullet_speed;
   uint16_t bullet_count;  // 子弹累计发送次数
   float gimbal_yaw;
+  uint8_t game_progress; // 当前比赛阶段
+  uint16_t current_hp; // 哨兵当前血量
   uint16_t crc16;
 };
 
@@ -60,11 +62,11 @@ struct __attribute__((packed)) NavToGimbal
 
 struct __attribute__((packed)) GimbalToNav
 {
-    uint8_t head = 0xA5;
+    uint8_t head = 0x5A;
     uint8_t game_progress; // 当前比赛阶段
     uint16_t stage_remain_time; // 当前阶段剩余时间
-    bool rfid_supply_arrived; // 我方哨兵补给区
-    bool rfid_control_arrived; // 控制区交互卡反馈
+    uint8_t rfid_supply_arrived; // 我方哨兵补给区
+    uint8_t rfid_control_arrived; // 控制区交互卡反馈
     uint16_t current_hp; // 哨兵当前血量
     uint8_t is_attacked; // 是否受到攻击 0->未受到攻击 1->受到攻击
     float gimbal_yaw; // 云台与底盘的相对角度
@@ -87,6 +89,8 @@ struct GimbalState
   float pitch_vel;
   float bullet_speed;
   uint16_t bullet_count;
+  uint16_t current_hp; // 哨兵当前血量
+  uint8_t game_progress; // 当前比赛阶段
 };
 
 class Gimbal
@@ -114,6 +118,9 @@ public:
 
   void send(io::VisionToGimbal VisionToGimbal);
 
+  //新增扫描相关
+  void scan(float yaw, float pitch);
+
 private:
   std::thread thread_;
   std::atomic<bool> quit_ = false;
@@ -133,6 +140,12 @@ private:
   bool read(uint8_t * buffer, size_t size);
   void read_thread();
   void reconnect();
+  //新增扫描相关参数
+  float max_scan_pitch_bottom_;
+  float max_scan_pitch_top_;
+  float scan_yaw_vel_;
+  float scan_base_pitch_vel_;
+  float scan_ex_vel_;
 
 protected:
   serial::Serial serial_;

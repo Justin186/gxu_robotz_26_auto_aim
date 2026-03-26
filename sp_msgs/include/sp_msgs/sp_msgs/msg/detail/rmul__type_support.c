@@ -37,7 +37,7 @@ void sp_msgs__msg__RMUL__rosidl_typesupport_introspection_c__RMUL_fini_function(
   sp_msgs__msg__RMUL__fini(message_memory);
 }
 
-static rosidl_typesupport_introspection_c__MessageMember sp_msgs__msg__RMUL__rosidl_typesupport_introspection_c__RMUL_message_member_array[14] = {
+static rosidl_typesupport_introspection_c__MessageMember sp_msgs__msg__RMUL__rosidl_typesupport_introspection_c__RMUL_message_member_array[16] = {
   {
     "header",  // name
     rosidl_typesupport_introspection_c__ROS_TYPE_MESSAGE,  // type
@@ -90,14 +90,14 @@ static rosidl_typesupport_introspection_c__MessageMember sp_msgs__msg__RMUL__ros
     NULL  // resize(index) function pointer
   },
   {
-    "cmd_type",  // name
-    rosidl_typesupport_introspection_c__ROS_TYPE_INT32,  // type
+    "current_hp",  // name
+    rosidl_typesupport_introspection_c__ROS_TYPE_UINT16,  // type
     0,  // upper bound of string
     NULL,  // members of sub message
     false,  // is array
     0,  // array size
     false,  // is upper bound
-    offsetof(sp_msgs__msg__RMUL, cmd_type),  // bytes offset in struct
+    offsetof(sp_msgs__msg__RMUL, current_hp),  // bytes offset in struct
     NULL,  // default value
     NULL,  // size() function pointer
     NULL,  // get_const(index) function pointer
@@ -107,14 +107,31 @@ static rosidl_typesupport_introspection_c__MessageMember sp_msgs__msg__RMUL__ros
     NULL  // resize(index) function pointer
   },
   {
-    "emergency_stop",  // name
-    rosidl_typesupport_introspection_c__ROS_TYPE_BOOLEAN,  // type
+    "is_attacked",  // name
+    rosidl_typesupport_introspection_c__ROS_TYPE_UINT8,  // type
     0,  // upper bound of string
     NULL,  // members of sub message
     false,  // is array
     0,  // array size
     false,  // is upper bound
-    offsetof(sp_msgs__msg__RMUL, emergency_stop),  // bytes offset in struct
+    offsetof(sp_msgs__msg__RMUL, is_attacked),  // bytes offset in struct
+    NULL,  // default value
+    NULL,  // size() function pointer
+    NULL,  // get_const(index) function pointer
+    NULL,  // get(index) function pointer
+    NULL,  // fetch(index, &value) function pointer
+    NULL,  // assign(index, value) function pointer
+    NULL  // resize(index) function pointer
+  },
+  {
+    "shooter_heat",  // name
+    rosidl_typesupport_introspection_c__ROS_TYPE_UINT16,  // type
+    0,  // upper bound of string
+    NULL,  // members of sub message
+    false,  // is array
+    0,  // array size
+    false,  // is upper bound
+    offsetof(sp_msgs__msg__RMUL, shooter_heat),  // bytes offset in struct
     NULL,  // default value
     NULL,  // size() function pointer
     NULL,  // get_const(index) function pointer
@@ -149,6 +166,40 @@ static rosidl_typesupport_introspection_c__MessageMember sp_msgs__msg__RMUL__ros
     0,  // array size
     false,  // is upper bound
     offsetof(sp_msgs__msg__RMUL, rfid_control_arrived),  // bytes offset in struct
+    NULL,  // default value
+    NULL,  // size() function pointer
+    NULL,  // get_const(index) function pointer
+    NULL,  // get(index) function pointer
+    NULL,  // fetch(index, &value) function pointer
+    NULL,  // assign(index, value) function pointer
+    NULL  // resize(index) function pointer
+  },
+  {
+    "cmd_type",  // name
+    rosidl_typesupport_introspection_c__ROS_TYPE_INT32,  // type
+    0,  // upper bound of string
+    NULL,  // members of sub message
+    false,  // is array
+    0,  // array size
+    false,  // is upper bound
+    offsetof(sp_msgs__msg__RMUL, cmd_type),  // bytes offset in struct
+    NULL,  // default value
+    NULL,  // size() function pointer
+    NULL,  // get_const(index) function pointer
+    NULL,  // get(index) function pointer
+    NULL,  // fetch(index, &value) function pointer
+    NULL,  // assign(index, value) function pointer
+    NULL  // resize(index) function pointer
+  },
+  {
+    "emergency_stop",  // name
+    rosidl_typesupport_introspection_c__ROS_TYPE_BOOLEAN,  // type
+    0,  // upper bound of string
+    NULL,  // members of sub message
+    false,  // is array
+    0,  // array size
+    false,  // is upper bound
+    offsetof(sp_msgs__msg__RMUL, emergency_stop),  // bytes offset in struct
     NULL,  // default value
     NULL,  // size() function pointer
     NULL,  // get_const(index) function pointer
@@ -226,40 +277,6 @@ static rosidl_typesupport_introspection_c__MessageMember sp_msgs__msg__RMUL__ros
     NULL  // resize(index) function pointer
   },
   {
-    "current_hp",  // name
-    rosidl_typesupport_introspection_c__ROS_TYPE_UINT16,  // type
-    0,  // upper bound of string
-    NULL,  // members of sub message
-    false,  // is array
-    0,  // array size
-    false,  // is upper bound
-    offsetof(sp_msgs__msg__RMUL, current_hp),  // bytes offset in struct
-    NULL,  // default value
-    NULL,  // size() function pointer
-    NULL,  // get_const(index) function pointer
-    NULL,  // get(index) function pointer
-    NULL,  // fetch(index, &value) function pointer
-    NULL,  // assign(index, value) function pointer
-    NULL  // resize(index) function pointer
-  },
-  {
-    "is_attacked",  // name
-    rosidl_typesupport_introspection_c__ROS_TYPE_UINT8,  // type
-    0,  // upper bound of string
-    NULL,  // members of sub message
-    false,  // is array
-    0,  // array size
-    false,  // is upper bound
-    offsetof(sp_msgs__msg__RMUL, is_attacked),  // bytes offset in struct
-    NULL,  // default value
-    NULL,  // size() function pointer
-    NULL,  // get_const(index) function pointer
-    NULL,  // get(index) function pointer
-    NULL,  // fetch(index, &value) function pointer
-    NULL,  // assign(index, value) function pointer
-    NULL  // resize(index) function pointer
-  },
-  {
     "is_detect_enemy",  // name
     rosidl_typesupport_introspection_c__ROS_TYPE_BOOLEAN,  // type
     0,  // upper bound of string
@@ -275,13 +292,30 @@ static rosidl_typesupport_introspection_c__MessageMember sp_msgs__msg__RMUL__ros
     NULL,  // fetch(index, &value) function pointer
     NULL,  // assign(index, value) function pointer
     NULL  // resize(index) function pointer
+  },
+  {
+    "is_at_nav_goal",  // name
+    rosidl_typesupport_introspection_c__ROS_TYPE_BOOLEAN,  // type
+    0,  // upper bound of string
+    NULL,  // members of sub message
+    false,  // is array
+    0,  // array size
+    false,  // is upper bound
+    offsetof(sp_msgs__msg__RMUL, is_at_nav_goal),  // bytes offset in struct
+    NULL,  // default value
+    NULL,  // size() function pointer
+    NULL,  // get_const(index) function pointer
+    NULL,  // get(index) function pointer
+    NULL,  // fetch(index, &value) function pointer
+    NULL,  // assign(index, value) function pointer
+    NULL  // resize(index) function pointer
   }
 };
 
 static const rosidl_typesupport_introspection_c__MessageMembers sp_msgs__msg__RMUL__rosidl_typesupport_introspection_c__RMUL_message_members = {
   "sp_msgs__msg",  // message namespace
   "RMUL",  // message name
-  14,  // number of fields
+  16,  // number of fields
   sizeof(sp_msgs__msg__RMUL),
   sp_msgs__msg__RMUL__rosidl_typesupport_introspection_c__RMUL_message_member_array,  // message members
   sp_msgs__msg__RMUL__rosidl_typesupport_introspection_c__RMUL_init_function,  // function to initialize message memory (memory has to be allocated)

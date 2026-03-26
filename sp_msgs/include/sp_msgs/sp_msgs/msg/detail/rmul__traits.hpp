@@ -50,17 +50,24 @@ inline void to_flow_style_yaml(
     out << ", ";
   }
 
-  // member: cmd_type
+  // member: current_hp
   {
-    out << "cmd_type: ";
-    rosidl_generator_traits::value_to_yaml(msg.cmd_type, out);
+    out << "current_hp: ";
+    rosidl_generator_traits::value_to_yaml(msg.current_hp, out);
     out << ", ";
   }
 
-  // member: emergency_stop
+  // member: is_attacked
   {
-    out << "emergency_stop: ";
-    rosidl_generator_traits::value_to_yaml(msg.emergency_stop, out);
+    out << "is_attacked: ";
+    rosidl_generator_traits::value_to_yaml(msg.is_attacked, out);
+    out << ", ";
+  }
+
+  // member: shooter_heat
+  {
+    out << "shooter_heat: ";
+    rosidl_generator_traits::value_to_yaml(msg.shooter_heat, out);
     out << ", ";
   }
 
@@ -75,6 +82,20 @@ inline void to_flow_style_yaml(
   {
     out << "rfid_control_arrived: ";
     rosidl_generator_traits::value_to_yaml(msg.rfid_control_arrived, out);
+    out << ", ";
+  }
+
+  // member: cmd_type
+  {
+    out << "cmd_type: ";
+    rosidl_generator_traits::value_to_yaml(msg.cmd_type, out);
+    out << ", ";
+  }
+
+  // member: emergency_stop
+  {
+    out << "emergency_stop: ";
+    rosidl_generator_traits::value_to_yaml(msg.emergency_stop, out);
     out << ", ";
   }
 
@@ -106,24 +127,17 @@ inline void to_flow_style_yaml(
     out << ", ";
   }
 
-  // member: current_hp
-  {
-    out << "current_hp: ";
-    rosidl_generator_traits::value_to_yaml(msg.current_hp, out);
-    out << ", ";
-  }
-
-  // member: is_attacked
-  {
-    out << "is_attacked: ";
-    rosidl_generator_traits::value_to_yaml(msg.is_attacked, out);
-    out << ", ";
-  }
-
   // member: is_detect_enemy
   {
     out << "is_detect_enemy: ";
     rosidl_generator_traits::value_to_yaml(msg.is_detect_enemy, out);
+    out << ", ";
+  }
+
+  // member: is_at_nav_goal
+  {
+    out << "is_at_nav_goal: ";
+    rosidl_generator_traits::value_to_yaml(msg.is_at_nav_goal, out);
   }
   out << "}";
 }  // NOLINT(readability/fn_size)
@@ -161,23 +175,33 @@ inline void to_block_style_yaml(
     out << "\n";
   }
 
-  // member: cmd_type
+  // member: current_hp
   {
     if (indentation > 0) {
       out << std::string(indentation, ' ');
     }
-    out << "cmd_type: ";
-    rosidl_generator_traits::value_to_yaml(msg.cmd_type, out);
+    out << "current_hp: ";
+    rosidl_generator_traits::value_to_yaml(msg.current_hp, out);
     out << "\n";
   }
 
-  // member: emergency_stop
+  // member: is_attacked
   {
     if (indentation > 0) {
       out << std::string(indentation, ' ');
     }
-    out << "emergency_stop: ";
-    rosidl_generator_traits::value_to_yaml(msg.emergency_stop, out);
+    out << "is_attacked: ";
+    rosidl_generator_traits::value_to_yaml(msg.is_attacked, out);
+    out << "\n";
+  }
+
+  // member: shooter_heat
+  {
+    if (indentation > 0) {
+      out << std::string(indentation, ' ');
+    }
+    out << "shooter_heat: ";
+    rosidl_generator_traits::value_to_yaml(msg.shooter_heat, out);
     out << "\n";
   }
 
@@ -198,6 +222,26 @@ inline void to_block_style_yaml(
     }
     out << "rfid_control_arrived: ";
     rosidl_generator_traits::value_to_yaml(msg.rfid_control_arrived, out);
+    out << "\n";
+  }
+
+  // member: cmd_type
+  {
+    if (indentation > 0) {
+      out << std::string(indentation, ' ');
+    }
+    out << "cmd_type: ";
+    rosidl_generator_traits::value_to_yaml(msg.cmd_type, out);
+    out << "\n";
+  }
+
+  // member: emergency_stop
+  {
+    if (indentation > 0) {
+      out << std::string(indentation, ' ');
+    }
+    out << "emergency_stop: ";
+    rosidl_generator_traits::value_to_yaml(msg.emergency_stop, out);
     out << "\n";
   }
 
@@ -241,26 +285,6 @@ inline void to_block_style_yaml(
     out << "\n";
   }
 
-  // member: current_hp
-  {
-    if (indentation > 0) {
-      out << std::string(indentation, ' ');
-    }
-    out << "current_hp: ";
-    rosidl_generator_traits::value_to_yaml(msg.current_hp, out);
-    out << "\n";
-  }
-
-  // member: is_attacked
-  {
-    if (indentation > 0) {
-      out << std::string(indentation, ' ');
-    }
-    out << "is_attacked: ";
-    rosidl_generator_traits::value_to_yaml(msg.is_attacked, out);
-    out << "\n";
-  }
-
   // member: is_detect_enemy
   {
     if (indentation > 0) {
@@ -268,6 +292,16 @@ inline void to_block_style_yaml(
     }
     out << "is_detect_enemy: ";
     rosidl_generator_traits::value_to_yaml(msg.is_detect_enemy, out);
+    out << "\n";
+  }
+
+  // member: is_at_nav_goal
+  {
+    if (indentation > 0) {
+      out << std::string(indentation, ' ');
+    }
+    out << "is_at_nav_goal: ";
+    rosidl_generator_traits::value_to_yaml(msg.is_at_nav_goal, out);
     out << "\n";
   }
 }  // NOLINT(readability/fn_size)

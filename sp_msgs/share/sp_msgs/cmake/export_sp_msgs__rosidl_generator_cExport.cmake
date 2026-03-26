@@ -55,7 +55,7 @@ add_library(sp_msgs::sp_msgs__rosidl_generator_c SHARED IMPORTED)
 
 set_target_properties(sp_msgs::sp_msgs__rosidl_generator_c PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES "${_IMPORT_PREFIX}/include/sp_msgs"
-  INTERFACE_LINK_LIBRARIES "builtin_interfaces::builtin_interfaces__rosidl_generator_c;std_msgs::std_msgs__rosidl_generator_c;rosidl_runtime_c::rosidl_runtime_c;rosidl_typesupport_interface::rosidl_typesupport_interface;rcutils::rcutils"
+  INTERFACE_LINK_LIBRARIES "std_msgs::std_msgs__rosidl_generator_c;builtin_interfaces::builtin_interfaces__rosidl_generator_c;rosidl_runtime_c::rosidl_runtime_c;rosidl_typesupport_interface::rosidl_typesupport_interface;rcutils::rcutils"
 )
 
 if(CMAKE_VERSION VERSION_LESS 2.8.12)

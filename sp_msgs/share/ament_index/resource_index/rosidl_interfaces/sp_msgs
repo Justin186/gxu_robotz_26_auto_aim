@@ -1,4 +1,4 @@
 msg/Float32Stamped.idl
-msg/Float32Stamped.msg
 msg/RMUL.idl
-msg/RMUL.msg
+src/Float32Stamped.msg
+src/RMUL.msg

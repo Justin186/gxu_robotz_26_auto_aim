@@ -13,7 +13,7 @@ using namespace std::chrono_literals;
 
 const std::string keys =
   "{help h usage ? |                     | 输出命令行参数说明}"
-  "{delta-angle a  |          8          | yaw轴delta角,单位度}"
+  "{delta-angle a  |          1          | yaw轴delta角,单位度}"
   "{circle      c  |         0.5         | 三角波的周期,单位秒}"
   "{amplitude   A  |          7          | 圆形轨迹的幅度,单位度}"
   "{period      T  |          4          | 圆形轨迹的周期,单位秒}"
@@ -42,7 +42,7 @@ int main(int argc, char * argv[])
   io::Gimbal gimbal(config_path);
 
   auto init_angle = 0;
-  double slice = circle * 200;  // 切片数 = 周期 * 帧率
+  double slice = circle * 150;  // 切片数 = 周期 * 帧率
   auto dangle = delta_angle / slice;
   double cmd_angle = init_angle;
 
@@ -262,6 +262,34 @@ int main(int argc, char * argv[])
       data["gimbal_pitch"] = gimbal_pitch * 57.3;     // 度
       data["gimbal_pitch_vel"] = gimbal_pitch_vel * 57.3; // 度/s
       data["gimbal_pitch_acc"] = gimbal_pitch_acc * 57.3; // 度/s²
+      
+      plotter.plot(data);
+    }
+
+    // 哨兵扫描模式：yaw一直旋转，pitch在[-amplitude, amplitude]范围内来回扫描
+    else if (signal_mode == "sentry") {
+      cmd_angle += delta_angle * dt; // 累加角度，delta_angle视为每秒旋转度数
+      double yaw = tools::limit_rad(cmd_angle / 57.3);  // 持续旋转
+      double pitch = tools::limit_rad(amplitude * std::sin(2 * M_PI * t / period) / 57.3); // 来回扫描
+      
+      gimbal.send(true, false, 
+                  yaw,            // 目标yaw
+                  0,              // 目标yaw速度（不控制速度）
+                  0,              // 目标yaw加速度（不控制加速度）
+                  pitch,          // 目标pitch
+                  0,              // 目标pitch速度（不控制速度）
+                  0);             // 目标pitch加速度（不控制加速度）
+      t += dt;
+      
+      if (t >= period) {
+          t -= period;
+      }
+
+      // 记录数据 - 全部转换为度
+      data["cmd_yaw"] = yaw * 57.3;               // 度
+      data["cmd_pitch"] = pitch * 57.3;           // 度
+      data["gimbal_yaw"] = gimbal_yaw * 57.3;    // 度
+      data["gimbal_pitch"] = gimbal_pitch * 57.3; // 度
       
       plotter.plot(data);
     }

@@ -1,5 +1,5 @@
-# enemy_color: "red"
-enemy_color: "blue"
+enemy_color: "red"
+# enemy_color: "blue"
 
 
 #####-----神经网络参数-----#####
@@ -35,9 +35,10 @@ usb_gain: 10 #0-96
 
 #####-----工业相机参数-----#####
 camera_name: "hikrobot"
-exposure_ms: 0.8
+exposure_ms: 5
 gain: 16.9
 vid_pid: "2bdf:0001"
+need_rotation: true
 
 #####-----传统方法参数-----#####
 threshold: 150
@@ -63,37 +64,56 @@ max_temp_lost_count: 25
 outpost_max_temp_lost_count: 75
 
 #####-----aimer参数-----#####
-yaw_offset: -0.8 # degree -2.5
-pitch_offset: -1  # degree 2
-comming_angle: 60 # degree
-leaving_angle: 20 # degree
-left_yaw_offset: -1
-right_yaw_offset: -0.6
-decision_speed: 10 # rad/s
-high_speed_delay_time: 0.026 # s
-low_speed_delay_time: 0.010 # s
+yaw_offset: -2 # degree -2.5  +是左
+pitch_offset: -6.4 # degree 2 +是下 -是上
+comming_angle: 40           # 目标进入角 (单位: 度) —— 识别到装甲板从侧面转入正面的判定阈值
+leaving_angle: 20           # 目标离开角 (单位: 度) —— 识别到装甲板从正面转到侧向背面的消失判定阈值
+left_yaw_offset: -1        # 左侧偏航角补偿 —— 修正云台向左转动时的机械安装误差或相机轴心偏差
+right_yaw_offset: -0.6     # 右侧偏航角补偿 —— 修正云台向右转动时的机械安装误差
+decision_speed: 10          # 决策临界角速度 (单位: rad/s) —— 区分目标是“高速运动”还是“低速运动”的阈值
+high_speed_delay_time: 0.026 # 高速预瞄补偿时间 (单位: s) —— 目标高速移动时，补偿系统延迟（电控发弹+子弹飞行）所需的提前量
+low_speed_delay_time: 0.010  # 低速预瞄补偿时间 (单位: s) —— 目标低速或静止时，为了防止瞄准抖动而设置的较小补偿量
 
 #####-----shooter参数-----#####
 first_tolerance: 5 # 近距离射击容差，degree
 second_tolerance: 2 # 远距离射击容差，degree
-judge_distance: 3 #距离判断阈值
+judge_distance: 2 #距离判断阈值
 auto_fire: true # 是否由自瞄控制射击
 
 #####-----decider参数-----#####
 mode: 1
 
 #####-----工业相机标定参数-----#####
-R_gimbal2imubody: [1, 0, 0, 0, 1, 0, 0, 0, 1]
+R_gimbal2imubody: [-1, 0, 0, 0, -1, 0, 0, 0, 1]
 
-# 重投影误差: 0.1833px
-camera_matrix: [2414.9359264386621, 0, 717.26243105567414, 0, 2418.0489262208148, 582.68540529942845, 0, 0, 1]
-distort_coeffs: [-0.0209453389287673, 0.15028138841073832, -0.0006517722113234505, -0.0016861906197686788, 0]
+# 重投影误差: 0.0760px
+camera_matrix: [2380.8009795025177, 0, 700.48587283314941, 0, 2381.1072497602031, 543.31150050283873, 0, 0, 1]
+distort_coeffs: [-0.061898861000337597, 0.16132969692060267, 0.0004421601856747993, 0.00020114811056431124, 0]
 
-# 相机同理想情况的偏角: yaw-1.11 pitch0.01 roll-0.06 degree
-# 标定板到世界坐标系原点的水平距离: 1.20 m
-# 标定板同竖直摆放时的偏角: yaw123.89 pitch14.05 roll-0.86 degree
-R_camera2gimbal: [0.01928451708725664, 0.00012696140743255463, 0.99981402834802846, -0.99981344688553653, -0.0010834913551969569, 0.019284643459122196, 0.0010857382619952124, -0.99999940496346484, 0.00010604311483339372]
-t_camera2gimbal: [0.13089617453251859, 0.0038468007459533785, 0.094139945222010288]
+# # 相机同理想情况的偏角: yaw-1.09 pitch-0.51 roll0.29 degree
+# R_camera2gimbal: [0.018963959815727627, -0.0089784353861130095, 0.99977985373087253, -0.99980696148286652, 0.0049692933185960797, 0.019009100302532674, -0.0051388713260261953, -0.99994734552471864, -0.0088824647234533316]
+# t_camera2gimbal: [0.14446701283529373, 0.041914384494828115, -0.0072702605333943978]
+# 相机同理想情况的偏角: yaw-1.09 pitch-0.51 roll0.29 degree
+R_camera2gimbal: [0, 0, 1, -1, 0, 0, 0, -1, 0]
+t_camera2gimbal: [0.27, 0.05, -0.0072702605333943978]
+
+#####-----planner-----#####
+fire_thresh: 0.35
+
+max_yaw_acc: 50
+Q_yaw: [9e6, 0]
+R_yaw: [1]
+
+max_pitch_acc: 100
+Q_pitch: [9e6, 0]
+R_pitch: [1]
 
 #####-----gimbal参数-----#####
-com_port: "/dev/gimbal"
+com_port: "/dev/ttyACM0"
+
+#####-----云台扫描参数-----#####
+max_scan_pitch_bottom_: -15.0   # pitch下边界（度），根据机械限位设定，安全值：-15°
+max_scan_pitch_top_: 20.0       # pitch上边界（度），安全值：15°
+scan_yaw_vel_: 0.03             # yaw旋转速度（度/秒），慢速：30°/s，避免过冲
+scan_base_pitch_vel_: 0.01       # pitch基础速度（度/秒），保证最低运动速度
+scan_ex_vel_: 0.002              # pitch额外速度（度/秒），边界处最大速度= base+ex = 15°/s

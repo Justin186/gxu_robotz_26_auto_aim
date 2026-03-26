@@ -24,40 +24,51 @@ extern "C"
 
 /// Struct defined in msg/RMUL in the package sp_msgs.
 /**
-  * v1.6.1 0x0001 比赛状态数据
-  * 新增：标准ROS头文件，包含时间戳（stamp）和坐标系（frame_id），用于数据时间戳对齐
+  * =============================================================================
+  * RMUL.msg — 统一裁判系统消息（合并所有 BT 节点所需的自定义接口）
+  * =============================================================================
  */
 typedef struct sp_msgs__msg__RMUL
 {
   std_msgs__msg__Header header;
-  /// 当前比赛阶段
+  /// ── 1. 比赛状态 (GameStatus, 0x0001) ──────────────────────────────────────────
+  /// 当前比赛阶段 (0-4)
   uint8_t game_progress;
-  /// 当前阶段剩余时间
+  /// 当前阶段剩余时间 (s)
   uint16_t stage_remain_time;
-  /// 指令类型：1=开始导航，2=终止导航，3=原地不动，0=无操作
-  int32_t cmd_type;
-  /// 紧急停止（优先级最高，true=立刻停）
-  bool emergency_stop;
-  /// v1.6.1 0x020A 机器人RFID状态（此处仅保留我方哨兵补给区）
+  /// ── 2. 机器人状态 (RobotStatus, 0x0201 / 0x0202) ─────────────────────────────
+  /// 本机当前血量
+  uint16_t current_hp;
+  /// 是否受到攻击 (0=否, 1=是)
+  uint8_t is_attacked;
+  /// 枪口热量
+  uint16_t shooter_heat;
+  /// ── 3. RFID 状态 (RFID, 0x0209 / 0x020A) ─────────────────────────────────────
+  /// 补给区交互卡反馈
   bool rfid_supply_arrived;
   /// 控制区交互卡反馈
   bool rfid_control_arrived;
-  /// 机器人控制命令（云台，底盘）
-  /// 是否停止云台扫描
+  /// ── 5. 导航控制命令 (NavControlCmd) ───────────────────────────────────────────
+  /// 指令类型：0=无操作(禁止导航), 1=开始导航(允许发起导航), 2=终止导航, 3=原地不动
+  int32_t cmd_type;
+  /// 紧急停止（优先级最高, true=立刻停）
+  bool emergency_stop;
+  /// ── 6. 机器人控制命令 (RobotControl) ──────────────────────────────────────────
+  /// 是否停止云台扫描 (false=扫描, true=停止)
   bool stop_gimbal_scan;
-  /// 是否启动底盘小陀螺
+  /// 是否启动底盘小陀螺 (false=不启动, true=启动)
   bool chassis_spin;
-  /// Robot position from referee system (cmd_id: 0x0203)
-  /// Coordinate frame: map
-  /// Unit: meter, radian  当前哨兵位置
+  /// ── 7. 机器人位姿 (RobotPosition, 0x0203) ────────────────────────────────────
+  /// 当前位置 x (meter, map 坐标系)
   float x;
+  /// 当前位置 y (meter, map 坐标系)
   float y;
-  /// 哨兵当前血量
-  uint16_t current_hp;
-  /// 是否受到攻击 0->未受到攻击 1->受到攻击
-  uint8_t is_attacked;
+  /// ── 8. 视觉检测 ──────────────────────────────────────────────────────────────
   /// 是否检测到敌人
   bool is_detect_enemy;
+  /// ── 9. 判断机器人是否到达导航指定位置 ─────────────────────────────────────
+  /// 是否到达导航目标点
+  bool is_at_nav_goal;
 } sp_msgs__msg__RMUL;
 
 // Struct for a sequence of sp_msgs__msg__RMUL.

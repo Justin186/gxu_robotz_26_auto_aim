@@ -1,5 +1,5 @@
 // generated from rosidl_adapter/resource/msg.idl.em
-// with input from sp_msgs/msg/RMUL.msg
+// with input from sp_msgs/RMUL.msg
 // generated code does not contain a copyright notice
 
 #include "std_msgs/msg/Header.idl"
@@ -7,29 +7,37 @@
 module sp_msgs {
   module msg {
     @verbatim (language="comment", text=
-      "v1.6.1 0x0001 比赛状态数据" "\n"
-      "新增：标准ROS头文件，包含时间戳（stamp）和坐标系（frame_id），用于数据时间戳对齐")
+      "=============================================================================" "\n"
+      "RMUL.msg — 统一裁判系统消息（合并所有 BT 节点所需的自定义接口）" "\n"
+      "=============================================================================")
     struct RMUL {
       std_msgs::msg::Header header;
 
       @verbatim (language="comment", text=
-        "当前比赛阶段")
+        "── 1. 比赛状态 (GameStatus, 0x0001) ──────────────────────────────────────────" "\n"
+        "当前比赛阶段 (0-4)")
       uint8 game_progress;
 
       @verbatim (language="comment", text=
-        "当前阶段剩余时间")
+        "当前阶段剩余时间 (s)")
       uint16 stage_remain_time;
 
       @verbatim (language="comment", text=
-        "指令类型：1=开始导航，2=终止导航，3=原地不动，0=无操作")
-      int32 cmd_type;
+        "── 2. 机器人状态 (RobotStatus, 0x0201 / 0x0202) ─────────────────────────────" "\n"
+        "本机当前血量")
+      uint16 current_hp;
 
       @verbatim (language="comment", text=
-        "紧急停止（优先级最高，true=立刻停）")
-      boolean emergency_stop;
+        "是否受到攻击 (0=否, 1=是)")
+      uint8 is_attacked;
 
       @verbatim (language="comment", text=
-        "v1.6.1 0x020A 机器人RFID状态（此处仅保留我方哨兵补给区）")
+        "枪口热量")
+      uint16 shooter_heat;
+
+      @verbatim (language="comment", text=
+        "── 3. RFID 状态 (RFID, 0x0209 / 0x020A) ─────────────────────────────────────" "\n"
+        "补给区交互卡反馈")
       boolean rfid_supply_arrived;
 
       @verbatim (language="comment", text=
@@ -37,33 +45,41 @@ module sp_msgs {
       boolean rfid_control_arrived;
 
       @verbatim (language="comment", text=
-        "机器人控制命令（云台，底盘）" "\n"
-        "是否停止云台扫描")
+        "── 5. 导航控制命令 (NavControlCmd) ───────────────────────────────────────────" "\n"
+        "指令类型：0=无操作(禁止导航), 1=开始导航(允许发起导航), 2=终止导航, 3=原地不动")
+      int32 cmd_type;
+
+      @verbatim (language="comment", text=
+        "紧急停止（优先级最高, true=立刻停）")
+      boolean emergency_stop;
+
+      @verbatim (language="comment", text=
+        "── 6. 机器人控制命令 (RobotControl) ──────────────────────────────────────────" "\n"
+        "是否停止云台扫描 (false=扫描, true=停止)")
       boolean stop_gimbal_scan;
 
       @verbatim (language="comment", text=
-        "是否启动底盘小陀螺")
+        "是否启动底盘小陀螺 (false=不启动, true=启动)")
       boolean chassis_spin;
 
       @verbatim (language="comment", text=
-        "Robot position from referee system (cmd_id: 0x0203)" "\n"
-        "Coordinate frame: map" "\n"
-        "Unit: meter, radian  当前哨兵位置")
+        "── 7. 机器人位姿 (RobotPosition, 0x0203) ────────────────────────────────────" "\n"
+        "当前位置 x (meter, map 坐标系)")
       float x;
 
+      @verbatim (language="comment", text=
+        "当前位置 y (meter, map 坐标系)")
       float y;
 
       @verbatim (language="comment", text=
-        "哨兵当前血量")
-      uint16 current_hp;
-
-      @verbatim (language="comment", text=
-        "是否受到攻击 0->未受到攻击 1->受到攻击")
-      uint8 is_attacked;
-
-      @verbatim (language="comment", text=
+        "── 8. 视觉检测 ──────────────────────────────────────────────────────────────" "\n"
         "是否检测到敌人")
       boolean is_detect_enemy;
+
+      @verbatim (language="comment", text=
+        "── 9. 判断机器人是否到达导航指定位置 ─────────────────────────────────────" "\n"
+        "是否到达导航目标点")
+      boolean is_at_nav_goal;
     };
   };
 };
