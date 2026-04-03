@@ -181,10 +181,22 @@ void Target::update(const Armor & armor) // EKF中的第二大步：更新
     auto angle_error = std::abs(tools::limit_rad(armor.ypr_in_world[0] - xyza[3])) +
                        std::abs(tools::limit_rad(armor.ypd_in_world[0] - ypd[0]));
 
+    // 增加滞回机制(Hysteresis)：如果当前候选的并不是上一帧匹配的装甲板，赋予一个切换惩罚。
+    // 这样在两块装甲板角度误差相近（处于临界角度）时，会优先保持跟踪上一帧的装甲板，避免反复横跳
+    if (update_count_ > 0 && xyza_i_list[i].second != last_id) {
+      angle_error += 0.08; // 增加0.25弧度(约14度)的切换惩罚阈值，具体大小根据实车表现微调
+    }
+
     if (std::abs(angle_error) < std::abs(min_angle_error)) {
       id = xyza_i_list[i].second;
       min_angle_error = angle_error;
     }
+  }
+
+  // 如果最小角度误差过大（比如超过0.8弧度，约45度），说明可能出现严重误匹配或异常观测值，直接丢弃该帧观测
+  if (min_angle_error > 1) {
+    tools::logger()->warn("[Target] Matched armor angle error too large ({:.3f} rad), dropped observation to avoid jumping", min_angle_error);
+    return;
   }
 
   if (id != 0) jumped = true;
@@ -213,8 +225,8 @@ void Target::update_ypda(const Armor & armor, int id)
   auto delta_angle = tools::limit_rad(armor.ypr_in_world[0] - center_yaw); // 装甲板朝向与车身朝向的夹角
   // 算出观测噪声协方差矩阵R的对角线元素
   Eigen::VectorXd R_dig{
-      {4e-3,  // 固定yaw噪声
-      4e-3,  // 固定pitch噪声
+      {8e-3,  // 固定yaw噪声
+      4e-2,  // 固定pitch噪声
       log(std::abs(delta_angle) + 1) + 1,  // 自适应距离噪声：当装甲板不在正对时（delta_angle大），距离估计不准，增大噪声
       log(std::abs(armor.ypd_in_world[2]) + 1) / 200 + 9e-2}};  // 自适应角度噪声：距离越远，角度估计越不准
 
@@ -260,7 +272,7 @@ void Target::update_ypda(const Armor & armor, int id)
   
   // 核心逻辑：如果速度变化极大（强机动/急停/急转），或者基于观测算出的残差极大
   // 则重置机动倒计时，并根据情况膨胀协方差
-  if (delta_v > 0.5 || delta_w > 0.5) { 
+  if (delta_v > 2 || delta_w > 2) { 
     // 发生了极大的速度或角速度突变（说明正在剧烈加速或减速、换向）
     tools::logger()->warn("[Target] Acceleration/Maneuver Detected! delta_v: {:.3f}, delta_w: {:.3f}", delta_v, delta_w);
     maneuver_ticks = 10; // 设置机动状态，暂缓开火

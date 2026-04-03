@@ -1,8 +1,11 @@
-sleep 5
-cd ~/Desktop/sp_vision_25/
-screen \
-    -L \
-    -Logfile logs/$(date "+%Y-%m-%d_%H-%M-%S").screenlog \
-    -d \
-    -m \
-    bash -c "./watchdog.sh"
+#!/bin/bash
+# /home/robomaster/gxu_robotz_26_auto_aim/autostart.sh
+
+# 切换到工作目录
+cd ~/gxu_robotz_26_auto_aim || exit
+
+# 启动程序
+./build/auto_aim_mpc
+
+# 清理历史
+history -c

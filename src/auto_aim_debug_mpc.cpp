@@ -27,6 +27,7 @@ const std::string keys =
   "{help h usage ? |                        | 输出命令行参数说明}"
   "{ip             | 192.168.1.18           | Rerun 查看器的IP地址}"
   "{f              | true                   | 是否开火}"
+  "{debug          | false                  | 是否显示图像调试窗口}"
   "{@config-path   | configs/sentry.yaml    | 位置参数，yaml配置文件路径 }";
 
 int main(int argc, char * argv[])
@@ -38,7 +39,7 @@ int main(int argc, char * argv[])
   auto config_path = cli.get<std::string>(0);
   auto rerun_ip = cli.get<std::string>("ip");
   auto fire = cli.get<bool>("f");
-
+  auto debug = cli.get<bool>("debug");
   if (cli.has("help") || config_path.empty()) {
     cli.printMessage();
     return 0;
@@ -51,7 +52,7 @@ int main(int argc, char * argv[])
   io::Gimbal gimbal(config_path);
   io::Camera camera(config_path);
 
-  auto_aim::YOLO yolo(config_path, false);
+  auto_aim::YOLO yolo(config_path, debug);
   auto_aim::Solver solver(config_path);
   auto_aim::Tracker tracker(config_path, solver);
   auto_aim::Planner planner(config_path);
@@ -119,7 +120,7 @@ int main(int argc, char * argv[])
       Eigen::Vector3d local_dir = R_gimbal2world.transpose() * forward_world;
       
       // 用户要求在全局（世界坐标系）下降 0.27m。我们需要将世界系下的向下向量 (0, 0, -0.27) 也反向变换到 gimbal 局部系里，作为线段的起点偏移
-      Eigen::Vector3d world_offset(0.0, 0.0, -0.39);
+      Eigen::Vector3d world_offset(0.0, 0.0, 0.0);
       Eigen::Vector3d local_offset = R_gimbal2world.transpose() * world_offset;
 
       std::vector<rerun::components::LineStrip3D> strips;
@@ -193,6 +194,7 @@ int main(int argc, char * argv[])
         rec.log("scalar/target/w", rerun::Scalars(target->ekf_x()[7])); // 记录目标的旋转角速度w
         rec.log("scalar/target/z", rerun::Scalars(target->ekf_x()[4]));
         rec.log("scalar/target/vz", rerun::Scalars(target->ekf_x()[5]));
+        rec.log("scalar/target/r", rerun::Scalars(target->ekf_x()[8]));
       } else {
         // 丢失目标时清空绘制，防止屏幕上留着鬼影
         rec.log("world/target/armors", rerun::Clear::FLAT);
@@ -241,7 +243,9 @@ int main(int argc, char * argv[])
 
     tools::draw_text(img, fmt::format("FPS: {:.2f}", fps), {10, 30});
     cv::resize(img, img, {}, 0.5, 0.5);  // 显示时缩小图片尺寸
-    // cv::imshow("reprojection", img);
+    if (debug) {
+      cv::imshow("reprojection", img);
+    }
     // 记录图像到 Rerun
     // rec.log("camera/image", rerun::Image(img.data, {(uint32_t)img.cols, (uint32_t)img.rows}, rerun::datatypes::ColorModel::BGR));
     rec.log("scalar/fps", rerun::Scalars((float)fps));

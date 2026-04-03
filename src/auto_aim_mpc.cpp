@@ -18,20 +18,26 @@
 #include "tools/math_tools.hpp"
 #include "tools/plotter.hpp"
 #include "tools/thread_safe_queue.hpp"
+#include "tools/recorder.hpp"
+
 
 using namespace std::chrono_literals;
 
 const std::string keys =
   "{help h usage ? |                        | 输出命令行参数说明}"
+  "{rec            | true                  | 是否录制数据}"
   "{@config-path   | configs/sentry.yaml | 位置参数，yaml配置文件路径 }";
 
 int main(int argc, char * argv[])
 {
   tools::Exiter exiter;
   tools::Plotter plotter;
+  tools::Recorder recorder;
+
 
   cv::CommandLineParser cli(argc, argv, keys);
   auto config_path = cli.get<std::string>(0);
+  auto record = cli.get<bool>("rec");
   if (cli.has("help") || config_path.empty()) {
     cli.printMessage();
     return 0;
@@ -40,7 +46,7 @@ int main(int argc, char * argv[])
   io::Gimbal gimbal(config_path);
   io::Camera camera(config_path);
 
-  auto_aim::YOLO yolo(config_path, true);
+  auto_aim::YOLO yolo(config_path, false);
   auto_aim::Solver solver(config_path);
   auto_aim::Tracker tracker(config_path, solver);
   auto_aim::Planner planner(config_path);
@@ -59,8 +65,8 @@ int main(int argc, char * argv[])
       auto plan = planner.plan(target, gs.bullet_speed);
 
       gimbal.send(
-        plan.control, plan.fire, plan.yaw, plan.yaw_vel, plan.yaw_acc, -plan.pitch, -plan.pitch_vel,
-        -plan.pitch_acc);
+        plan.control, plan.fire, plan.yaw, plan.yaw_vel, plan.yaw_acc, plan.pitch, plan.pitch_vel,
+        plan.pitch_acc);
 
       auto fired = gs.bullet_count > last_bullet_count;
       last_bullet_count = gs.bullet_count;
@@ -123,12 +129,14 @@ int main(int argc, char * argv[])
     auto now = std::chrono::steady_clock::now();
     if (std::chrono::duration<double>(now - last_time).count() >= 1.0) {
       double fps = frame_count / std::chrono::duration<double>(now - last_time).count();
-      fmt::print("FPS: {:.2f}\n", fps);
+      // fmt::print("FPS: {:.2f}\n", fps);
       frame_count = 0;
       last_time = now;
     }
 
     auto q = gimbal.q(t);
+
+    recorder.record(img, q, t);
 
     solver.set_R_gimbal2world(q);
     auto armors = yolo.detect(img);
@@ -156,7 +164,7 @@ int main(int argc, char * argv[])
     }
 
     cv::resize(img, img, {}, 0.5, 0.5);  // 显示时缩小图片尺寸
-    cv::imshow("reprojection", img);
+    // cv::imshow("reprojection", img);
     auto key = cv::waitKey(1);
     if (key == 'q') break;
   }
