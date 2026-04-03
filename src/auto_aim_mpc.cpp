@@ -26,14 +26,14 @@ using namespace std::chrono_literals;
 const std::string keys =
   "{help h usage ? |                        | 输出命令行参数说明}"
   "{f              | true                   | 是否开火}"
-  "{rec            | false                  | 是否录制数据}"
+  "{rec            | true                  | 是否录制数据}"
   "{@config-path   | configs/hero.yaml      | 位置参数，yaml配置文件路径 }";
 
 int main(int argc, char * argv[])
 {
   tools::Exiter exiter;
   // tools::Plotter plotter;
-  tools::Recorder recorder;
+  tools::Record() recorder;
 
   cv::CommandLineParser cli(argc, argv, keys);
   auto config_path = cli.get<std::string>(0);
@@ -85,6 +85,8 @@ int main(int argc, char * argv[])
 
       auto fired = gs.bullet_count > last_bullet_count;
       last_bullet_count = gs.bullet_count;
+      
+      std::this_thread::sleep_for(1ms);
     }
   });
 

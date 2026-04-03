@@ -272,7 +272,7 @@ void Target::update_ypda(const Armor & armor, int id)
   
   // 核心逻辑：如果速度变化极大（强机动/急停/急转），或者基于观测算出的残差极大
   // 则重置机动倒计时，并根据情况膨胀协方差
-  if (delta_v > 0.5 || delta_w > 0.5) { 
+  if (delta_v > 2 || delta_w > 2) { 
     // 发生了极大的速度或角速度突变（说明正在剧烈加速或减速、换向）
     tools::logger()->warn("[Target] Acceleration/Maneuver Detected! delta_v: {:.3f}, delta_w: {:.3f}", delta_v, delta_w);
     maneuver_ticks = 10; // 设置机动状态，暂缓开火

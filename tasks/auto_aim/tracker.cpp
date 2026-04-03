@@ -66,6 +66,12 @@ std::list<Target> Tracker::track(
     found = set_target(armors, t);
   }
 
+  // 此时相机画面中出现了优先级更高的装甲板，切换目标
+  else if (state_ == "tracking" && !armors.empty() && armors.front().priority < target_.priority) {
+    found = set_target(armors, t);
+    tools::logger()->debug("auto_aim switch target to {}", ARMOR_NAMES[armors.front().name]);
+  }
+
   else {
     found = update_target(armors, t);
   }

@@ -210,6 +210,8 @@ int main(int argc, char * argv[])
         if (rerun) rec->log("world/target/aim_point", rerun::Clear::FLAT);
       }
       // =========================
+
+      std::this_thread::sleep_for(1ms);
     }
   });
 
