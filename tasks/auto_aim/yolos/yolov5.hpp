@@ -20,6 +20,8 @@ public:
 
   std::list<Armor> detect(const cv::Mat & bgr_img, int frame_count) override;
 
+  std::list<Armor> detect(const cv::Mat & bgr_img, int frame_count, cv::Mat & out_debug_img) override;
+
   std::list<Armor> postprocess(
     double scale, cv::Mat & output, const cv::Mat & bgr_img, int frame_count) override;
 
@@ -48,10 +50,12 @@ private:
 
   cv::Point2f get_center_norm(const cv::Mat & bgr_img, const cv::Point2f & center) const;
 
-  std::list<Armor> parse(double scale, cv::Mat & output, const cv::Mat & bgr_img, int frame_count);
+  std::list<Armor> parse(double scale, cv::Mat & output, const cv::Mat & bgr_img, int frame_count, cv::Mat * out_debug_img = nullptr);
+
+  std::list<Armor> detect_impl(const cv::Mat & raw_img, int frame_count, cv::Mat * out_debug_img);
 
   void save(const Armor & armor) const;
-  void draw_detections(const cv::Mat & img, const std::list<Armor> & armors, int frame_count) const;
+  void draw_detections(const cv::Mat & img, const std::list<Armor> & armors, int frame_count, cv::Mat * out_debug_img = nullptr) const;
   double sigmoid(double x);
 };
 

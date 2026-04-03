@@ -34,7 +34,6 @@ struct PlannerInput {
 const std::string keys =
   "{help h usage ? |                        | 输出命令行参数说明}"
   "{ip             | 192.168.1.2            | Rerun 查看器的IP地址}"
-  "{f              | true                   | 是否开火}"
   "{imshow         | true                   | 是否显示图像窗口}"
   "{rerun          | true                   | 是否将数据记录到Rerun}"
   "{config-path c  | configs/hero.yaml      | yaml配置文件路径 }"
@@ -51,7 +50,6 @@ int main(int argc, char * argv[])
   if (input_path.empty()) input_path = cli.get<std::string>("@input-path");
   auto config_path = cli.get<std::string>("config-path");
   auto rerun_ip = cli.get<std::string>("ip");
-  auto fire = cli.get<bool>("f");
   auto imshow = cli.get<bool>("imshow");
   auto rerun = cli.get<bool>("rerun");
   auto start_index = cli.get<int>("start-index");
@@ -82,7 +80,7 @@ int main(int argc, char * argv[])
     rec->connect_grpc("rerun+http://" + rerun_ip + ":9876/proxy").exit_on_failure();
   }
 
-  auto_aim::YOLO yolo(config_path, imshow);
+  auto_aim::YOLO yolo(config_path, true);
   auto_aim::Solver solver(config_path);
   auto_aim::Tracker tracker(config_path, solver);
   auto_aim::Planner planner(config_path);
@@ -122,14 +120,9 @@ int main(int argc, char * argv[])
       Eigen::Quaterniond q_gimbal(input.w, input.x, input.y, input.z);
       Eigen::Vector3d eulers = tools::eulers(q_gimbal.toRotationMatrix(), 2, 1, 0);
       double mock_yaw = eulers[0];
-      double mock_yaw_vel = 0.0;
       double mock_pitch = eulers[1];
-      double mock_pitch_vel = 0.0;
-      double pseudo_bullet_speed = 28.0;
 
-      auto plan = planner.plan(target, pseudo_bullet_speed, mock_yaw, mock_pitch);
-
-      auto fired = plan.fire && fire;
+      auto plan = planner.plan(target, 11, mock_yaw, mock_pitch);
 
       Eigen::Matrix3d R_imubody2world = q_gimbal.toRotationMatrix();
       Eigen::Matrix3d R_gimbal2world = R_imubody2world * R_gimbal2imubody;
@@ -181,7 +174,6 @@ int main(int argc, char * argv[])
         rec->log("yaw/plan_yaw", rerun::Scalars(plan.yaw));
         rec->log("yaw/target_yaw", rerun::Scalars(plan.target_yaw));
         rec->log("yaw/gimbal_yaw", rerun::Scalars(mock_yaw));
-        rec->log("yaw/gimbal_yaw_vel", rerun::Scalars(mock_yaw_vel));
         rec->log("yaw/plan_yaw_vel", rerun::Scalars(plan.yaw_vel));
         rec->log("yaw/plan_yaw_acc", rerun::Scalars(plan.yaw_acc));
       
@@ -192,7 +184,6 @@ int main(int argc, char * argv[])
         rec->log("pitch/plan_pitch_vel", rerun::Scalars(plan.pitch_vel));
         rec->log("pitch/plan_pitch_acc", rerun::Scalars(plan.pitch_acc));
 
-        rec->log("fire/fired", rerun::Scalars(fired ? 1.0f : 0.0f));
         rec->log("fire/plan_fire", rerun::Scalars(plan.fire ? 1.0f : 0.0f));
         rec->log("fire/duty_cycle", rerun::Scalars(fire_duty));
       }
@@ -249,7 +240,8 @@ int main(int argc, char * argv[])
     Eigen::Quaterniond q(w, x, y, z);
     solver.set_R_gimbal2world(q);
 
-    auto armors = yolo.detect(img, frame_count);
+    cv::Mat debug_detection_img;
+    auto armors = yolo.detect(img, frame_count, debug_detection_img);
     auto targets = tracker.track(armors, timestamp);
     
     PlannerInput p_input;
@@ -262,34 +254,42 @@ int main(int argc, char * argv[])
     p_input.t = timestamp;
     target_queue.push(p_input);
 
-    if (imshow) {
-      if (!targets.empty()) {
-        auto target = targets.front();
+    if (!targets.empty()) {
+      auto target = targets.front();
 
-        std::vector<Eigen::Vector4d> armor_xyza_list = target.armor_xyza_list();
-        for (const Eigen::Vector4d & xyza : armor_xyza_list) {
-          auto image_points =
-            solver.reproject_armor(xyza.head(3), xyza[3], target.armor_type, target.name);
-          tools::draw_points(img, image_points, {0, 255, 0});
-        }
-
-        Eigen::Vector4d aim_xyza = planner.debug_xyza;
+      std::vector<Eigen::Vector4d> armor_xyza_list = target.armor_xyza_list();
+      for (const Eigen::Vector4d & xyza : armor_xyza_list) {
         auto image_points =
-          solver.reproject_armor(aim_xyza.head(3), aim_xyza[3], target.armor_type, target.name);
-        tools::draw_points(img, image_points, {0, 0, 255});
+          solver.reproject_armor(xyza.head(3), xyza[3], target.armor_type, target.name);
+        tools::draw_points(img, image_points, {0, 255, 0});
       }
 
+      Eigen::Vector4d aim_xyza = planner.debug_xyza;
+      auto image_points =
+        solver.reproject_armor(aim_xyza.head(3), aim_xyza[3], target.armor_type, target.name);
+      tools::draw_points(img, image_points, {0, 0, 255});
+    }
+
+    if (rerun) {
+      if (!debug_detection_img.empty()) {
+        std::vector<uchar> det_encoded;
+        cv::imencode(".jpg", debug_detection_img, det_encoded);
+        rec->log("video/detection", rerun::EncodedImage::from_bytes(det_encoded));
+      }
+
+      std::vector<uchar> img_encoded;
+      cv::imencode(".jpg", img, img_encoded);
+      rec->log("video/reprojection_offline", rerun::EncodedImage::from_bytes(img_encoded));
+    } else if (imshow) {
       cv::resize(img, img, {}, 0.5, 0.5);
+      cv::resize(debug_detection_img, debug_detection_img, {}, 0.5, 0.5);
+      cv::imshow("detection", debug_detection_img);
       cv::imshow("reprojection_offline", img);
     }
     
     // Playback control
-    auto key = cv::waitKey(30); // Approx 30fps
+    auto key = cv::waitKey(1); // Approx 30fps
     if (key == 'q') break;
-    if (key == ' ') {
-      // Pause functionality
-      while(cv::waitKey(0) != ' ');
-    }
   }
 
   quit = true;

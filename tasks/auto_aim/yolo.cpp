@@ -35,6 +35,11 @@ std::list<Armor> YOLO::detect(const cv::Mat & img, int frame_count)
   return yolo_->detect(img, frame_count);
 }
 
+std::list<Armor> YOLO::detect(const cv::Mat & img, int frame_count, cv::Mat & out_debug_img)
+{
+  return yolo_->detect(img, frame_count, out_debug_img);
+}
+
 std::list<Armor> YOLO::postprocess(
   double scale, cv::Mat & output, const cv::Mat & bgr_img, int frame_count)
 {

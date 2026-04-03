@@ -181,11 +181,11 @@ void Target::update(const Armor & armor) // EKF中的第二大步：更新
     auto angle_error = std::abs(tools::limit_rad(armor.ypr_in_world[0] - xyza[3])) +
                        std::abs(tools::limit_rad(armor.ypd_in_world[0] - ypd[0]));
 
-    // 增加滞回机制(Hysteresis)：如果当前候选的并不是上一帧匹配的装甲板，赋予一个切换惩罚。
-    // 这样在两块装甲板角度误差相近（处于临界角度）时，会优先保持跟踪上一帧的装甲板，避免反复横跳
-    if (update_count_ > 0 && xyza_i_list[i].second != last_id) {
-      angle_error += 0.2; // 增加0.25弧度(约14度)的切换惩罚阈值，具体大小根据实车表现微调
-    }
+    // // 增加滞回机制(Hysteresis)：如果当前候选的并不是上一帧匹配的装甲板，赋予一个切换惩罚。
+    // // 这样在两块装甲板角度误差相近（处于临界角度）时，会优先保持跟踪上一帧的装甲板，避免反复横跳
+    // if (update_count_ > 0 && xyza_i_list[i].second != last_id) {
+    //   angle_error += 0.2; // 增加0.25弧度(约14度)的切换惩罚阈值，具体大小根据实车表现微调
+    // }
 
     if (std::abs(angle_error) < std::abs(min_angle_error)) {
       id = xyza_i_list[i].second;
