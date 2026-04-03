@@ -33,7 +33,7 @@ int main(int argc, char * argv[])
 {
   tools::Exiter exiter;
   // tools::Plotter plotter;
-  tools::Record() recorder;
+  tools::Recorder recorder;
 
   cv::CommandLineParser cli(argc, argv, keys);
   auto config_path = cli.get<std::string>(0);
