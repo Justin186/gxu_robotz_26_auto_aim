@@ -37,7 +37,10 @@ public:
   Planner(const std::string & config_path);
 
   Plan plan(Target target, double bullet_speed, double current_yaw = 0.0, double current_pitch = 0.0);
-  Plan plan(std::optional<Target> target, double bullet_speed, double current_yaw = 0.0, double current_pitch = 0.0);
+  Plan plan(
+    std::optional<Target> target, double bullet_speed, double current_yaw = 0.0,
+    double current_pitch = 0.0,
+    std::optional<std::chrono::steady_clock::time_point> current_time = std::nullopt);
 
 private:
   double yaw_offset_;

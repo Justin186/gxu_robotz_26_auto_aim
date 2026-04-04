@@ -112,14 +112,17 @@ Plan Planner::plan(Target target, double bullet_speed, double current_yaw, doubl
   return plan;
 }
 
-Plan Planner::plan(std::optional<Target> target, double bullet_speed, double current_yaw, double current_pitch)
+Plan Planner::plan(
+  std::optional<Target> target, double bullet_speed, double current_yaw, double current_pitch,
+  std::optional<std::chrono::steady_clock::time_point> current_time)
 {
   if (!target.has_value()) return {false};
 
   double delay_time =
     std::abs(target->ekf_x()[7]) > decision_speed_ ? high_speed_delay_time_ : low_speed_delay_time_;
 
-  auto future = std::chrono::steady_clock::now() + std::chrono::microseconds(int(delay_time * 1e6));
+  auto base_time = current_time.value_or(std::chrono::steady_clock::now());
+  auto future = base_time + std::chrono::microseconds(int(delay_time * 1e6));
 
   target->predict(future);
 
