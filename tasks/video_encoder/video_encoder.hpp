@@ -20,8 +20,8 @@ struct VideoEncoderConfig {
     int crop_size = 800;
     int output_size = 400;
     int output_fps = 60;
-    int target_bitrate = 40;
-    int packet_size = 150;
+    int target_bitrate = 110;          // 画质大幅提升 (约 13.75 kB/s)
+    int packet_size = 290;             // 适配 0x0310 协议 (官方上限 300，留出 10 字节包头余量)
     bool static_simplify = true;
     int motion_threshold = 14;
     int motion_erode_px = 1;
@@ -32,7 +32,7 @@ struct VideoEncoderConfig {
     double bg_blur_sigma = 1.2;
     int center_clear_size = 100;
     bool force_monochrome = false;
-    double bandwidth_limit_kbytes = 7.0;
+    double bandwidth_limit_kbytes = 14.0;  // 限速提高到 14 kB/s (安全线 below 15 kB/s @ 50包)
     double bandwidth_window_s = 2.0;
     double max_tx_delay_s = 1.0;
     std::string x264_preset = "auto";

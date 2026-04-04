@@ -49,7 +49,7 @@ static_assert(sizeof(VisionToGimbal) <= 64);
 struct __attribute__((packed)) VideoToGimbal
 {
   uint8_t head[2] = {'S', 'V'};
-  uint8_t data[150];
+  uint8_t data[290];
   uint16_t crc16;
 };
 

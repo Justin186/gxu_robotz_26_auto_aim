@@ -120,7 +120,7 @@ void Gimbal::send(
 
 void Gimbal::send_video(const uint8_t * video_data, size_t size)
 {
-  if (size != 150) {
+  if (size != 290) {
     tools::logger()->warn("[Gimbal] Invalid video packet size: {}", size);
     return;
   }
