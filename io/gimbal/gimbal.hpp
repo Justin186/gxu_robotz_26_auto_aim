@@ -46,6 +46,15 @@ struct __attribute__((packed)) VisionToGimbal
 
 static_assert(sizeof(VisionToGimbal) <= 64);
 
+struct __attribute__((packed)) VideoToGimbal
+{
+  uint8_t head[2] = {'S', 'V'};
+  uint8_t data[150];
+  uint16_t crc16;
+};
+
+// static_assert(sizeof(VideoToGimbal) == 154); // Just to be sure, depending on packing
+
 enum class GimbalMode
 {
   IDLE,        // 空闲
@@ -81,6 +90,8 @@ public:
     float pitch_acc);
 
   void send(io::VisionToGimbal VisionToGimbal);
+
+  void send_video(const uint8_t * video_data, size_t size);
 
 private:
   serial::Serial serial_;

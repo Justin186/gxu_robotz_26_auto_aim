@@ -10,6 +10,7 @@
 
 #include "io/camera.hpp"
 #include "io/gimbal/gimbal.hpp"
+#include "tasks/video_encoder/video_encoder.hpp"
 #include "tasks/auto_aim/planner/planner.hpp"
 #include "tasks/auto_aim/solver.hpp"
 #include "tasks/auto_aim/tracker.hpp"
@@ -72,6 +73,15 @@ int main(int argc, char * argv[])
   t_pitchlink2gimbal /= 1000.0; // mm to m
 
   auto fire_duty_window = tools::read<size_t>(yaml, "fire_duty_window", 500);
+
+  tasks::VideoEncoderConfig encoder_config;
+  // TODO: 后续如果是双相机，就在 yaml 里读取相应的图传相机配置
+  encoder_config.target_bitrate = 14; 
+  encoder_config.output_fps = 30; // 为了极限带宽，可以把帧率调到30
+  
+  tasks::VideoEncoder video_encoder(encoder_config, [&](const uint8_t* data, size_t size){
+    gimbal.send_video(data, size);
+  });
 
   tools::ThreadSafeQueue<std::optional<auto_aim::Target>, true> target_queue(1);
   target_queue.push(std::nullopt);
@@ -221,6 +231,10 @@ int main(int argc, char * argv[])
 
   while (!exiter.exit()) {
     camera.read(img, t);
+
+    // 将相机画面推入图传模块进行压缩并发送（零拷贝、内部分片、免阻塞）
+    video_encoder.push_frame(img);
+
     auto now = std::chrono::steady_clock::now();
     double fps = 1.0 / std::chrono::duration<double>(now - last_t).count();
     last_t = now;

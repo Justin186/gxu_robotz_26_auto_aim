@@ -12,6 +12,10 @@ find_package(Eigen3 REQUIRED)
 find_package(spdlog REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(nlohmann_json REQUIRED)
+
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(GST REQUIRED gstreamer-1.0 gstreamer-app-1.0)
+
 set(OpenVINO_DIR "/opt/intel/openvino_2024.6.0/runtime/cmake/")
 find_package(OpenVINO REQUIRED)
 
@@ -23,13 +27,15 @@ FetchContent_MakeAvailable(rerun_sdk)
 include_directories(${EIGEN3_INCLUDE_DIR})
 include_directories(${OpenCV_INCLUDE_DIRS})
 include_directories(${PROJECT_SOURCE_DIR})
-
+include_directories(${GST_INCLUDE_DIRS})
 
 add_subdirectory(tools)
 add_subdirectory(io)
 add_subdirectory(tasks/auto_aim)
 # add_subdirectory(tasks/auto_buff)
 add_subdirectory(tasks/omniperception)
+
+add_subdirectory(tasks/video_encoder)
 
 ####################src###################
 # add_executable(standard src/standard.cpp)
@@ -48,9 +54,9 @@ add_executable(auto_aim_debug_solver src/auto_aim_debug_solver.cpp)
 # target_link_libraries(standard ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim auto_buff tools io)
 # target_link_libraries(mt_standard ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim auto_buff tools io)
 # target_link_libraries(standard_mpc ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim auto_buff tools io)
-target_link_libraries(auto_aim_debug_mpc ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim tools io rerun_sdk)
-target_link_libraries(auto_aim_debug_offline ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim tools io rerun_sdk)
-target_link_libraries(auto_aim_mpc ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim tools io)
+target_link_libraries(auto_aim_debug_mpc ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim tools io rerun_sdk video_encoder)
+target_link_libraries(auto_aim_debug_offline ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim tools io rerun_sdk video_encoder)
+target_link_libraries(auto_aim_mpc ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim tools io video_encoder)
 target_link_libraries(auto_aim_debug_solver ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim tools io)
 # target_link_libraries(mt_auto_aim_debug ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim auto_buff tools io)
 # target_link_libraries(auto_buff_debug ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_buff tools io ${CERES_LIBRARIES})

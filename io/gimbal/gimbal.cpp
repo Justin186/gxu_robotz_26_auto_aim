@@ -1,5 +1,6 @@
 #include "gimbal.hpp"
 
+#include <cstring>
 #include "tools/crc.hpp"
 #include "tools/logger.hpp"
 #include "tools/math_tools.hpp"
@@ -114,6 +115,27 @@ void Gimbal::send(
     serial_.write(reinterpret_cast<uint8_t *>(&tx_data_), sizeof(tx_data_));
   } catch (const std::exception & e) {
     tools::logger()->warn("[Gimbal] Failed to write serial: {}", e.what());
+  }
+}
+
+void Gimbal::send_video(const uint8_t * video_data, size_t size)
+{
+  if (size != 150) {
+    tools::logger()->warn("[Gimbal] Invalid video packet size: {}", size);
+    return;
+  }
+
+  VideoToGimbal pkt;
+  pkt.head[0] = 'S';
+  pkt.head[1] = 'V';
+  std::memcpy(pkt.data, video_data, size);
+  pkt.crc16 = tools::get_crc16(
+    reinterpret_cast<uint8_t *>(&pkt), sizeof(pkt) - sizeof(pkt.crc16));
+
+  try {
+    serial_.write(reinterpret_cast<uint8_t *>(&pkt), sizeof(pkt));
+  } catch (const std::exception & e) {
+    tools::logger()->warn("[Gimbal] Failed to write video packet: {}", e.what());
   }
 }
 

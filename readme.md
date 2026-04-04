@@ -33,7 +33,15 @@ IMU型号：使用C板内置BMI088作为IMU\
         libusb-1.0-0-dev \
         nlohmann-json3-dev \
         openssh-server \
-        screen
+        screen \
+        pkg-config \
+        libgstreamer1.0-dev \
+        libgstreamer-plugins-base1.0-dev \
+        gstreamer1.0-tools \
+        gstreamer1.0-plugins-base \
+        gstreamer1.0-plugins-good \
+        gstreamer1.0-plugins-ugly \
+        gstreamer1.0-plugins-bad
     ```
 
 2. 编译：
