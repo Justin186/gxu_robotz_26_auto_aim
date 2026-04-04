@@ -56,6 +56,16 @@ YOLOV5::YOLOV5(const std::string & config_path, bool debug)
 
 std::list<Armor> YOLOV5::detect(const cv::Mat & raw_img, int frame_count)
 {
+  return detect_impl(raw_img, frame_count, nullptr);
+}
+
+std::list<Armor> YOLOV5::detect(const cv::Mat & raw_img, int frame_count, cv::Mat & out_debug_img)
+{
+  return detect_impl(raw_img, frame_count, &out_debug_img);
+}
+
+std::list<Armor> YOLOV5::detect_impl(const cv::Mat & raw_img, int frame_count, cv::Mat * out_debug_img)
+{
   if (raw_img.empty()) {
     tools::logger()->warn("Empty img!, camera drop!");
     return std::list<Armor>();
@@ -96,11 +106,11 @@ std::list<Armor> YOLOV5::detect(const cv::Mat & raw_img, int frame_count)
   auto output_shape = output_tensor.get_shape();
   cv::Mat output(output_shape[1], output_shape[2], CV_32F, output_tensor.data());
 
-  return parse(scale, output, raw_img, frame_count);
+  return parse(scale, output, raw_img, frame_count, out_debug_img);
 }
 
 std::list<Armor> YOLOV5::parse(
-  double scale, cv::Mat & output, const cv::Mat & bgr_img, int frame_count)
+  double scale, cv::Mat & output, const cv::Mat & bgr_img, int frame_count, cv::Mat * out_debug_img)
 {
   // for each row: xywh + classess
   std::vector<int> color_ids, num_ids;
@@ -187,7 +197,7 @@ std::list<Armor> YOLOV5::parse(
     ++it;
   }
 
-  if (debug_) draw_detections(bgr_img, armors, frame_count);
+  if (debug_) draw_detections(bgr_img, armors, frame_count, out_debug_img);
 
   return armors;
 }
@@ -224,10 +234,10 @@ cv::Point2f YOLOV5::get_center_norm(const cv::Mat & bgr_img, const cv::Point2f &
 }
 
 void YOLOV5::draw_detections(
-  const cv::Mat & img, const std::list<Armor> & armors, int frame_count) const
+  const cv::Mat & img, const std::list<Armor> & armors, int frame_count, cv::Mat * out_debug_img) const
 {
   auto detection = img.clone();
-  tools::draw_text(detection, fmt::format("[{}]", frame_count), {10, 30}, {255, 255, 255});
+  tools::draw_text(detection, fmt::format("[{}]", frame_count), {10, 30}, {255, 0, 0});
   for (const auto & armor : armors) {
     auto info = fmt::format(
       "{:.2f} {} {} {}", armor.confidence, COLORS[armor.color], ARMOR_NAMES[armor.name],
@@ -240,8 +250,13 @@ void YOLOV5::draw_detections(
     cv::Scalar green(0, 255, 0);
     cv::rectangle(detection, roi_, green, 2);
   }
-  cv::resize(detection, detection, {}, 0.5, 0.5);  // 显示时缩小图片尺寸
-  cv::imshow("detection", detection);
+  
+  if (out_debug_img) {
+    *out_debug_img = detection.clone();
+  } else {
+    cv::resize(detection, detection, {}, 0.5, 0.5);  // 显示时缩小图片尺寸
+    cv::imshow("detection", detection);
+  }
 }
 
 void YOLOV5::save(const Armor & armor) const
