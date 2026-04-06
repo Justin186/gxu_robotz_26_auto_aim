@@ -217,6 +217,33 @@ void Target::update(const Armor & armor) // EKF中的第二大步：更新
 
 void Target::update_ypda(const Armor & armor, int id)
 {
+  if (name == ArmorName::outpost && !outpost_z_resolved_ && id >= 0 && id < 3) {
+    outpost_z_sum_[id] += armor.xyz_in_world[2];
+    outpost_z_count_[id]++;
+
+    // 判断三个id的装甲板是否都有足够(如10次)观测，以求稳定平均
+    if (outpost_z_count_[0] > 10 && outpost_z_count_[1] > 10 && outpost_z_count_[2] > 10) {
+      double avgs[3] = {outpost_z_sum_[0] / outpost_z_count_[0],
+                        outpost_z_sum_[1] / outpost_z_count_[1],
+                        outpost_z_sum_[2] / outpost_z_count_[2]};
+      
+      int sorted_ids[3] = {0, 1, 2};
+      std::sort(sorted_ids, sorted_ids + 3, [&avgs](int a, int b) {
+        return avgs[a] < avgs[b];
+      });
+
+      // 实地高度理论值：1.114 (低)，1.216 (中)，1.318 (高)
+      // 则相对于 1.216，三者偏移为 -0.102, 0, 0.102
+      outpost_z_offset_[sorted_ids[0]] = -0.102;
+      outpost_z_offset_[sorted_ids[1]] = 0.0;
+      outpost_z_offset_[sorted_ids[2]] = 0.102;
+
+      outpost_z_resolved_ = true;
+      tools::logger()->info("[Target] Outpost Z sorted! id[{}]=-0.102, id[{}]={:.3f}, id[{}]={:.3f}",
+                            sorted_ids[0], sorted_ids[1], 0.0, sorted_ids[2], 0.102);
+    }
+  }
+
   // 同济并没有采用更新xyza的方法，而是选择ypda为观测量进行更新，因为这更符合测量本质，而且yaw/pitch误差几乎独立于距离，如果使用xyz，距离误差会线性放大到x,y误差
   // 获取观测雅可比矩阵H
   Eigen::MatrixXd H = h_jacobian(ekf_.x, id);
@@ -340,6 +367,10 @@ Eigen::Vector3d Target::h_armor_xyz(const Eigen::VectorXd & x, int id) const
   auto armor_x = x[0] - r * std::cos(angle);
   auto armor_y = x[2] - r * std::sin(angle);
   auto armor_z = (use_l_h) ? x[4] + x[10] : x[4];
+
+  if (name == ArmorName::outpost && id >= 0 && id < 3) {
+    armor_z = x[4] + outpost_z_offset_[id];
+  }
 
   return {armor_x, armor_y, armor_z};
 }
