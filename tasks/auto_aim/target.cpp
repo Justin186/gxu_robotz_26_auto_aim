@@ -282,31 +282,39 @@ void Target::update_ypda(const Armor & armor, int id)
   const Eigen::VectorXd & ypr = armor.ypr_in_world;
   Eigen::VectorXd z{{ypd[0], ypd[1], ypd[2], ypr[0]}};  //获得观测量
 
-  // 计算上一帧估计的速度 (vx, vy, vz) 和角速度 (w)
-  Eigen::Vector3d last_v(ekf_.x[1], ekf_.x[3], ekf_.x[5]);
-  double last_w = ekf_.x[7];
-
   ekf_.update(z, H, R, h, z_subtract); // 送进EKF进行更新
   
-  // 计算更新后新估计的速度和角速度
+  // 提取更新后的速度，送入滑动窗口以计算真实的物理加速度
   Eigen::Vector3d current_v(ekf_.x[1], ekf_.x[3], ekf_.x[5]);
   double current_w = ekf_.x[7];
+  auto now = std::chrono::steady_clock::now();
   
-  // 提取前后两帧的速度变化量（即隐含的加速度/角加速度大小）
-  // 这里的差值实际上反映了EKF对速度状态的瞬间修正量（也就是"由于模型不符导致的突变加速度"）
-  double delta_v = (current_v - last_v).norm();
-  double delta_w = std::abs(current_w - last_w);
-  
-  // 核心逻辑：如果速度变化极大（强机动/急停/急转），或者基于观测算出的残差极大
-  // 则重置机动倒计时，并根据情况膨胀协方差
-  if (delta_v > 2 || delta_w > 2) { 
-    // 发生了极大的速度或角速度突变（说明正在剧烈加速或减速、换向）
-    tools::logger()->warn("[Target] Acceleration/Maneuver Detected! delta_v: {:.3f}, delta_w: {:.3f}", delta_v, delta_w);
-    maneuver_ticks = 10; // 设置机动状态，暂缓开火
-  } else {
-    if (maneuver_ticks > 0) {
-      maneuver_ticks--;
+  velocity_history_.push_back({now, current_v});
+  w_history_.push_back({now, current_w});
+
+  // 保证窗口内元素不超过10个（平滑多帧）
+  while (velocity_history_.size() > 10) velocity_history_.pop_front();
+  while (w_history_.size() > 10) w_history_.pop_front();
+
+  // 当收集了至少两帧数据时，开始计算真实的物理加速度（过载）
+  if (velocity_history_.size() >= 2) {
+    auto dt_history = tools::delta_time(velocity_history_.back().first, velocity_history_.front().first);
+    if (dt_history > 0.05) { // 确保有足够的时间跨度防止除数过小放大噪声
+      double true_acc = (velocity_history_.back().second - velocity_history_.front().second).norm() / dt_history;
+      double true_w_acc = std::abs(w_history_.back().second - w_history_.front().second) / dt_history;
+      
+      // 真实加速度大于 5 m/s^2 或角加速度大于 10 rad/s^2 判定为强机动
+      if (true_acc > 5.0 || true_w_acc > 10.0) {
+        tools::logger()->warn("[Target] Acceleration/Maneuver Detected! a: {:.3f} m/s^2, w_acc: {:.3f} rad/s^2", true_acc, true_w_acc);
+        maneuver_ticks = 10; // 设置机动状态，暂缓开火
+      } else {
+        if (maneuver_ticks > 0) maneuver_ticks--;
+      }
+    } else {
+      if (maneuver_ticks > 0) maneuver_ticks--;
     }
+  } else {
+    if (maneuver_ticks > 0) maneuver_ticks--;
   }
 }
 
