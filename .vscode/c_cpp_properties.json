@@ -10,8 +10,9 @@
                 "${workspaceFolder}/io/serial/include",
                 "/usr/include/opencv4",
                 "/usr/include/eigen3",
-                "/opt/intel/openvino_2023.3.0/runtime/include/",
-                "/home/rm/sp_msg_25/install/sp_msgs/include/sp_msgs",
+                "/usr/include/gstreamer-1.0",
+                "/usr/include/glib-2.0",
+                "/usr/lib/x86_64-linux-gnu/glib-2.0/include",
                 "/opt/ros/humble/include/**"
             ],
             "compilerPath": "/usr/bin/gcc",

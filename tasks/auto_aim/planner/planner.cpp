@@ -93,7 +93,7 @@ Plan Planner::plan(Target target, double bullet_speed, double current_yaw, doubl
   plan.pitch_vel = pitch_solver_->work->x(1, HALF_HORIZON);
   plan.pitch_acc = pitch_solver_->work->u(0, HALF_HORIZON);
 
-  auto shoot_offset_ = 2;
+  auto shoot_offset_ = 1;
   auto center_yaw = std::atan2(target.ekf_x()[2], target.ekf_x()[0]);
   auto delta_angle = std::abs(tools::limit_rad(current_armor_yaw - center_yaw));
 

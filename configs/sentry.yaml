@@ -35,7 +35,7 @@ usb_gain: 10 #0-96
 
 #####-----工业相机参数-----#####
 camera_name: "hikrobot"
-exposure_ms: 10
+exposure_ms: 5
 gain: 16.9
 vid_pid: "2bdf:0001"
 need_rotation: true
@@ -49,7 +49,7 @@ min_lightbar_length: 8
 min_armor_ratio: 1
 max_armor_ratio: 5
 max_side_ratio: 1.5
-max_rectangular_error: 25 # degree
+max_rectangular_error: 20 # degree
 min_confidence: 0.8
 
 #####-----cboard参数-----#####
@@ -58,21 +58,26 @@ bullet_speed_canid: 0x110
 send_canid: 0xff
 can_interface: "can0"
 
+#####-----云台参数-----#####
+com_port: "/dev/ttyACM0"
+
 #####-----tracker参数-----#####
 min_detect_count: 5
 max_temp_lost_count: 25
 outpost_max_temp_lost_count: 75
 
 #####-----aimer参数-----#####
-yaw_offset: -0.75 # degree -2.5
-pitch_offset: 0  # degree 2
-comming_angle: 60 # degree
+yaw_offset: -4 # degree -2.5
+pitch_offset: -0.5  # degree 2
+comming_angle: 55 # degree
 leaving_angle: 20 # degree
 left_yaw_offset: -1
 right_yaw_offset: -0.6
 decision_speed: 10 # rad/s
-high_speed_delay_time: 0.026 # s
+high_speed_delay_time: 0.02 # s
 low_speed_delay_time: 0.010 # s
+max_armor_angle: 70 # degree
+defult_bullet_speed: 21.6 # m/s
 
 #####-----shooter参数-----#####
 first_tolerance: 5 # 近距离射击容差，degree
@@ -84,37 +89,29 @@ auto_fire: true # 是否由自瞄控制射击
 mode: 1
 
 #####-----工业相机标定参数-----#####
-R_gimbal2imubody: [-1, 0, 0, 0, 1, 0, 0, 0, -1]
-t_pitchlink2gimbal: [-31, 0, 0]  # 单位mm
+R_gimbal2imubody: [1, 0, 0, 0, 1, 0,  0, 0, 1]
+t_pitchlink2gimbal: [0, 0, 0]  # 单位mm
+# 重投影误差: 0.0787px
+camera_matrix: [2365.2292710685488, 0, 717.84874030069716, 0, 2365.2595057507042, 507.10051676922996, 0, 0, 1]
+distort_coeffs: [-0.053032056252978271, 0.12304744809762919, -0.00083306525109508019, 0.00044012934474125322, 0]
+# 相机同理想情况的偏角: yaw0.56 pitch1.05 roll0.41 degree
+R_camera2pitchlink: [0, 0, 1, -1, 0, 0, 0, -1, 0]
+t_camera2pitchlink: [0.047, 0.16, 0]
 
-# 重投影误差: 0.0534px
-camera_matrix: [2359.7528187598982, 0, 696.43298916431195, 0, 2360.1894340625981, 536.79875280770045, 0, 0, 1]
-distort_coeffs: [-0.05456741286284772, 0.15811583807666588, 0.00016957902475501404, 0.00021339196559506428, 0]
+#####-----planner-----#####
+fire_thresh: 0.01
 
-# 相机同理想情况的偏角: yaw-0.41 pitch0.02 roll0.77 degree
-R_camera2pitchlink: [0.0072238516002831599, 0.00019236002791341497, 0.99997388914195007, -0.99988388126500616, 0.013419636154961223, 0.0072206199107696569, -0.013417896798098759, -0.99990993412561324, 0.00028927915142351601]
-t_camera2pitchlink: [0.19067643602122875, 0.0010000390864348756, 0.091000911995660671]
+max_yaw_acc: 280000
+Q_yaw: [9e6, 0]
+R_yaw: [1]
 
-
-#####-----gimbal参数-----#####
-com_port: "/dev/gimbal"
-imu_com_port: "/dev/xrobot"
-imu_filter_alpha: 0.01
+max_pitch_acc: 280000
+Q_pitch: [9e6,0]
+R_pitch: [1]
 
 #####-----buff_detector参数-----#####
 model: "assets/yolo11_buff_int8.xml"
 
 #####-----buff_aimer参数-----#####
-fire_gap_time: 0.520   # s
-predict_time: 0.100     # s
-
-#####-----planner-----#####
-fire_thresh: 0.003
-
-max_yaw_acc: 50
-Q_yaw: [9e6, 0]
-R_yaw: [1]
-
-max_pitch_acc: 100
-Q_pitch: [9e6,0]
-R_pitch: [1]
+fire_gap_time: 0.700   # s
+predict_time: 0.120     # s

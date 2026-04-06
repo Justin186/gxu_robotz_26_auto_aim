@@ -181,11 +181,11 @@ void Target::update(const Armor & armor) // EKF中的第二大步：更新
     auto angle_error = std::abs(tools::limit_rad(armor.ypr_in_world[0] - xyza[3])) +
                        std::abs(tools::limit_rad(armor.ypd_in_world[0] - ypd[0]));
 
-    // // 增加滞回机制(Hysteresis)：如果当前候选的并不是上一帧匹配的装甲板，赋予一个切换惩罚。
-    // // 这样在两块装甲板角度误差相近（处于临界角度）时，会优先保持跟踪上一帧的装甲板，避免反复横跳
-    // if (update_count_ > 0 && xyza_i_list[i].second != last_id) {
-    //   angle_error += 0.2; // 增加0.25弧度(约14度)的切换惩罚阈值，具体大小根据实车表现微调
-    // }
+    // 增加滞回机制(Hysteresis)：如果当前候选的并不是上一帧匹配的装甲板，赋予一个切换惩罚。
+    // 这样在两块装甲板角度误差相近（处于临界角度）时，会优先保持跟踪上一帧的装甲板，避免反复横跳
+    if (update_count_ > 0 && xyza_i_list[i].second != last_id) {
+      angle_error += 0.08; // 增加0.25弧度(约14度)的切换惩罚阈值，具体大小根据实车表现微调
+    }
 
     if (std::abs(angle_error) < std::abs(min_angle_error)) {
       id = xyza_i_list[i].second;
@@ -226,7 +226,7 @@ void Target::update_ypda(const Armor & armor, int id)
   // 算出观测噪声协方差矩阵R的对角线元素
   Eigen::VectorXd R_dig{
       {4e-3,  // 固定yaw噪声
-      4e-3,  // 固定pitch噪声
+      4e-2,  // 固定pitch噪声
       log(std::abs(delta_angle) + 1) + 1,  // 自适应距离噪声：当装甲板不在正对时（delta_angle大），距离估计不准，增大噪声
       log(std::abs(armor.ypd_in_world[2]) + 1) / 200 + 9e-2}};  // 自适应角度噪声：距离越远，角度估计越不准
 

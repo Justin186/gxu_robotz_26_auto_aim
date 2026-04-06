@@ -188,36 +188,115 @@ int main(int argc, char * argv[])
 
       // 记录目标位置 (如果有)
       if (target.has_value()) {
-        std::vector<rerun::Position3D> armor_points;
         auto armor_xyza_list = target->armor_xyza_list();
+        
+        float armor_width = (target->armor_type == auto_aim::ArmorType::big) ? 0.230f : 0.135f;
+        float armor_height = 0.056f;
+        float pitch = (target->name == auto_aim::ArmorName::outpost) ? -15.0f * CV_PI / 180.0f : 15.0f * CV_PI / 180.0f;
+        float sin_pitch = std::sin(pitch);
+        float cos_pitch = std::cos(pitch);
+
+        std::vector<Eigen::Vector3f> base_points = {
+            {0.0f, armor_width / 2.0f, armor_height / 2.0f},
+            {0.0f, -armor_width / 2.0f, armor_height / 2.0f},
+            {0.0f, -armor_width / 2.0f, -armor_height / 2.0f},
+            {0.0f, armor_width / 2.0f, -armor_height / 2.0f}
+        };
+
+        std::vector<rerun::Position3D> armor_vertices;
+        std::vector<rerun::components::Color> armor_colors;
         for (const auto& xyza : armor_xyza_list) {
-          // X, Y, Z
-          armor_points.push_back({(float)xyza[0], (float)xyza[1], (float)xyza[2]});
+          float sin_yaw = std::sin(xyza[3]);
+          float cos_yaw = std::cos(xyza[3]);
+          Eigen::Matrix3f R_armor2world;
+          R_armor2world << 
+              cos_yaw * cos_pitch, -sin_yaw, cos_yaw * sin_pitch,
+              sin_yaw * cos_pitch,  cos_yaw, sin_yaw * sin_pitch,
+                       -sin_pitch,     0.0f,           cos_pitch;
+                       
+          Eigen::Vector3f center((float)xyza[0], (float)xyza[1], (float)xyza[2]);
+          std::vector<Eigen::Vector3f> p_world(4);
+          for (int i = 0; i < 4; i++) {
+              p_world[i] = R_armor2world * base_points[i] + center;
+          }
+          
+          auto add_vertex = [&](int i) {
+              armor_vertices.push_back({p_world[i].x(), p_world[i].y(), p_world[i].z()});
+              armor_colors.push_back({0, 255, 0, 150});
+          };
+          
+          add_vertex(0); add_vertex(1); add_vertex(2);
+          add_vertex(0); add_vertex(2); add_vertex(3);
         }
         
         // 可视化预测击打点 (从 planner 获取)
         Eigen::Vector4d aim_xyza = planner.debug_xyza;
-        std::vector<rerun::Position3D> aim_points = {
-          {(float)aim_xyza[0], (float)aim_xyza[1], (float)aim_xyza[2]}
+        std::vector<rerun::Position3D> aim_vertices;
+        std::vector<rerun::components::Color> aim_colors;
+        {
+            float aim_yaw = aim_xyza[3];
+            float aim_sin_yaw = std::sin(aim_yaw);
+            float aim_cos_yaw = std::cos(aim_yaw);
+            Eigen::Matrix3f aim_R_armor2world;
+            aim_R_armor2world << 
+                aim_cos_yaw * cos_pitch, -aim_sin_yaw, aim_cos_yaw * sin_pitch,
+                aim_sin_yaw * cos_pitch,  aim_cos_yaw, aim_sin_yaw * sin_pitch,
+                             -sin_pitch,         0.0f,               cos_pitch;
+                             
+            Eigen::Vector3f aim_center((float)aim_xyza[0], (float)aim_xyza[1], (float)aim_xyza[2]);
+            std::vector<Eigen::Vector3f> aim_p_world(4);
+            for (int i = 0; i < 4; i++) {
+                aim_p_world[i] = aim_R_armor2world * base_points[i] + aim_center;
+            }
+            
+            auto add_aim_vertex = [&](int i) {
+                aim_vertices.push_back({aim_p_world[i].x(), aim_p_world[i].y(), aim_p_world[i].z()});
+                aim_colors.push_back({255, 0, 0, 150});
+            };
+            
+            add_aim_vertex(0); add_aim_vertex(1); add_aim_vertex(2);
+            add_aim_vertex(0); add_aim_vertex(2); add_aim_vertex(3);
+        }
+        
+        std::vector<rerun::Position3D> vehicle_center = {
+            {(float)target->ekf_x()[0], (float)target->ekf_x()[2], (float)target->ekf_x()[4]}
+        };
+        std::vector<rerun::Vector3D> vehicle_velocity = {
+            {(float)target->ekf_x()[1], (float)target->ekf_x()[3], (float)target->ekf_x()[5]}
         };
         
-        // 用一个绿色小球表示各个正在估计的装甲板空间位置
-        if (rerun) rec->log("world/target/armors", rerun::Points3D(armor_points)
-          .with_radii({0.05f})
-          .with_colors({{0, 255, 0}})); // 绿色代表当前装甲板
-        
-        // 用一个比较大的红色小球表示要打的点
-        if (rerun) rec->log("world/target/aim_point", rerun::Points3D(aim_points)
-          .with_radii({0.07f})
-          .with_colors({{255, 0, 0}})); // 红色代表预测击打位置
+        if (rerun) {
+          rec->log("world/target/armors", rerun::Clear::FLAT);
+          rec->log("world/target/armors_direction", rerun::Clear::FLAT);
+          rec->log("world/target/aim_point", rerun::Clear::FLAT);
+          rec->log("world/target/aim_direction", rerun::Clear::FLAT);
+          
+          if (!armor_vertices.empty()) {
+              rec->log("world/target/armors_rect", rerun::Mesh3D(armor_vertices).with_vertex_colors(armor_colors));
+          }
+          if (!aim_vertices.empty()) {
+              rec->log("world/target/aim_rect", rerun::Mesh3D(aim_vertices).with_vertex_colors(aim_colors));
+          }
+          
+          rec->log("world/target/vehicle_center", rerun::Points3D(vehicle_center).with_radii({0.03f}).with_colors({{0, 255, 255}}));
+          rec->log("world/target/vehicle_velocity", rerun::Arrows3D::from_vectors(vehicle_velocity).with_origins(vehicle_center).with_colors({{0, 255, 255}}));
+        }
           
         if (rerun) rec->log("scalar/target/w", rerun::Scalars(target->ekf_x()[7])); // 记录目标的旋转角速度w
         if (rerun) rec->log("scalar/target/z", rerun::Scalars(target->ekf_x()[4]));
         if (rerun) rec->log("scalar/target/vz", rerun::Scalars(target->ekf_x()[5]));
       } else {
         // 丢失目标时清空绘制，防止屏幕上留着鬼影
-        if (rerun) rec->log("world/target/armors", rerun::Clear::FLAT);
-        if (rerun) rec->log("world/target/aim_point", rerun::Clear::FLAT);
+        if (rerun) {
+          rec->log("world/target/armors", rerun::Clear::FLAT);
+          rec->log("world/target/armors_direction", rerun::Clear::FLAT);
+          rec->log("world/target/armors_rect", rerun::Clear::FLAT);
+          rec->log("world/target/aim_point", rerun::Clear::FLAT);
+          rec->log("world/target/aim_direction", rerun::Clear::FLAT);
+          rec->log("world/target/aim_rect", rerun::Clear::FLAT);
+          rec->log("world/target/vehicle_center", rerun::Clear::FLAT);
+          rec->log("world/target/vehicle_velocity", rerun::Clear::FLAT);
+        }
       }
       // =========================
 
