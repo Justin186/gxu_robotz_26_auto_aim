@@ -89,8 +89,8 @@ int main(int argc, char * argv[])
 
       gimbal.send(
         plan.control, plan.fire && fire,
-        plan.yaw, plan.yaw_vel, plan.yaw_acc,
-        plan.pitch, plan.pitch_vel, plan.pitch_acc);
+        plan.v_yaw, plan.yaw_vel, plan.yaw_acc,
+        plan.v_pitch, plan.pitch_vel, plan.pitch_acc);
 
       auto fired = gs.bullet_count > last_bullet_count;
       last_bullet_count = gs.bullet_count;

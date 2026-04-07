@@ -65,7 +65,7 @@ int main(int argc, char * argv[])
       auto plan = planner.plan(target, gs.bullet_speed);
 
       gimbal.send(
-        plan.control, plan.fire, plan.yaw, plan.yaw_vel, plan.yaw_acc, plan.pitch, plan.pitch_vel,
+        plan.control, plan.fire, plan.v_yaw, plan.yaw_vel, plan.yaw_acc, plan.v_pitch, plan.pitch_vel,
         plan.pitch_acc);
 
       auto fired = gs.bullet_count > last_bullet_count;

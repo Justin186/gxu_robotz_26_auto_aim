@@ -93,6 +93,11 @@ Plan Planner::plan(Target target, double bullet_speed, double current_yaw, doubl
   plan.pitch_vel = pitch_solver_->work->x(1, HALF_HORIZON);
   plan.pitch_acc = pitch_solver_->work->u(0, HALF_HORIZON);
 
+  // 补偿云台底层控制的稳态跟踪误差及弹道经验偏置，在此处外部加上
+  // 从而使得 Rerun 中显示的 plan.yaw 依旧是纯净的目标轨迹，电控接收到的是带有稳态补偿的指令
+  plan.v_yaw = tools::limit_rad(plan.yaw + yaw_offset_);
+  plan.v_pitch = plan.pitch + pitch_offset_;
+
   auto shoot_offset_ = 1;
   auto center_yaw = std::atan2(target.ekf_x()[2], target.ekf_x()[0]);
   auto delta_angle = std::abs(tools::limit_rad(current_armor_yaw - center_yaw));
@@ -196,14 +201,14 @@ Eigen::Matrix<double, 2, 1> Planner::aim(const Target & target, double bullet_sp
   auto bullet_traj = tools::Trajectory(bullet_speed, dist, xyz.z());
   if (bullet_traj.unsolvable) throw std::runtime_error("Unsolvable bullet trajectory!");
 
-  double yaw_world = tools::limit_rad(azim + yaw_offset_);
-  double pitch_world = -bullet_traj.pitch - pitch_offset_;
+  double yaw_world = tools::limit_rad(azim);
+  double pitch_world = -bullet_traj.pitch;
 
   Eigen::Vector3d v_world = tools::ypd2xyz({yaw_world, -pitch_world, 1.0});
   Eigen::Vector3d v_gimbal = R_gimbal2imubody_.transpose() * v_world;
   Eigen::Vector3d ypd_gimbal = tools::xyz2ypd(v_gimbal);
 
-  return {ypd_gimbal[0], -ypd_gimbal[1]};
+  return {ypd_gimbal[0], ypd_gimbal[1]};
 }
 
 Trajectory Planner::get_trajectory(Target & target, double yaw0, double bullet_speed)

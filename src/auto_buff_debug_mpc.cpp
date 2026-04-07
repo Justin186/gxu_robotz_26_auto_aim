@@ -73,7 +73,7 @@ int main(int argc, char * argv[])
     auto plan = aimer.mpc_aim(target_copy, t, gs, true);
 
     gimbal.send(
-      plan.control, plan.fire, plan.yaw, plan.yaw_vel, plan.yaw_acc, plan.pitch, plan.pitch_vel,
+      plan.control, plan.fire, plan.v_yaw, plan.yaw_vel, plan.yaw_acc, plan.v_pitch, plan.pitch_vel,
       plan.pitch_acc);
     // -------------- 调试输出 --------------
 

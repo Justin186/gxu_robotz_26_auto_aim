@@ -23,11 +23,13 @@ struct Plan
   float target_yaw;
   float target_pitch;
   float yaw;
+  float pitch;
   float yaw_vel;
   float yaw_acc;
-  float pitch;
   float pitch_vel;
   float pitch_acc;
+  float v_yaw;
+  float v_pitch;
 };
 
 class Planner

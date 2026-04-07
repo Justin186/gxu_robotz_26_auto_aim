@@ -70,8 +70,12 @@ auto_aim::Plan Aimer::mpc_aim(
   auto_buff::Target & target, std::chrono::steady_clock::time_point & timestamp, io::GimbalState gs,
   bool to_now)
 {
-  auto_aim::Plan plan = {false, false, 0, 0, 0, 0, 0, 0, 0, 0};
-  if (target.is_unsolve()) return plan;
+  auto_aim::Plan plan = {false, false, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  if (target.is_unsolve()) {
+    plan.v_yaw = plan.yaw;
+    plan.v_pitch = plan.pitch;
+    return plan;
+  }
 
   double bullet_speed;
   // 如果子弹速度小于10，将其设为24
@@ -144,6 +148,8 @@ auto_aim::Plan Aimer::mpc_aim(
     last_fire_t_ = now;
   }
 
+  plan.v_yaw = tools::limit_rad(plan.yaw + yaw_offset_);
+  plan.v_pitch = plan.pitch + pitch_offset_;
   return plan;
 }
 
@@ -193,8 +199,8 @@ bool Aimer::get_send_angle(
   }
 
   // 计算偏航角和俯仰角，并返回命中结果
-  yaw = std::atan2(aim_in_world[1], aim_in_world[0]) + yaw_offset_;
-  pitch = trajectory1.pitch + pitch_offset_;
+  yaw = std::atan2(aim_in_world[1], aim_in_world[0]);
+  pitch = trajectory1.pitch;
   return true;
 };
 
