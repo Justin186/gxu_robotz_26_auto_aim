@@ -192,9 +192,9 @@ Eigen::Matrix<double, 2, 1> Planner::aim(const Target & target, double bullet_sp
     auto & xyza = target_armors[i];
     auto delta_angle = std::abs(tools::limit_rad(xyza[3] - center_yaw));
     
-    // 滞回机制：如果是当前正在跟踪的板子，赋予 0.35rad（约20°）的倾向性，防止目标抖动导致换板
+    // 滞回机制：如果是当前正在跟踪的板子，赋予 0.08rad（约4.6°）的倾向性，防止目标抖动导致换板
     if (id_state == (int)i) {
-      delta_angle -= 0.35;
+      delta_angle -= 0.08;
     }
 
     if (delta_angle < min_delta_angle) {

@@ -67,7 +67,7 @@ max_temp_lost_count: 25
 outpost_max_temp_lost_count: 75
 
 #####-----aimer参数-----#####
-yaw_offset: -4 # degree -2.5
+yaw_offset: 0 # degree -2.5
 pitch_offset: -0.5  # degree 2
 comming_angle: 55 # degree
 leaving_angle: 20 # degree
@@ -95,7 +95,7 @@ camera_matrix: [2365.2292710685488, 0, 717.84874030069716, 0, 2365.2595057507042
 distort_coeffs: [-0.053032056252978271, 0.12304744809762919, -0.00083306525109508019, 0.00044012934474125322, 0]
 # 相机同理想情况的偏角: yaw0.56 pitch1.05 roll0.41 degree
 R_camera2gimbal: [0, 0, 1, -1, 0, 0, 0, -1, 0]
-t_camera2gimbal: [0.047, 0.16, 0]
+t_camera2gimbal: [0.16, 0.047, 0]
 
 #####-----planner-----#####
 fire_thresh: 0.01
