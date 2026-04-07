@@ -54,7 +54,7 @@ Plan Planner::plan(Target target, double bullet_speed, double current_yaw, doubl
   Trajectory traj;
   double current_armor_yaw;
   try {
-    yaw0 = aim(target, bullet_speed)(0);
+    yaw0 = aim(target, bullet_speed, tracking_id_)(0); // 这里会传入并更新物理帧的 tracking_id_
     current_armor_yaw = debug_xyza[3];
     Eigen::Vector4d final_aim_xyza = debug_xyza; // 记录真正的击打点，防止被下方的循环覆盖
     traj = get_trajectory(target, yaw0, bullet_speed);
@@ -179,21 +179,33 @@ void Planner::setup_pitch_solver(const std::string & config_path)
   pitch_solver_->settings->max_iter = 10;
 }
 
-Eigen::Matrix<double, 2, 1> Planner::aim(const Target & target, double bullet_speed)
+Eigen::Matrix<double, 2, 1> Planner::aim(const Target & target, double bullet_speed, int & id_state)
 {
   Eigen::Vector3d xyz;
   double yaw;
+  auto target_armors = target.armor_xyza_list();
   auto center_yaw = std::atan2(target.ekf_x()[2], target.ekf_x()[0]);
   auto min_delta_angle = 1e10;
+  int best_id = -1;
 
-  for (auto & xyza : target.armor_xyza_list()) {
+  for (size_t i = 0; i < target_armors.size(); i++) {
+    auto & xyza = target_armors[i];
     auto delta_angle = std::abs(tools::limit_rad(xyza[3] - center_yaw));
+    
+    // 滞回机制：如果是当前正在跟踪的板子，赋予 0.35rad（约20°）的倾向性，防止目标抖动导致换板
+    if (id_state == (int)i) {
+      delta_angle -= 0.35;
+    }
+
     if (delta_angle < min_delta_angle) {
       min_delta_angle = delta_angle;
+      best_id = (int)i;
       xyz = xyza.head<3>();
       yaw = xyza[3];
     }
   }
+  id_state = best_id; // 反馈更新选择的装甲板ID
+
   debug_xyza = Eigen::Vector4d(xyz.x(), xyz.y(), xyz.z(), yaw);
 
   auto azim = std::atan2(xyz.y(), xyz.x());
@@ -214,16 +226,17 @@ Eigen::Matrix<double, 2, 1> Planner::aim(const Target & target, double bullet_sp
 Trajectory Planner::get_trajectory(Target & target, double yaw0, double bullet_speed)
 {
   Trajectory traj;
+  int sim_id = tracking_id_; // 取当前真实帧跟踪的装甲板作为预测起点，并允许在预测中自然换面
 
   target.predict(-DT * (HALF_HORIZON + 1));
-  auto yaw_pitch_last = aim(target, bullet_speed);
+  auto yaw_pitch_last = aim(target, bullet_speed, sim_id);
 
   target.predict(DT);  // [0] = -HALF_HORIZON * DT -> [HHALF_HORIZON] = 0
-  auto yaw_pitch = aim(target, bullet_speed);
+  auto yaw_pitch = aim(target, bullet_speed, sim_id);
 
   for (int i = 0; i < HORIZON; i++) {
     target.predict(DT);
-    auto yaw_pitch_next = aim(target, bullet_speed);
+    auto yaw_pitch_next = aim(target, bullet_speed, sim_id); // sim_id 可能在未来某帧自动切换换板
 
     auto yaw_vel = tools::limit_rad(yaw_pitch_next(0) - yaw_pitch_last(0)) / (2 * DT);
     auto pitch_vel = (yaw_pitch_next(1) - yaw_pitch_last(1)) / (2 * DT);
