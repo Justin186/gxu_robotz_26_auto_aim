@@ -182,28 +182,72 @@ cv::Mat VideoEncoder::preprocess_image(const cv::Mat & input)
   cv::threshold(diff, motion_mask, config_.motion_threshold, 255, cv::THRESH_BINARY);
 
   if (config_.motion_erode_px > 0) {
-    const int k = 2 * config_.motion_erode_px + 1;
-    motion_erode_kernel_ = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(k, k));
+    if (motion_erode_kernel_.empty()) {
+      const int k = 2 * config_.motion_erode_px + 1;
+      motion_erode_kernel_ = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(k, k));
+    }
     cv::erode(motion_mask, motion_mask, motion_erode_kernel_);
   }
   if (config_.motion_dilate_px > 0) {
-    const int k = 2 * config_.motion_dilate_px + 1;
-    motion_dilate_kernel_ = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(k, k));
+    if (motion_dilate_kernel_.empty()) {
+      const int k = 2 * config_.motion_dilate_px + 1;
+      motion_dilate_kernel_ = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(k, k));
+    }
     cv::dilate(motion_mask, motion_mask, motion_dilate_kernel_);
   }
+
+  const double motion_ratio_raw = 
+    static_cast<double>(cv::countNonZero(motion_mask)) / static_cast<double>(motion_mask.total());
+  const bool suppress_trail = (motion_ratio_raw >= config_.trail_disable_motion_ratio);
 
   if (config_.center_clear_size > 0) {
     int clear = std::min({config_.center_clear_size, resized.cols, resized.rows});
     cv::rectangle(motion_mask, 
-                  cv::Rect(resized.cols/2 - clear/2, resized.rows/2 - clear/2, clear, clear), 
+                  cv::Rect(std::max(0, resized.cols/2 - clear/2), std::max(0, resized.rows/2 - clear/2), 
+                           std::min(clear, resized.cols - std::max(0, resized.cols/2 - clear/2)), 
+                           std::min(clear, resized.rows - std::max(0, resized.rows/2 - clear/2))), 
                   cv::Scalar(255), cv::FILLED);
   }
 
+  cv::Mat static_base = resized.clone();
+  if (!config_.force_monochrome && config_.target_bitrate <= 80) {
+    cv::Mat gray_bg;
+    cv::cvtColor(static_base, gray_bg, cv::COLOR_BGR2GRAY);
+    cv::cvtColor(gray_bg, static_base, cv::COLOR_GRAY2BGR);
+  }
+
   cv::Mat blurred;
-  cv::GaussianBlur(resized, blurred, cv::Size(), config_.bg_blur_sigma, config_.bg_blur_sigma);
+  cv::GaussianBlur(static_base, blurred, cv::Size(), config_.bg_blur_sigma, config_.bg_blur_sigma);
 
   cv::Mat focused = blurred.clone();
   resized.copyTo(focused, motion_mask);
+
+  // 运动拖影：简单时域 max（当前+历史N帧），仅作用在运动区域联合掩码
+  if (config_.motion_trail_frames > 0) {
+    motion_mask_history_.push_back(motion_mask.clone());
+    trail_frame_history_.push_back(resized.clone());
+    const size_t max_history = static_cast<size_t>(config_.motion_trail_frames + 1);
+    while (motion_mask_history_.size() > max_history) {
+      motion_mask_history_.pop_front();
+    }
+    while (trail_frame_history_.size() > max_history) {
+      trail_frame_history_.pop_front();
+    }
+
+    const size_t history_size = motion_mask_history_.size();
+    if (!suppress_trail && history_size > 1 && history_size == trail_frame_history_.size()) {
+      cv::Mat trail_mask = motion_mask.clone();
+      cv::Mat trail_img = resized.clone();
+      for (size_t i = 0; i < history_size - 1; ++i) {
+        cv::bitwise_or(trail_mask, motion_mask_history_[i], trail_mask);
+        cv::max(trail_img, trail_frame_history_[i], trail_img);
+      }
+      trail_img.copyTo(focused, trail_mask);
+    }
+  } else {
+    motion_mask_history_.clear();
+    trail_frame_history_.clear();
+  }
 
   cv::accumulateWeighted(gray, background_gray_f32_, config_.bg_update_alpha);
   return focused;

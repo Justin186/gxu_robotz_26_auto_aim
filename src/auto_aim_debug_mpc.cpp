@@ -76,7 +76,7 @@ int main(int argc, char * argv[])
 
   tasks::VideoEncoderConfig encoder_config;
   // TODO: 后续如果是双相机，就在 yaml 里读取相应的图传相机配置
-  encoder_config.target_bitrate = 110;  // 110 kbps 约等于 13.75 kB/s 画质极简飞升
+  encoder_config.target_bitrate = 80;
   encoder_config.output_fps = 60;       // 利用大带宽重新拉回 60 FPS 流畅度
   
   tasks::VideoEncoder video_encoder(encoder_config, [&](const uint8_t* data, size_t size){
