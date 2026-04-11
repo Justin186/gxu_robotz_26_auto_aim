@@ -11,15 +11,30 @@ namespace io
 Gimbal::Gimbal(const std::string & config_path)
 {
   auto yaml = tools::load(config_path);
-  auto com_port = tools::read<std::string>(yaml, "com_port");
-  auto baudrate = tools::read<int>(yaml, "baudrate", 115200);
+  // 使用16进制读取 vid, pid, ep_in, ep_out 等参数
+  vid_ = tools::read<uint16_t>(yaml, "vid", 0x0483);
+  pid_ = tools::read<uint16_t>(yaml, "pid", 0x5740);
+  ep_in_ = tools::read<uint8_t>(yaml, "ep_in", 0x81);
+  ep_out_ = tools::read<uint8_t>(yaml, "ep_out", 0x01);
+  interface_num_ = tools::read<int>(yaml, "interface", 0);
 
-  try {
-    serial_.setPort(com_port);
-    serial_.setBaudrate(baudrate);
-    serial_.open();
-  } catch (const std::exception & e) {
-    tools::logger()->error("[Gimbal] Failed to open serial: {}", e.what());
+  if (libusb_init(&ctx_) < 0) {
+    tools::logger()->error("[Gimbal] Failed to init libusb.");
+    exit(1);
+  }
+
+  handle_ = libusb_open_device_with_vid_pid(ctx_, vid_, pid_);
+  if (!handle_) {
+    tools::logger()->error("[Gimbal] Failed to open USB device ({:04x}:{:04x}).", vid_, pid_);
+    exit(1);
+  }
+
+  if (libusb_kernel_driver_active(handle_, interface_num_) == 1) {
+    libusb_detach_kernel_driver(handle_, interface_num_);
+  }
+
+  if (libusb_claim_interface(handle_, interface_num_) < 0) {
+    tools::logger()->error("[Gimbal] Failed to claim interface.");
     exit(1);
   }
 
@@ -33,7 +48,13 @@ Gimbal::~Gimbal()
 {
   quit_ = true;
   if (thread_.joinable()) thread_.join();
-  serial_.close();
+  if (handle_) {
+    libusb_release_interface(handle_, interface_num_);
+    libusb_close(handle_);
+  }
+  if (ctx_) {
+    libusb_exit(ctx_);
+  }
 }
 
 GimbalMode Gimbal::mode() const
@@ -92,10 +113,9 @@ void Gimbal::send(io::VisionToGimbal VisionToGimbal)
   tx_data_.crc16 = tools::get_crc16(
     reinterpret_cast<uint8_t *>(&tx_data_), sizeof(tx_data_) - sizeof(tx_data_.crc16));
 
-  try {
-    serial_.write(reinterpret_cast<uint8_t *>(&tx_data_), sizeof(tx_data_));
-  } catch (const std::exception & e) {
-    tools::logger()->warn("[Gimbal] Failed to write serial: {}", e.what());
+  int sent = 0;
+  if (!handle_ || libusb_bulk_transfer(handle_, ep_out_, reinterpret_cast<uint8_t *>(&tx_data_), sizeof(tx_data_), &sent, 100) != 0) {
+    // tools::logger()->warn("[Gimbal] Failed to write USB bulk.");
   }
 }
 
@@ -113,10 +133,9 @@ void Gimbal::send(
   tx_data_.crc16 = tools::get_crc16(
     reinterpret_cast<uint8_t *>(&tx_data_), sizeof(tx_data_) - sizeof(tx_data_.crc16));
 
-  try {
-    serial_.write(reinterpret_cast<uint8_t *>(&tx_data_), sizeof(tx_data_));
-  } catch (const std::exception & e) {
-    tools::logger()->warn("[Gimbal] Failed to write serial: {}", e.what());
+  int sent = 0;
+  if (!handle_ || libusb_bulk_transfer(handle_, ep_out_, reinterpret_cast<uint8_t *>(&tx_data_), sizeof(tx_data_), &sent, 100) != 0) {
+    // tools::logger()->warn("[Gimbal] Failed to write USB bulk.");
   }
 }
 
@@ -134,21 +153,18 @@ void Gimbal::send_video(const uint8_t * video_data, size_t size)
   pkt.crc16 = tools::get_crc16(
     reinterpret_cast<uint8_t *>(&pkt), sizeof(pkt) - sizeof(pkt.crc16));
 
-  try {
-    serial_.write(reinterpret_cast<uint8_t *>(&pkt), sizeof(pkt));
-  } catch (const std::exception & e) {
-    tools::logger()->warn("[Gimbal] Failed to write video packet: {}", e.what());
+  int sent = 0;
+  if (!handle_ || libusb_bulk_transfer(handle_, ep_out_, reinterpret_cast<uint8_t *>(&pkt), sizeof(pkt), &sent, 100) != 0) {
+    // tools::logger()->warn("[Gimbal] Failed to write video packet.");
   }
 }
 
 bool Gimbal::read(uint8_t * buffer, size_t size)
 {
-  try {
-    return serial_.read(buffer, size) == size;
-  } catch (const std::exception & e) {
-    // tools::logger()->warn("[Gimbal] Failed to read serial: {}", e.what());
-    return false;
-  }
+  if (!handle_) return false;
+  int transferred = 0;
+  int r = libusb_bulk_transfer(handle_, ep_in_, buffer, size, &transferred, 100);
+  return (r == 0 && transferred == static_cast<int>(size));
 }
 
 void Gimbal::read_thread()
@@ -226,22 +242,30 @@ void Gimbal::reconnect()
 {
   int max_retry_count = 10;
   for (int i = 0; i < max_retry_count && !quit_; ++i) {
-    tools::logger()->warn("[Gimbal] Reconnecting serial, attempt {}/{}...", i + 1, max_retry_count);
-    try {
-      serial_.close();
-      std::this_thread::sleep_for(std::chrono::seconds(1));
-    } catch (...) {
+    tools::logger()->warn("[Gimbal] Reconnecting USB, attempt {}/{}...", i + 1, max_retry_count);
+    
+    if (handle_) {
+      libusb_release_interface(handle_, interface_num_);
+      libusb_close(handle_);
+      handle_ = nullptr;
     }
+    
+    std::this_thread::sleep_for(std::chrono::seconds(1));
 
-    try {
-      serial_.open();  // 尝试重新打开
-      queue_.clear();
-      tools::logger()->info("[Gimbal] Reconnected serial successfully.");
-      break;
-    } catch (const std::exception & e) {
-      tools::logger()->warn("[Gimbal] Reconnect failed: {}", e.what());
-      std::this_thread::sleep_for(std::chrono::seconds(1));
+    handle_ = libusb_open_device_with_vid_pid(ctx_, vid_, pid_);
+    if (handle_) {
+      if (libusb_kernel_driver_active(handle_, interface_num_) == 1) {
+        libusb_detach_kernel_driver(handle_, interface_num_);
+      }
+      if (libusb_claim_interface(handle_, interface_num_) >= 0) {
+        queue_.clear();
+        tools::logger()->info("[Gimbal] Reconnected USB successfully.");
+        break;
+      }
+      libusb_close(handle_);
+      handle_ = nullptr;
     }
+    tools::logger()->warn("[Gimbal] Reconnect failed.");
   }
 }
 

@@ -103,7 +103,11 @@ t_camera2pitchlink: [0.19, 0, 0.05]
 
 
 #####-----gimbal参数-----#####
-com_port: "/dev/gimbal"
+vid: 0x0483
+pid: 0x5750
+ep_out: 0x01
+ep_in: 0x81
+interface: 0
 
 #####-----buff_detector参数-----#####
 model: "assets/yolo11_buff_int8.xml"

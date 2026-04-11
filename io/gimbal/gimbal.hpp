@@ -9,7 +9,7 @@
 #include <thread>
 #include <tuple>
 
-#include "serial/serial.h"
+#include <libusb-1.0/libusb.h>
 #include "tools/thread_safe_queue.hpp"
 
 namespace io
@@ -94,7 +94,13 @@ public:
   void send_video(const uint8_t * video_data, size_t size);
 
 private:
-  serial::Serial serial_;
+  libusb_context * ctx_ = nullptr;
+  libusb_device_handle * handle_ = nullptr;
+  uint16_t vid_;
+  uint16_t pid_;
+  uint8_t ep_in_;
+  uint8_t ep_out_;
+  int interface_num_ = 0;
 
   std::thread thread_;
   std::atomic<bool> quit_ = false;
