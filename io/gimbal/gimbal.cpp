@@ -163,7 +163,7 @@ bool Gimbal::read(uint8_t * buffer, size_t size)
 {
   if (!handle_) return false;
   int transferred = 0;
-  int r = libusb_bulk_transfer(handle_, ep_in_, buffer, size, &transferred, 100);
+  int r = libusb_bulk_transfer(handle_, ep_in_, buffer, size, &transferred, 100); if (r!=0) tools::logger()->debug("[Gimbal] USB Read err: {}, transferred={}", libusb_error_name(r), transferred); 
   return (r == 0 && transferred == static_cast<int>(size));
 }
 
@@ -181,24 +181,30 @@ void Gimbal::read_thread()
       continue;
     }
 
-    if (!read(reinterpret_cast<uint8_t *>(&rx_data_), sizeof(rx_data_.head))) {
+    // USB Bulk 通信是基于数据包(Packets)的，所以这里不再分两步读取
+    // 而是直接一次性读取整个结构体大小的数据包
+    if (!read(reinterpret_cast<uint8_t *>(&rx_data_), sizeof(rx_data_))) {
       error_count++;
       continue;
     }
 
-    if (rx_data_.head[0] != 'S' || rx_data_.head[1] != 'P') continue;
+    if (rx_data_.head[0] != 'S' || rx_data_.head[1] != 'P') {
+      tools::logger()->debug("[Gimbal] Invalid header: {:02x} {:02x}", rx_data_.head[0], rx_data_.head[1]);
+      continue;
+    }
 
     auto t = std::chrono::steady_clock::now();
 
-    if (!read(
-          reinterpret_cast<uint8_t *>(&rx_data_) + sizeof(rx_data_.head),
-          sizeof(rx_data_) - sizeof(rx_data_.head))) {
-      error_count++;
-      continue;
-    }
-
     if (!tools::check_crc16(reinterpret_cast<uint8_t *>(&rx_data_), sizeof(rx_data_))) {
-      tools::logger()->debug("[Gimbal] CRC16 check failed.");
+      // 增加一行十六进制日志，方便像 CuteCom 一样排查协议格式是否错位
+      std::string hex_str;
+      char buf[4];
+      uint8_t* ptr = reinterpret_cast<uint8_t*>(&rx_data_);
+      for(size_t i = 0; i < sizeof(rx_data_); ++i) {
+        snprintf(buf, sizeof(buf), "%02x ", ptr[i]);
+        hex_str += buf;
+      }
+      tools::logger()->debug("[Gimbal] CRC16 check failed. Raw [{}] bytes: {}", sizeof(rx_data_), hex_str);
       continue;
     }
 
