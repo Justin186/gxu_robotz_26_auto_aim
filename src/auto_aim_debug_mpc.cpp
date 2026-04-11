@@ -312,7 +312,7 @@ int main(int argc, char * argv[])
     camera.read(img, t);
 
     // 将相机画面推入图传模块进行压缩并发送（零拷贝、内部分片、免阻塞）
-    video_encoder.push_frame(img);
+    cv::Mat encoded_preview = video_encoder.push_frame(img);
 
     auto now = std::chrono::steady_clock::now();
     double fps = 1.0 / std::chrono::duration<double>(now - last_t).count();
@@ -349,6 +349,10 @@ int main(int argc, char * argv[])
       tools::draw_text(img, fmt::format("FPS: {:.2f}", fps), {10, 30});
       cv::resize(img, img, {}, 0.5, 0.5);  // 显示时缩小图片尺寸
       cv::imshow("reprojection", img);
+
+      if (!encoded_preview.empty()) {
+        cv::imshow("Video Encoder Preview", encoded_preview);
+      }
     }
     if (rerun) rec->log("scalar/fps", rerun::Scalars((float)fps));
     auto key = cv::waitKey(1);

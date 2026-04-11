@@ -253,7 +253,7 @@ cv::Mat VideoEncoder::preprocess_image(const cv::Mat & input)
   return focused;
 }
 
-void VideoEncoder::push_frame(const cv::Mat & frame, int64_t timestamp_ns)
+cv::Mat VideoEncoder::push_frame(const cv::Mat & frame, int64_t timestamp_ns)
 {
   auto now_ns = std::chrono::system_clock::now().time_since_epoch().count();
   if (timestamp_ns < 0) timestamp_ns = now_ns;
@@ -261,7 +261,7 @@ void VideoEncoder::push_frame(const cv::Mat & frame, int64_t timestamp_ns)
   if (config_.output_fps < 60) {
     int64_t frame_interval = 1000000000LL / std::max(config_.output_fps, 1);
     if (last_encode_stamp_ns_ > 0 && (now_ns - last_encode_stamp_ns_) < frame_interval) {
-      return;
+      return cv::Mat();
     }
     last_encode_stamp_ns_ = now_ns;
   }
@@ -269,6 +269,7 @@ void VideoEncoder::push_frame(const cv::Mat & frame, int64_t timestamp_ns)
   cv::Mat processed = preprocess_image(frame);
   push_frame_to_gstreamer(processed);
   pull_stream_and_packetize();
+  return processed;
 }
 
 void VideoEncoder::push_frame_to_gstreamer(const cv::Mat & frame)

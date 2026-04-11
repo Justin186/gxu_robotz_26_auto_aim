@@ -47,7 +47,7 @@ public:
   ~VideoEncoder();
 
   // 推入每一帧画面进行编码
-  void push_frame(const cv::Mat & frame, int64_t timestamp_ns = -1);
+  cv::Mat push_frame(const cv::Mat & frame, int64_t timestamp_ns = -1);
 
 private:
   void initialize_gstreamer();
