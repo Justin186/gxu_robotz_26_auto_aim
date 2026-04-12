@@ -115,7 +115,7 @@ void Gimbal::send(io::VisionToGimbal VisionToGimbal)
 
   int sent = 0;
   if (!handle_ || libusb_bulk_transfer(handle_, ep_out_, reinterpret_cast<uint8_t *>(&tx_data_), sizeof(tx_data_), &sent, 100) != 0) {
-    // tools::logger()->warn("[Gimbal] Failed to write USB bulk.");
+    tools::logger()->warn("[Gimbal] Failed to write USB bulk.");
   }
 }
 
@@ -135,7 +135,7 @@ void Gimbal::send(
 
   int sent = 0;
   if (!handle_ || libusb_bulk_transfer(handle_, ep_out_, reinterpret_cast<uint8_t *>(&tx_data_), sizeof(tx_data_), &sent, 100) != 0) {
-    // tools::logger()->warn("[Gimbal] Failed to write USB bulk.");
+    tools::logger()->warn("[Gimbal] Failed to write USB bulk.");
   }
 }
 
@@ -155,38 +155,43 @@ void Gimbal::send_video(const uint8_t * video_data, size_t size)
 
   int sent = 0;
   if (!handle_ || libusb_bulk_transfer(handle_, ep_out_, reinterpret_cast<uint8_t *>(&pkt), sizeof(pkt), &sent, 100) != 0) {
-    // tools::logger()->warn("[Gimbal] Failed to write video packet.");
+    tools::logger()->warn("[Gimbal] Failed to write video packet.");
   }
 }
 
-bool Gimbal::read(uint8_t * buffer, size_t size)
+bool Gimbal::read(uint8_t * buffer, size_t size, int * transferred_out)
 {
   if (!handle_) return false;
   int transferred = 0;
-  int r = libusb_bulk_transfer(handle_, ep_in_, buffer, size, &transferred, 100); if (r!=0) tools::logger()->debug("[Gimbal] USB Read err: {}, transferred={}", libusb_error_name(r), transferred); 
-  return (r == 0 && transferred == static_cast<int>(size));
+  int r = libusb_bulk_transfer(handle_, ep_in_, buffer, size, &transferred, 100); 
+  if (r != 0) tools::logger()->debug("[Gimbal] USB Read err: {}, transferred={}", libusb_error_name(r), transferred); 
+  if (transferred_out) *transferred_out = transferred;
+  return r == 0;
 }
 
 void Gimbal::read_thread()
 {
   tools::logger()->info("[Gimbal] read_thread started.");
   int error_count = 0;
+  
+  auto last_print_time = std::chrono::steady_clock::now();
+  int frame_count = 0;
 
   while (!quit_) {
-    // tools::logger()->info("[Gimbal] Error count: {}", error_count);
-    if (error_count > 10000) {
+    if (error_count > 20) {
       error_count = 0;
       tools::logger()->warn("[Gimbal] Too many errors, attempting to reconnect...");
       reconnect();
       continue;
     }
 
-    // USB Bulk 通信是基于数据包(Packets)的，所以这里不再分两步读取
-    // 而是直接一次性读取整个结构体大小的数据包
-    if (!read(reinterpret_cast<uint8_t *>(&rx_data_), sizeof(rx_data_))) {
+    uint8_t rx_buffer[64];
+    int transferred = 0;
+    if (!read(rx_buffer, sizeof(rx_buffer), &transferred) || transferred < static_cast<int>(sizeof(rx_data_))) {
       error_count++;
       continue;
     }
+    std::memcpy(&rx_data_, rx_buffer, sizeof(rx_data_));
 
     if (rx_data_.head[0] != 'S' || rx_data_.head[1] != 'P') {
       tools::logger()->debug("[Gimbal] Invalid header: {:02x} {:02x}", rx_data_.head[0], rx_data_.head[1]);
@@ -194,6 +199,13 @@ void Gimbal::read_thread()
     }
 
     auto t = std::chrono::steady_clock::now();
+    frame_count++;
+
+    if (std::chrono::duration_cast<std::chrono::seconds>(t - last_print_time).count() >= 1) {
+      // tools::logger()->info("[Gimbal] Receive frequency: {} Hz", frame_count);
+      frame_count = 0;
+      last_print_time = t;
+    }
 
     if (!tools::check_crc16(reinterpret_cast<uint8_t *>(&rx_data_), sizeof(rx_data_))) {
       // 增加一行十六进制日志，方便像 CuteCom 一样排查协议格式是否错位
