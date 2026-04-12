@@ -309,27 +309,28 @@ void VideoEncoder::pull_stream_and_packetize()
       size_t old_size = stream_buffer_.size();
       stream_buffer_.resize(old_size + map.size);
       memcpy(stream_buffer_.data() + old_size, map.data, map.size);
-
-      while (stream_buffer_.size() >= packet_bytes) {
-        while (!sent_window_.empty() && (now_ns - sent_window_.front().first) > window_ns) {
-          sent_window_bytes_ -= sent_window_.front().second;
-          sent_window_.pop_front();
-        }
-        if (sent_window_bytes_ + packet_bytes > window_limit) break;
-
-        // 调用刚才传入的回调（直接传进串口或任意其他形式）
-        if (packet_cb_) {
-            packet_cb_(stream_buffer_.data(), packet_bytes);
-        }
-
-        sent_window_.emplace_back(now_ns, packet_bytes);
-        sent_window_bytes_ += packet_bytes;
-        memmove(stream_buffer_.data(), stream_buffer_.data() + packet_bytes, stream_buffer_.size() - packet_bytes);
-        stream_buffer_.resize(stream_buffer_.size() - packet_bytes);
-      }
       gst_buffer_unmap(buffer, &map);
     }
     gst_sample_unref(sample);
+  }
+
+  std::lock_guard<std::mutex> lock(buffer_mutex_);
+  while (stream_buffer_.size() >= packet_bytes) {
+    while (!sent_window_.empty() && (now_ns - sent_window_.front().first) > window_ns) {
+      sent_window_bytes_ -= sent_window_.front().second;
+      sent_window_.pop_front();
+    }
+    if (sent_window_bytes_ + packet_bytes > window_limit) break;
+
+    // 调用刚才传入的回调（直接传进串口或任意其他形式）
+    if (packet_cb_) {
+        packet_cb_(stream_buffer_.data(), packet_bytes);
+    }
+
+    sent_window_.emplace_back(now_ns, packet_bytes);
+    sent_window_bytes_ += packet_bytes;
+    memmove(stream_buffer_.data(), stream_buffer_.data() + packet_bytes, stream_buffer_.size() - packet_bytes);
+    stream_buffer_.resize(stream_buffer_.size() - packet_bytes);
   }
 }
 

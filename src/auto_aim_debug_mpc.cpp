@@ -81,6 +81,16 @@ int main(int argc, char * argv[])
   
   tasks::VideoEncoder video_encoder(encoder_config, [&](const uint8_t* data, size_t size){
     gimbal.send_video(data, size);
+
+    static int video_send_count = 0;
+    static auto last_video_send_time = std::chrono::steady_clock::now();
+    video_send_count++;
+    auto now = std::chrono::steady_clock::now();
+    if (std::chrono::duration_cast<std::chrono::seconds>(now - last_video_send_time).count() >= 1) {
+      tools::logger()->info("[VideoEncoder] Send frequency: {} Hz", video_send_count);
+      video_send_count = 0;
+      last_video_send_time = now;
+    }
   });
 
   tools::ThreadSafeQueue<std::optional<auto_aim::Target>, true> target_queue(1);

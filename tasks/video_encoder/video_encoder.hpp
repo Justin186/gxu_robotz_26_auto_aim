@@ -35,7 +35,7 @@ struct VideoEncoderConfig {
     double bandwidth_limit_kbytes = 14.0;  // 限速提高到 14 kB/s (安全线 below 15 kB/s @ 50包)
     double bandwidth_window_s = 2.0;
     double max_tx_delay_s = 1.0;
-    std::string x264_preset = "auto";
+    std::string x264_preset = "slow";
 };
 
 class VideoEncoder
