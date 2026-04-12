@@ -81,7 +81,7 @@ void VideoEncoder::initialize_gstreamer()
       "ref", 5,
       "aud", TRUE,
       "vbv-buf-capacity", 500,
-      "option-string", "repeat-headers=1:scenecut=0:aq-mode=2:aq-strength=1.2:mbtree=1:qcomp=0.75:subme=8:trellis=2:deblock=1,1:force-cfr=1",
+      "option-string", "repeat-headers=1:slice-max-size=250:intra-refresh=1:scenecut=0:aq-mode=2:aq-strength=1.2:mbtree=1:qcomp=0.75:subme=8:trellis=2:deblock=1,1:force-cfr=1",
       "pass", 0,
       nullptr);
   } else {
@@ -97,7 +97,7 @@ void VideoEncoder::initialize_gstreamer()
       "sync-lookahead", 0,
       "sliced-threads", TRUE,
       "aud", TRUE,
-      "option-string", "repeat-headers=1:scenecut=0:ref=1:force-cfr=1",
+      "option-string", "repeat-headers=1:slice-max-size=250:intra-refresh=1:scenecut=0:ref=1:force-cfr=1",
       "pass", 0,
       nullptr);
   }
