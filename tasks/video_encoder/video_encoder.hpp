@@ -24,13 +24,13 @@ struct VideoEncoderConfig {
     int packet_size = 300;             // 适配 0x0310 协议 (官方上限 300)
     bool static_simplify = true;
     int motion_threshold = 14;
-    int motion_erode_px = 1;
-    int motion_dilate_px = 2;
-    int motion_trail_frames = 3;
+    int motion_erode_px = 2;
+    int motion_dilate_px = 6;
+    int motion_trail_frames = 90;
     double trail_disable_motion_ratio = 0.30;
     double bg_update_alpha = 0.01;
-    double bg_blur_sigma = 1.2;
-    int center_clear_size = 100;
+    double bg_blur_sigma = 1.8;
+    int center_clear_size = 150;
     bool force_monochrome = false;
     double bandwidth_limit_kbytes = 14.0;  // 限速提高到 14 kB/s (安全线 below 15 kB/s @ 50包)
     double bandwidth_window_s = 2.0;
@@ -88,6 +88,9 @@ private:
   cv::Mat motion_dilate_kernel_;
   std::deque<cv::Mat> motion_mask_history_;
   std::deque<cv::Mat> trail_frame_history_;
+
+  std::atomic<bool> running_{false};
+  std::thread sender_thread_;
 };
 
 }  // namespace tasks

@@ -133,10 +133,22 @@ void VideoEncoder::initialize_gstreamer()
     std::cerr << "[VideoEncoder] GStreamer pipeline start failed" << std::endl;
     return;
   }
+  
+  running_ = true;
+  sender_thread_ = std::thread([this]() {
+      while (running_) {
+          pull_stream_and_packetize();
+          std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      }
+  });
 }
 
 void VideoEncoder::shutdown_gstreamer()
 {
+  running_ = false;
+  if (sender_thread_.joinable()) {
+      sender_thread_.join();
+  }
   if (pipeline_) {
     gst_element_set_state(pipeline_, GST_STATE_NULL);
     if (bus_) gst_object_unref(bus_);
@@ -268,7 +280,6 @@ cv::Mat VideoEncoder::push_frame(const cv::Mat & frame, int64_t timestamp_ns)
 
   cv::Mat processed = preprocess_image(frame);
   push_frame_to_gstreamer(processed);
-  pull_stream_and_packetize();
   return processed;
 }
 
@@ -315,6 +326,8 @@ void VideoEncoder::pull_stream_and_packetize()
   }
 
   std::lock_guard<std::mutex> lock(buffer_mutex_);
+  static uint64_t last_sent_ns = 0;
+  
   while (stream_buffer_.size() >= packet_bytes) {
     while (!sent_window_.empty() && (now_ns - sent_window_.front().first) > window_ns) {
       sent_window_bytes_ -= sent_window_.front().second;
@@ -322,10 +335,20 @@ void VideoEncoder::pull_stream_and_packetize()
     }
     if (sent_window_bytes_ + packet_bytes > window_limit) break;
 
+    // RM referee system has a STRICT 50 Hz limit per second.
+    // If we send packets faster than 1 / 50 Hz (20ms), the system will instantaneously drop the
+    // packets. Since we are in a tight while loop, we *must* pace our packet dispatches to 48Hz max.
+    // 1 / 48 Hz = 20.83 ms = 20833333 ns
+    now_ns = std::chrono::system_clock::now().time_since_epoch().count();
+    if (now_ns - last_sent_ns < 20833333) {
+        break; // Leave the rest in stream_buffer_ for the next tick of pull_stream_and_packetize!
+    }
+
     // 调用刚才传入的回调（直接传进串口或任意其他形式）
     if (packet_cb_) {
         packet_cb_(stream_buffer_.data(), packet_bytes);
     }
+    last_sent_ns = now_ns;
 
     sent_window_.emplace_back(now_ns, packet_bytes);
     sent_window_bytes_ += packet_bytes;
