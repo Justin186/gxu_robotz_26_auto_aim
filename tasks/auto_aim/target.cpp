@@ -181,10 +181,22 @@ void Target::update(const Armor & armor) // EKF中的第二大步：更新
     auto angle_error = std::abs(tools::limit_rad(armor.ypr_in_world[0] - xyza[3])) +
                        std::abs(tools::limit_rad(armor.ypd_in_world[0] - ypd[0]));
 
+    // 增加滞回机制(Hysteresis)：如果当前候选的并不是上一帧匹配的装甲板，赋予一个切换惩罚。
+    // 这样在两块装甲板角度误差相近（处于临界角度）时，会优先保持跟踪上一帧的装甲板，避免反复横跳
+    if (update_count_ > 0 && xyza_i_list[i].second != last_id) {
+      angle_error += 0.08; // 增加0.25弧度(约14度)的切换惩罚阈值，具体大小根据实车表现微调
+    }
+
     if (std::abs(angle_error) < std::abs(min_angle_error)) {
       id = xyza_i_list[i].second;
       min_angle_error = angle_error;
     }
+  }
+
+  // 如果最小角度误差过大（比如超过0.8弧度，约45度），说明可能出现严重误匹配或异常观测值，直接丢弃该帧观测
+  if (min_angle_error > 1) {
+    tools::logger()->warn("[Target] Matched armor angle error too large ({:.3f} rad), dropped observation to avoid jumping", min_angle_error);
+    return;
   }
 
   if (id != 0) jumped = true;
@@ -205,6 +217,33 @@ void Target::update(const Armor & armor) // EKF中的第二大步：更新
 
 void Target::update_ypda(const Armor & armor, int id)
 {
+  if (name == ArmorName::outpost && !outpost_z_resolved_ && id >= 0 && id < 3) {
+    outpost_z_sum_[id] += armor.xyz_in_world[2];
+    outpost_z_count_[id]++;
+
+    // 判断三个id的装甲板是否都有足够(如10次)观测，以求稳定平均
+    if (outpost_z_count_[0] > 10 && outpost_z_count_[1] > 10 && outpost_z_count_[2] > 10) {
+      double avgs[3] = {outpost_z_sum_[0] / outpost_z_count_[0],
+                        outpost_z_sum_[1] / outpost_z_count_[1],
+                        outpost_z_sum_[2] / outpost_z_count_[2]};
+      
+      int sorted_ids[3] = {0, 1, 2};
+      std::sort(sorted_ids, sorted_ids + 3, [&avgs](int a, int b) {
+        return avgs[a] < avgs[b];
+      });
+
+      // 实地高度理论值：1.114 (低)，1.216 (中)，1.318 (高)
+      // 则相对于 1.216，三者偏移为 -0.102, 0, 0.102
+      outpost_z_offset_[sorted_ids[0]] = -0.102;
+      outpost_z_offset_[sorted_ids[1]] = 0.0;
+      outpost_z_offset_[sorted_ids[2]] = 0.102;
+
+      outpost_z_resolved_ = true;
+      tools::logger()->info("[Target] Outpost Z sorted! id[{}]=-0.102, id[{}]={:.3f}, id[{}]={:.3f}",
+                            sorted_ids[0], sorted_ids[1], 0.0, sorted_ids[2], 0.102);
+    }
+  }
+
   // 同济并没有采用更新xyza的方法，而是选择ypda为观测量进行更新，因为这更符合测量本质，而且yaw/pitch误差几乎独立于距离，如果使用xyz，距离误差会线性放大到x,y误差
   // 获取观测雅可比矩阵H
   Eigen::MatrixXd H = h_jacobian(ekf_.x, id);
@@ -243,25 +282,40 @@ void Target::update_ypda(const Armor & armor, int id)
   const Eigen::VectorXd & ypr = armor.ypr_in_world;
   Eigen::VectorXd z{{ypd[0], ypd[1], ypd[2], ypr[0]}};  //获得观测量
 
-  // 计算预测值和观测值的残差 (Innovation)
-  Eigen::VectorXd z_predict = h(ekf_.x);
-  Eigen::VectorXd residual = z_subtract(z, z_predict);
-  
-  // 核心逻辑：如果预测的角度 (yaw) 或距离误差异常大，说明目标发生了不可预测的机动（如急速换向）
-  // 此时惩罚滤波器，增大状态协方差矩阵P中与速度和位置相关的对角线元素，让其重新快速收敛到最新观测
-  if (std::abs(residual[0]) > 0.08 || std::abs(residual[1]) > 0.08) { 
-    // 角度残差大于约4.5度，或者距离残差过大
-    // 主动为 x, vx, y, vy, z, vz 的协方差增加不确定性
-    ekf_.P.diagonal()[0] += 0.05;  // x
-    ekf_.P.diagonal()[1] += 5.0;   // vx
-    ekf_.P.diagonal()[2] += 0.05;  // y
-    ekf_.P.diagonal()[3] += 5.0;   // vy
-    ekf_.P.diagonal()[4] += 0.05;  // z
-    ekf_.P.diagonal()[5] += 5.0;   // vz
-    tools::logger()->warn("[Target] Target Manuevering Detected! Residual yaw: {:.3f}", residual[0]);
-  }
-
   ekf_.update(z, H, R, h, z_subtract); // 送进EKF进行更新
+  
+  // 提取更新后的速度，送入滑动窗口以计算真实的物理加速度
+  Eigen::Vector3d current_v(ekf_.x[1], ekf_.x[3], ekf_.x[5]);
+  double current_w = ekf_.x[7];
+  auto now = std::chrono::steady_clock::now();
+  
+  velocity_history_.push_back({now, current_v});
+  w_history_.push_back({now, current_w});
+
+  // 保证窗口内元素不超过10个（平滑多帧）
+  while (velocity_history_.size() > 10) velocity_history_.pop_front();
+  while (w_history_.size() > 10) w_history_.pop_front();
+
+  // 当收集了至少两帧数据时，开始计算真实的物理加速度（过载）
+  if (velocity_history_.size() >= 2) {
+    auto dt_history = tools::delta_time(velocity_history_.back().first, velocity_history_.front().first);
+    if (dt_history > 0.05) { // 确保有足够的时间跨度防止除数过小放大噪声
+      double true_acc = (velocity_history_.back().second - velocity_history_.front().second).norm() / dt_history;
+      double true_w_acc = std::abs(w_history_.back().second - w_history_.front().second) / dt_history;
+      
+      // 真实加速度大于 5 m/s^2 或角加速度大于 10 rad/s^2 判定为强机动
+      if (true_acc > 5.0 || true_w_acc > 10.0) {
+        tools::logger()->warn("[Target] Acceleration/Maneuver Detected! a: {:.3f} m/s^2, w_acc: {:.3f} rad/s^2", true_acc, true_w_acc);
+        maneuver_ticks = 10; // 设置机动状态，暂缓开火
+      } else {
+        if (maneuver_ticks > 0) maneuver_ticks--;
+      }
+    } else {
+      if (maneuver_ticks > 0) maneuver_ticks--;
+    }
+  } else {
+    if (maneuver_ticks > 0) maneuver_ticks--;
+  }
 }
 
 Eigen::VectorXd Target::ekf_x() const { return ekf_.x; }
@@ -315,12 +369,16 @@ Eigen::Vector3d Target::h_armor_xyz(const Eigen::VectorXd & x, int id) const
   // 计算第id个装甲板中心在世界坐标系中的坐标
   // id用于区分不同的装甲板，id=0时表示最开始观测到的装甲板，id=1表示逆时针旋转90度/120度(2π/armor_num_)后的装甲板，依此类推
   auto angle = tools::limit_rad(x[6] + id * 2 * CV_PI / armor_num_);
-  auto use_l_h = (armor_num_ == 4) && (id == 1 || id == 3); // 这里不知道为什么只判断4号步兵，按理说是车的话长短轴都不一样
+  auto use_l_h = (armor_num_ == 4 || armor_num_ == 3) && (id == 1 || id == 3); // 这里不知道为什么只判断4号步兵，按理说是车的话长短轴都不一样
 
   auto r = (use_l_h) ? x[8] + x[9] : x[8];
   auto armor_x = x[0] - r * std::cos(angle);
   auto armor_y = x[2] - r * std::sin(angle);
   auto armor_z = (use_l_h) ? x[4] + x[10] : x[4];
+
+  if (name == ArmorName::outpost && id >= 0 && id < 3) {
+    armor_z = x[4] + outpost_z_offset_[id];
+  }
 
   return {armor_x, armor_y, armor_z};
 }
@@ -330,7 +388,7 @@ Eigen::MatrixXd Target::h_jacobian(const Eigen::VectorXd & x, int id) const
   // 计算观测函数h对状态量x的雅可比矩阵H
   // 先算H_armor_xyza[∂(xyza)/∂状态]，再算H_armor_ypda[∂(ypda)/∂(xyza)]，最后相乘得到真正的H_ypda（链式法则）
   auto angle = tools::limit_rad(x[6] + id * 2 * CV_PI / armor_num_);
-  auto use_l_h = (armor_num_ == 4) && (id == 1 || id == 3);
+  auto use_l_h = (armor_num_ == 4 || armor_num_ == 3) && (id == 1 || id == 3);
 
   auto r = (use_l_h) ? x[8] + x[9] : x[8];
   auto dx_da = r * std::sin(angle);

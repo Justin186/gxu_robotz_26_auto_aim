@@ -91,13 +91,13 @@ int main(int argc, char * argv[])
           first_scan = false;
         }
 
-        double delta_angle = 30.0; // 哨兵扫描：yaw 每秒旋转度数
+        double delta_angle = 120; // 哨兵扫描：yaw 每秒旋转度数
         double amplitude = 15.0;   // 哨兵扫描：pitch 上下扫动幅度(度)
-        double period = 2.0;       // 哨兵扫描：pitch 扫动周期(秒)
+        double period = 0.25;       // 哨兵扫描：pitch 扫动周期(秒)
 
         scan_cmd_angle += delta_angle * dt;
         double yaw = tools::limit_rad(scan_cmd_angle / 57.3);
-        double pitch = tools::limit_rad(amplitude * std::sin(2 * M_PI * scan_t / period) / 57.3);
+        double pitch = tools::limit_rad(amplitude * std::sin(2 * M_PI * scan_t / period) / 57.3 - 0.1);
         
         gimbal.send(true, false, yaw, 0, 0, pitch, 0, 0);
 
@@ -122,7 +122,7 @@ int main(int argc, char * argv[])
     camera.read(img, t); // 相机读取通常是阻塞的，控制了整体循环频率
     auto q = gimbal.q(t);
     // 比赛进行中则开始录制
-    if (gimbal.nav_state().game_progress == 1) { // 1: 准备阶段, 4: 比赛进行中 (需确认game_progress对应的值, 根据不同赛季可能不同, 这里用户只要求是1)
+    if (gimbal.nav_state().game_progress == 4) { // 1: 准备阶段, 4: 比赛进行中 (需确认game_progress对应的值, 根据不同赛季可能不同, 这里用户只要求是1)
         recorder.record(img, q, t);
     }
 

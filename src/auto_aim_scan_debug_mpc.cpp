@@ -20,22 +20,29 @@
 #include "tools/plotter.hpp"
 #include "tools/thread_safe_queue.hpp"
 #include "tools/yaml.hpp"
+#include "tools/recorder.hpp"
+
 
 using namespace std::chrono_literals;
 
 const std::string keys =
   "{help h usage ? |                        | 输出命令行参数说明}"
+  "{debug          | false                  | imshow是否可视化}"
   "{ip             | 100.81.72.108          | Rerun 查看器的IP地址}"
+  "{rec            | true                   | 是否启用录像功能}"
   "{@config-path   | configs/sentry.yaml    | 位置参数，yaml配置文件路径 }";
 
 int main(int argc, char * argv[])
 {
   tools::Exiter exiter;
   tools::Plotter plotter; // 启用 Plotter
+  tools::Recorder recorder;
 
   cv::CommandLineParser cli(argc, argv, keys);
   auto config_path = cli.get<std::string>(0);
   auto rerun_ip = cli.get<std::string>("ip");
+  auto debug = cli.get<bool>("debug");
+  auto record = cli.get<bool>("rec");
 
   if (cli.has("help") || config_path.empty()) {
     cli.printMessage();
@@ -49,7 +56,7 @@ int main(int argc, char * argv[])
   io::GimbalNode gimbal(config_path);
   io::Camera camera(config_path);
 
-  auto_aim::YOLO yolo(config_path, true);
+  auto_aim::YOLO yolo(config_path, debug);
   auto_aim::Solver solver(config_path);
   auto_aim::Tracker tracker(config_path, solver);
   auto_aim::Planner planner(config_path);
@@ -82,9 +89,6 @@ int main(int argc, char * argv[])
       double dt = tools::delta_time(current_time, last_scan_time);
       last_scan_time = current_time;
 
-      // =========================================================================
-      // [通用部分] 无论是否有目标，始终更新 Rerun 中的云台 3D 姿态（让扫描时云台也能动）
-      // =========================================================================
       auto q_gimbal = gimbal.q(current_time); 
       Eigen::Matrix3d R_imubody2world = q_gimbal.toRotationMatrix();
       Eigen::Matrix3d R_gimbal2world = R_imubody2world * R_gimbal2imubody;
@@ -112,6 +116,8 @@ int main(int argc, char * argv[])
       Eigen::Vector3d world_offset(0.0, 0.0, -0.27);
       Eigen::Vector3d local_offset = R_gimbal2world.transpose() * world_offset;
 
+      
+
       // std::vector<rerun::components::LineStrip3D> strips;
       // strips.push_back(rerun::components::LineStrip3D({
       //   {(float)local_offset.x(), (float)local_offset.y(), (float)local_offset.z()}, 
@@ -122,11 +128,7 @@ int main(int argc, char * argv[])
 
       // rec.log("world/gimbal/yaw_line", rerun::LineStrips3D(strips).with_colors({{255, 165, 0}}));
 
-
-      // =========================================================================
-      // [分支控制] 根据是否有目标执行不同逻辑
-      // =========================================================================
-      if (target.has_value()) {
+      if (target.has_value() && gs.game_progress == 4) {
         first_scan = true; // 发现目标后，下次扫描从新位置开始
         // --- 1. 发现目标：预测与控制 ---
         auto plan = planner.plan(target, gs.bullet_speed);
@@ -221,7 +223,8 @@ int main(int argc, char * argv[])
 
         std::this_thread::sleep_for(10ms);
 
-      } else { 
+      } else if (tracker.state() == "lost" && !io::GimbalNode::is_move && gs.game_progress == 4){
+ 
         gimbal.set_aim_status(false);
         // --- 丢失目标时：执行扫描 ---
         if (first_scan) {
@@ -229,13 +232,13 @@ int main(int argc, char * argv[])
           first_scan = false;
         }
 
-        double delta_angle = 30.0; // 哨兵扫描：yaw 每秒旋转度数
+        double delta_angle = 120.0; // 哨兵扫描：yaw 每秒旋转度数
         double amplitude = 15.0;   // 哨兵扫描：pitch 上下扫动幅度(度)
-        double period = 2.0;       // 哨兵扫描：pitch 扫动周期(秒)
+        double period = 0.25;       // 哨兵扫描：pitch 扫动周期(秒)
 
         scan_cmd_angle += delta_angle * dt;
         double yaw = tools::limit_rad(scan_cmd_angle / 57.3);
-        double pitch = tools::limit_rad(amplitude * std::sin(2 * M_PI * scan_t / period) / 57.3);
+        double pitch = tools::limit_rad(amplitude * std::sin(2 * M_PI * scan_t / period) / 57.3 - 0.1);
         
         gimbal.send(true, false, yaw, 0, 0, pitch, 0, 0);
 
@@ -263,8 +266,10 @@ int main(int argc, char * argv[])
 
         std::this_thread::sleep_for(10ms);
       }
-    }
-  });
+      else {
+        std::this_thread::sleep_for(10ms);
+      }
+  }  });
 
   cv::Mat img;
   std::chrono::steady_clock::time_point t;
@@ -278,6 +283,10 @@ int main(int argc, char * argv[])
     
     auto q = gimbal.q(t);
 
+    if (record && gimbal.nav_state().game_progress == 4) { // 1: 准备阶段, 4: 比赛进行中
+      recorder.record(img, q, t);
+    }
+
     solver.set_R_gimbal2world(q);
     auto armors = yolo.detect(img);
     auto targets = tracker.track(armors, t);
@@ -286,26 +295,28 @@ int main(int argc, char * argv[])
     else
       target_queue.push(std::nullopt);
 
-    if (!targets.empty()) {
-      auto target = targets.front();
+    if (debug) {
+      if (!targets.empty()) {
+        auto target = targets.front();
 
-      // 当前帧target更新后
-      std::vector<Eigen::Vector4d> armor_xyza_list = target.armor_xyza_list();
-      for (const Eigen::Vector4d & xyza : armor_xyza_list) {
+        // 当前帧target更新后
+        std::vector<Eigen::Vector4d> armor_xyza_list = target.armor_xyza_list();
+        for (const Eigen::Vector4d & xyza : armor_xyza_list) {
+          auto image_points =
+            solver.reproject_armor(xyza.head(3), xyza[3], target.armor_type, target.name);
+          tools::draw_points(img, image_points, {0, 255, 0});
+        }
+
+        Eigen::Vector4d aim_xyza = planner.debug_xyza;
         auto image_points =
-          solver.reproject_armor(xyza.head(3), xyza[3], target.armor_type, target.name);
-        tools::draw_points(img, image_points, {0, 255, 0});
+          solver.reproject_armor(aim_xyza.head(3), aim_xyza[3], target.armor_type, target.name);
+        tools::draw_points(img, image_points, {0, 0, 255});
       }
 
-      Eigen::Vector4d aim_xyza = planner.debug_xyza;
-      auto image_points =
-        solver.reproject_armor(aim_xyza.head(3), aim_xyza[3], target.armor_type, target.name);
-      tools::draw_points(img, image_points, {0, 0, 255});
+      tools::draw_text(img, fmt::format("FPS: {:.2f}", fps), {10, 30});
+      cv::resize(img, img, {}, 0.7, 0.7);  // 显示时缩小图片尺寸
+      cv::imshow("reprojection", img);
     }
-
-    tools::draw_text(img, fmt::format("FPS: {:.2f}", fps), {10, 30});
-    cv::resize(img, img, {}, 0.7, 0.7);  // 显示时缩小图片尺寸
-    cv::imshow("reprojection", img);
     auto key = cv::waitKey(1);
     if (key == 'q') break;
   }

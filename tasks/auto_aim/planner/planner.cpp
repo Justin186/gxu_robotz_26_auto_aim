@@ -13,10 +13,10 @@ namespace auto_aim
 Planner::Planner(const std::string & config_path)
 {
   auto yaml = tools::load(config_path);
-  yaw_offset_ = tools::read<double>(yaml, "yaw_offset") / 57.29578;
-  pitch_offset_ = tools::read<double>(yaml, "pitch_offset") / 57.29578;
+  yaw_offset_ = tools::read<double>(yaml, "yaw_offset") / 57.3;
+  pitch_offset_ = tools::read<double>(yaml, "pitch_offset") / 57.3;
   fire_thresh_ = tools::read<double>(yaml, "fire_thresh");
-  max_armor_angle_ = tools::read<double>(yaml, "max_armor_angle", 30.0) / 57.29578;
+  max_armor_angle_ = tools::read<double>(yaml, "max_armor_angle", 30.0) / 57.3;
   decision_speed_ = tools::read<double>(yaml, "decision_speed");
   high_speed_delay_time_ = tools::read<double>(yaml, "high_speed_delay_time");
   low_speed_delay_time_ = tools::read<double>(yaml, "low_speed_delay_time");
@@ -32,9 +32,7 @@ Planner::Planner(const std::string & config_path)
 Plan Planner::plan(Target target, double bullet_speed, double current_yaw, double current_pitch)
 {
   // 0. Check bullet speed
-  if (bullet_speed < 10 || bullet_speed > 30) {
-    bullet_speed = defult_bullet_speed_;
-  }
+  bullet_speed = defult_bullet_speed_;
 
   // 1. Predict fly_time
   Eigen::Vector3d xyz;
@@ -101,7 +99,7 @@ Plan Planner::plan(Target target, double bullet_speed, double current_yaw, doubl
   double real_pitch_error = current_pitch - plan.target_pitch;
 
   plan.fire =
-    std::hypot(real_yaw_error, real_pitch_error) < fire_thresh_ &&
+    target.maneuver_ticks > 0 ? false :
     std::hypot(
       traj(0, HALF_HORIZON + shoot_offset_) - yaw_solver_->work->x(0, HALF_HORIZON + shoot_offset_),
       traj(2, HALF_HORIZON + shoot_offset_) -
