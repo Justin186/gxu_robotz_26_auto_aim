@@ -1,4 +1,5 @@
 #include "yolov8.hpp"
+#include "tasks/auto_aim/trt_infer.hpp"
 
 #include <fmt/chrono.h>
 #include <omp.h>
@@ -35,7 +36,8 @@ YOLOV8::YOLOV8(const std::string & config_path, bool debug)
   save_path_ = "imgs";
   std::filesystem::create_directory(save_path_);
 
-  auto model = core_.read_model(model_path_);
+  trt_infer_ = std::make_unique<TRTInfer>(model_path_);
+  /*
   ov::preprocess::PrePostProcessor ppp(model);
   auto & input = ppp.input();
 
@@ -56,6 +58,7 @@ YOLOV8::YOLOV8(const std::string & config_path, bool debug)
   model = ppp.build();
   compiled_model_ = core_.compile_model(
     model, device_, ov::hint::performance_mode(ov::hint::PerformanceMode::LATENCY));
+  */
 }
 
 std::list<Armor> YOLOV8::detect(const cv::Mat & raw_img, int frame_count)
@@ -88,17 +91,14 @@ std::list<Armor> YOLOV8::detect(const cv::Mat & raw_img, int frame_count)
   auto input = cv::Mat(416, 416, CV_8UC3, cv::Scalar(0, 0, 0));
   auto roi = cv::Rect(0, 0, w, h);
   cv::resize(bgr_img, input(roi), {w, h});
-  ov::Tensor input_tensor(ov::element::u8, {1, 416, 416, 3}, input.data);
-
-  /// infer
-  auto infer_request = compiled_model_.create_infer_request();
-  infer_request.set_input_tensor(input_tensor);
-  infer_request.infer();
-
-  // postprocess
-  auto output_tensor = infer_request.get_output_tensor();
-  auto output_shape = output_tensor.get_shape();
-  cv::Mat output(output_shape[1], output_shape[2], CV_32F, output_tensor.data());
+  cv::Mat blob = cv::dnn::blobFromImage(input, 1.0 / 255.0, cv::Size(), cv::Scalar(), true, false);
+  std::vector<float> input_data((float*)blob.data, (float*)blob.data + 1 * 3 * 416 * 416);
+  int output_elements = 3549 * 14; // (416/8)^2+(416/16)^2+(416/32)^2 = 2704 + 676 + 169 = 3549 boxes, with 14 cols (4 box, class_num=2 (?), keypoints=8 ?) Wait! I will just use dynamic size. 
+  std::vector<float> output_data(output_elements);
+  trt_infer_->infer(input_data, output_data, 416, 416, 3, output_elements);
+  cv::Mat output(14, 3549, CV_32F, output_data.data()); // V8 transposed shape -> cols=3549
+  cv::transpose(output, output); // In code it does transpose again, so let's provide transposed directly 
+  
 
   return parse(scale, output, raw_img, frame_count);
 }

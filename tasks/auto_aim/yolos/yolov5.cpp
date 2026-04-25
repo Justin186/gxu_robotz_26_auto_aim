@@ -1,4 +1,5 @@
 #include "yolov5.hpp"
+#include "tasks/auto_aim/trt_infer.hpp"
 
 #include <fmt/chrono.h>
 #include <yaml-cpp/yaml.h>
@@ -31,7 +32,8 @@ YOLOV5::YOLOV5(const std::string & config_path, bool debug)
 
   save_path_ = "imgs";
   std::filesystem::create_directory(save_path_);
-  auto model = core_.read_model(model_path_);
+  trt_infer_ = std::make_unique<TRTInfer>(model_path_);
+  /*
   ov::preprocess::PrePostProcessor ppp(model);
   auto & input = ppp.input();
 
@@ -52,6 +54,7 @@ YOLOV5::YOLOV5(const std::string & config_path, bool debug)
   model = ppp.build();
   compiled_model_ = core_.compile_model(
     model, device_, ov::hint::performance_mode(ov::hint::PerformanceMode::LATENCY));
+  */
 }
 
 std::list<Armor> YOLOV5::detect(const cv::Mat & raw_img, int frame_count)
@@ -94,17 +97,12 @@ std::list<Armor> YOLOV5::detect_impl(const cv::Mat & raw_img, int frame_count, c
   auto input = cv::Mat(640, 640, CV_8UC3, cv::Scalar(0, 0, 0));
   auto roi = cv::Rect(0, 0, w, h);
   cv::resize(bgr_img, input(roi), {w, h});
-  ov::Tensor input_tensor(ov::element::u8, {1, 640, 640, 3}, input.data);
-
-  // infer
-  auto infer_request = compiled_model_.create_infer_request();
-  infer_request.set_input_tensor(input_tensor);
-  infer_request.infer();
-
-  // postprocess
-  auto output_tensor = infer_request.get_output_tensor();
-  auto output_shape = output_tensor.get_shape();
-  cv::Mat output(output_shape[1], output_shape[2], CV_32F, output_tensor.data());
+  cv::Mat blob = cv::dnn::blobFromImage(input, 1.0 / 255.0, cv::Size(), cv::Scalar(), true, false);
+  std::vector<float> input_data((float*)blob.data, (float*)blob.data + 1 * 3 * 640 * 640);
+  int output_elements = 25200 * 22;
+  std::vector<float> output_data(output_elements);
+  trt_infer_->infer(input_data, output_data, 640, 640, 3, output_elements);
+  cv::Mat output(25200, 22, CV_32F, output_data.data());
 
   return parse(scale, output, raw_img, frame_count, out_debug_img);
 }

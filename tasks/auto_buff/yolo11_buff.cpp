@@ -8,15 +8,7 @@ YOLO11_BUFF::YOLO11_BUFF(const std::string & config)
 {
   auto yaml = YAML::LoadFile(config);
   std::string model_path = yaml["model"].as<std::string>();
-  model = core.read_model(model_path);
-  // printInputAndOutputsInfo(*model);  // 打印模型信息
-  /// 载入并编译模型
-  compiled_model = core.compile_model(model, "CPU");
-  /// 创建推理请求
-  infer_request = compiled_model.create_infer_request();
-  // 获取模型输入节点
-  input_tensor = infer_request.get_input_tensor();
-  input_tensor.set_shape({1, 3, 640, 640});
+  trt_infer_ = std::make_unique<auto_aim::TRTInfer>(model_path);
 }
 
 std::vector<YOLO11_BUFF::Object> YOLO11_BUFF::get_multicandidateboxes(cv::Mat & image)
@@ -46,18 +38,12 @@ std::vector<YOLO11_BUFF::Object> YOLO11_BUFF::get_multicandidateboxes(cv::Mat & 
   auto input = cv::Mat(640, 640, CV_8UC3, cv::Scalar(0, 0, 0));
   auto roi = cv::Rect(0, 0, w, h);
   cv::resize(bgr_img, input(roi), {w, h});
-  ov::Tensor input_tensor(ov::element::u8, {1, 640, 640, 3}, input.data);
-
-  /// 执行推理计算
-  infer_request.infer();
-
-  /// 处理推理计算结果
-  const ov::Tensor output = infer_request.get_output_tensor();  // 获得推理结果
-  const ov::Shape output_shape = output.get_shape();
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  const float * output_buffer = output.data<const float>();
-#pragma GCC diagnostic pop
+  cv::Mat blob = cv::dnn::blobFromImage(input, 1.0 / 255.0, cv::Size(), cv::Scalar(), true, false);
+  std::vector<float> input_data((float*)blob.data, (float*)blob.data + 1 * 3 * 640 * 640);
+  int output_elements = 50 * 8400; // YOLO11 standard shape
+  std::vector<float> output_data(output_elements);
+  trt_infer_->infer(input_data, output_data, 640, 640, 3, output_elements);
+  const float * output_buffer = output_data.data();
   const int out_rows = output_shape[1];  // 获得"output"节点的rows 15
   const int out_cols = output_shape[2];  // 获得"output"节点的cols 8400
   const cv::Mat det_output(
@@ -152,24 +138,26 @@ std::vector<YOLO11_BUFF::Object> YOLO11_BUFF::get_onecandidatebox(cv::Mat & imag
   const int64 start = cv::getTickCount();  // 设置模型输入
 
   /// 预处理
-  const float factor = fill_tensor_data_image(input_tensor, image);  // 填充图片到合适的input size
+  auto x_scale = static_cast<double>(640) / image.rows;
+  auto y_scale = static_cast<double>(640) / image.cols;
+  auto scale = std::min(x_scale, y_scale);
+  auto h = static_cast<int>(image.rows * scale);
+  auto w = static_cast<int>(image.cols * scale);
+  double factor = scale;  
 
-  /// 执行推理计算
+  cv::Mat input = cv::Mat(640, 640, CV_8UC3, cv::Scalar(0, 0, 0));
+  cv::Rect roi(0, 0, w, h);
+  cv::resize(image, input(roi), {w, h});
 
-  infer_request.infer();
-
-  /// 处理推理计算结果  output 输出格式是[17,8400], 每列代表一个框(即最多有8400个框), 前面4行分别是[cx, cy, ow, oh], 中间score, 最后6*2关键点
-
-  const ov::Tensor output = infer_request.get_output_tensor();  // 获得推理结果
-  const ov::Shape output_shape = output.get_shape();
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  const float * output_buffer = output.data<const float>();
-#pragma GCC diagnostic pop
-  const int out_rows = output_shape[1];  // 获得"output"节点的rows 17
-  const int out_cols = output_shape[2];  // 获得"output"节点的cols 8400
-  const cv::Mat det_output(
-    out_rows, out_cols, CV_32F, (float *)output_buffer);  // output_buff类型转换
+  cv::Mat blob = cv::dnn::blobFromImage(input, 1.0 / 255.0, cv::Size(), cv::Scalar(), true, false);
+  std::vector<float> input_data((float*)blob.data, (float*)blob.data + 1 * 3 * 640 * 640);
+  int output_elements = 50 * 8400; // Expected output elements
+  std::vector<float> output_data(output_elements);
+  trt_infer_->infer(input_data, output_data, 640, 640, 3, output_elements);
+  
+  const int out_rows = 50;  // Expected out rows
+  const int out_cols = 8400; // Expected out cols
+  const cv::Mat det_output(out_rows, out_cols, CV_32F, (float *)output_data.data());
 
   /// 寻找置信度最大的框
 
@@ -244,18 +232,7 @@ void YOLO11_BUFF::convert(
   if (BGR2RGB) cv::cvtColor(output, output, cv::COLOR_BGR2RGB);
 }
 
-float YOLO11_BUFF::fill_tensor_data_image(ov::Tensor & input_tensor, const cv::Mat & input_image) const
-{
-  /// letterbox变换: 不改变宽高比(aspect ratio), 将input_image缩放并放置到blob_image左上角
-  const ov::Shape tensor_shape = input_tensor.get_shape();
-  const size_t num_channels = tensor_shape[1];
-  const size_t height = tensor_shape[2];
-  const size_t width = tensor_shape[3];
-  // 缩放因子
-  const float scale = std::min(height / float(input_image.rows), width / float(input_image.cols));
-  const cv::Matx23f matrix{
-    scale, 0.0, 0.0, 0.0, scale, 0.0,
-  };
+;
   cv::Mat blob_image;
   // 下面根据scale范围进行数据转换, 这只是为了提高一点速度(主要是提高了交换通道的速度)
   // 如果不在意这点速度提升的可以固定一种做法(两个if分支随便一个都可以)
@@ -283,46 +260,3 @@ float YOLO11_BUFF::fill_tensor_data_image(ov::Tensor & input_tensor, const cv::M
   return 1 / scale;
 }
 
-void YOLO11_BUFF::printInputAndOutputsInfo(const ov::Model & network)
-{
-  std::cout << "model name: " << network.get_friendly_name() << std::endl;
-
-  const std::vector<ov::Output<const ov::Node>> inputs = network.inputs();
-  for (const ov::Output<const ov::Node> & input : inputs) {
-    std::cout << "    inputs" << std::endl;
-
-    const std::string name = input.get_names().empty() ? "NONE" : input.get_any_name();
-    std::cout << "        input name: " << name << std::endl;
-
-    const ov::element::Type type = input.get_element_type();
-    std::cout << "        input type: " << type << std::endl;
-
-    const ov::Shape shape = input.get_shape();
-    std::cout << "        input shape: " << shape << std::endl;
-  }
-
-  const std::vector<ov::Output<const ov::Node>> outputs = network.outputs();
-  for (const ov::Output<const ov::Node> & output : outputs) {
-    std::cout << "    outputs" << std::endl;
-
-    const std::string name = output.get_names().empty() ? "NONE" : output.get_any_name();
-    std::cout << "        output name: " << name << std::endl;
-
-    const ov::element::Type type = output.get_element_type();
-    std::cout << "        output type: " << type << std::endl;
-
-    const ov::Shape shape = output.get_shape();
-    std::cout << "        output shape: " << shape << std::endl;
-  }
-}
-
-void YOLO11_BUFF::save(const std::string & programName, const cv::Mat & image)
-{
-  const std::filesystem::path saveDir = "../result/";
-  if (!std::filesystem::exists(saveDir)) {
-    std::filesystem::create_directories(saveDir);
-  }
-  const std::filesystem::path savePath = saveDir / (programName + ".jpg");
-  cv::imwrite(savePath.string(), image);
-}
-}  // namespace auto_buff

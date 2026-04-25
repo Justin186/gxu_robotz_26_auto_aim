@@ -12,8 +12,11 @@ find_package(Eigen3 REQUIRED)
 find_package(spdlog REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(nlohmann_json REQUIRED)
-set(OpenVINO_DIR "/opt/intel/openvino_2024.6.0/runtime/cmake/")
-find_package(OpenVINO REQUIRED)
+find_package(CUDAToolkit REQUIRED)
+find_path(TENSORRT_INCLUDE_DIR NvInfer.h HINTS /usr/include /usr/local/include /usr/include/aarch64-linux-gnu /opt/nvidia/tensorrt/include)
+find_library(TENSORRT_LIBRARY nvinfer HINTS /usr/lib /usr/local/lib /usr/lib/aarch64-linux-gnu /opt/nvidia/tensorrt/lib)
+find_library(TENSORRT_PARSER nvonnxparser HINTS /usr/lib /usr/local/lib /usr/lib/aarch64-linux-gnu /opt/nvidia/tensorrt/lib)
+
 
 include(FetchContent)
 FetchContent_Declare(rerun_sdk URL

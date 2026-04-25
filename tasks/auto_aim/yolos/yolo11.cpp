@@ -1,4 +1,5 @@
 #include "yolo11.hpp"
+#include "../trt_infer.hpp"
 
 #include <fmt/chrono.h>
 #include <yaml-cpp/yaml.h>
@@ -30,28 +31,10 @@ YOLO11::YOLO11(const std::string & config_path, bool debug)
 
   save_path_ = "imgs";
   std::filesystem::create_directory(save_path_);
-  auto model = core_.read_model(model_path_);
-  ov::preprocess::PrePostProcessor ppp(model);
-  auto & input = ppp.input();
-
-  input.tensor()
-    .set_element_type(ov::element::u8)
-    .set_shape({1, 640, 640, 3})
-    .set_layout("NHWC")
-    .set_color_format(ov::preprocess::ColorFormat::BGR);
-
-  input.model().set_layout("NCHW");
-
-  input.preprocess()
-    .convert_element_type(ov::element::f32)
-    .convert_color(ov::preprocess::ColorFormat::RGB)
-    .scale(255.0);
-
-  // TODO: ov::hint::performance_mode(ov::hint::PerformanceMode::LATENCY)
-  model = ppp.build();
-  compiled_model_ = core_.compile_model(
-    model, device_, ov::hint::performance_mode(ov::hint::PerformanceMode::LATENCY));
+  
+  trt_infer_ = std::make_unique<TRTInfer>(model_path_);
 }
+
 
 std::list<Armor> YOLO11::detect(const cv::Mat & raw_img, int frame_count)
 {
@@ -84,17 +67,18 @@ std::list<Armor> YOLO11::detect(const cv::Mat & raw_img, int frame_count)
   auto input = cv::Mat(640, 640, CV_8UC3, cv::Scalar(0, 0, 0));
   auto roi = cv::Rect(0, 0, w, h);
   cv::resize(bgr_img, input(roi), {w, h});
-  ov::Tensor input_tensor(ov::element::u8, {1, 640, 640, 3}, input.data);
+  
+  cv::Mat blob = cv::dnn::blobFromImage(input, 1.0 / 255.0, cv::Size(), cv::Scalar(), true, false);
+
+  std::vector<float> input_data((float*)blob.data, (float*)blob.data + 1 * 3 * 640 * 640);
+  int output_elements = 50 * 8400; // example: adjust dynamically or based on exact model
+  std::vector<float> output_data(output_elements); 
 
   /// infer
-  auto infer_request = compiled_model_.create_infer_request();
-  infer_request.set_input_tensor(input_tensor);
-  infer_request.infer();
+  trt_infer_->infer(input_data, output_data, 640, 640, 3, output_elements);
 
   // postprocess
-  auto output_tensor = infer_request.get_output_tensor();
-  auto output_shape = output_tensor.get_shape();
-  cv::Mat output(output_shape[1], output_shape[2], CV_32F, output_tensor.data());
+  cv::Mat output(50, 8400, CV_32F, output_data.data()); // standard yolo output transpose style (50=4+38+8, cols=something else)
 
   return parse(scale, output, raw_img, frame_count);
 }

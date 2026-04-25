@@ -4,7 +4,8 @@
 
 #include <filesystem>
 #include <opencv2/opencv.hpp>
-#include <openvino/openvino.hpp>
+#include <memory>
+#include "tasks/auto_aim/trt_infer.hpp"
 
 #include "tools/logger.hpp"
 
@@ -32,11 +33,7 @@ public:
   std::vector<Object> get_onecandidatebox(cv::Mat & image);
 
 private:
-  ov::Core core;  // 创建OpenVINO Runtime Core对象
-  std::shared_ptr<ov::Model> model;
-  ov::CompiledModel compiled_model;
-  ov::InferRequest infer_request;
-  ov::Tensor input_tensor;
+  std::unique_ptr<auto_aim::TRTInfer> trt_infer_;
   const int NUM_POINTS = 6;
 
   // 转换图像数据: 先转换元素类型, (可选)然后归一化到[0, 1], (可选)然后交换RB通道

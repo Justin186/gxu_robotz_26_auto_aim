@@ -16,7 +16,7 @@ IMU型号：使用C板内置BMI088作为IMU\
 ## 编译方式
 1. 安装依赖项：
    - [MindVision SDK](https://mindvision.com.cn/category/software/sdk-installation-package/)或[HikRobot SDK](https://www.hikrobotics.com/cn2/source/support/software/MVS_STD_GML_V2.1.2_231116.zip)
-   - [OpenVINO](https://docs.openvino.ai/2024/get-started/install-openvino/install-openvino-archive-linux.html)
+   - [TensorRT](https://docs.openvino.ai/2024/get-started/install-openvino/install-openvino-archive-linux.html)
    - [Ceres](http://ceres-solver.org/installation.html)
    - 其余：
     ```bash

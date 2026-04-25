@@ -15,7 +15,8 @@ MultiThreadDetector::MultiThreadDetector(const std::string & config_path, bool d
   auto model_path = yaml[yolo_name + "_model_path"].as<std::string>();
   device_ = yaml["device"].as<std::string>();
 
-  auto model = core_.read_model(model_path);
+  trt_infer_ = std::make_unique<TRTInfer>(model_path);
+  /*
   ov::preprocess::PrePostProcessor ppp(model);
   auto & input = ppp.input();
 
@@ -36,6 +37,7 @@ MultiThreadDetector::MultiThreadDetector(const std::string & config_path, bool d
   model = ppp.build();
   compiled_model_ = core_.compile_model(
     model, device_, ov::hint::performance_mode(ov::hint::PerformanceMode::THROUGHPUT));
+  */
 
   tools::logger()->info("[MultiThreadDetector] initialized !");
 }
@@ -53,24 +55,26 @@ void MultiThreadDetector::push(cv::Mat img, std::chrono::steady_clock::time_poin
   auto roi = cv::Rect(0, 0, w, h);
   cv::resize(img, input(roi), {w, h});
 
-  auto input_port = compiled_model_.input();
-  auto infer_request = compiled_model_.create_infer_request();
-  ov::Tensor input_tensor(ov::element::u8, {1, 640, 640, 3}, input.data);
-
-  infer_request.set_input_tensor(input_tensor);
-  infer_request.start_async();
-  queue_.push({img.clone(), t, std::move(infer_request)});
+  cv::Mat blob = cv::dnn::blobFromImage(input, 1.0 / 255.0, cv::Size(), cv::Scalar(), true, false);
+  std::vector<float> input_data((float*)blob.data, (float*)blob.data + 1 * 3 * 640 * 640);
+  
+  auto fut = std::make_shared<std::future<std::vector<float>>>(
+    std::async(std::launch::async, [this, input_data]() {
+      std::lock_guard<std::mutex> lock(infer_mutex_);
+      int output_elements = 25200 * 22;
+      std::vector<float> output_data(output_elements);
+      trt_infer_->infer(input_data, output_data, 640, 640, 3, output_elements);
+      return output_data;
+    })
+  );
+  queue_.push({img.clone(), t, fut});
 }
 
 std::tuple<std::list<Armor>, std::chrono::steady_clock::time_point> MultiThreadDetector::pop()
 {
   auto [img, t, infer_request] = queue_.pop();
-  infer_request.wait();
-
-  // postprocess
-  auto output_tensor = infer_request.get_output_tensor();
-  auto output_shape = output_tensor.get_shape();
-  cv::Mat output(output_shape[1], output_shape[2], CV_32F, output_tensor.data());
+  auto output_data = infer_request->get();
+  cv::Mat output(25200, 22, CV_32F, output_data.data());
   auto x_scale = static_cast<double>(640) / img.rows;
   auto y_scale = static_cast<double>(640) / img.cols;
   auto scale = std::min(x_scale, y_scale);
@@ -83,12 +87,8 @@ std::tuple<cv::Mat, std::list<Armor>, std::chrono::steady_clock::time_point>
 MultiThreadDetector::debug_pop()
 {
   auto [img, t, infer_request] = queue_.pop();
-  infer_request.wait();
-
-  // postprocess
-  auto output_tensor = infer_request.get_output_tensor();
-  auto output_shape = output_tensor.get_shape();
-  cv::Mat output(output_shape[1], output_shape[2], CV_32F, output_tensor.data());
+  auto output_data = infer_request->get();
+  cv::Mat output(25200, 22, CV_32F, output_data.data());
   auto x_scale = static_cast<double>(640) / img.rows;
   auto y_scale = static_cast<double>(640) / img.cols;
   auto scale = std::min(x_scale, y_scale);

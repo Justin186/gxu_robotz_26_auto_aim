@@ -3,7 +3,9 @@
 
 #include <chrono>
 #include <opencv2/opencv.hpp>
-#include <openvino/openvino.hpp>
+#include <memory>
+#include <future>
+#include "tasks/auto_aim/trt_infer.hpp"
 #include <tuple>
 
 #include "tasks/auto_aim/yolos/yolov5.hpp"
@@ -27,13 +29,13 @@ public:
   std::tuple<cv::Mat, std::list<Armor>, std::chrono::steady_clock::time_point> debug_pop();
 
 private:
-  ov::Core core_;
-  ov::CompiledModel compiled_model_;
+  std::unique_ptr<TRTInfer> trt_infer_;
+  std::mutex infer_mutex_;
   std::string device_;
   YOLO yolo_;
 
   tools::ThreadSafeQueue<
-    std::tuple<cv::Mat, std::chrono::steady_clock::time_point, ov::InferRequest>>
+    std::tuple<cv::Mat, std::chrono::steady_clock::time_point, std::shared_ptr<std::future<std::vector<float>>>>>
     queue_{16, [] { tools::logger()->debug("[MultiThreadDetector] queue is full!"); }};
 };
 

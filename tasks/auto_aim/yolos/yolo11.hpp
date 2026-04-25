@@ -3,11 +3,14 @@
 
 #include <list>
 #include <opencv2/opencv.hpp>
-#include <openvino/openvino.hpp>
+#include <memory>
 #include <string>
 #include <vector>
 
+class TRTInfer; // Forward Decl
+
 #include "tasks/auto_aim/armor.hpp"
+
 #include "tasks/auto_aim/detector.hpp"
 #include "tasks/auto_aim/yolo.hpp"
 
@@ -33,8 +36,7 @@ private:
   const float score_threshold_ = 0.7;
   double min_confidence_, binary_threshold_;
 
-  ov::Core core_;
-  ov::CompiledModel compiled_model_;
+  std::unique_ptr<auto_aim::TRTInfer> trt_infer_;
 
   cv::Rect roi_;
   cv::Point2f offset_;
