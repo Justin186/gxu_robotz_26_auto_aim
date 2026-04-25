@@ -30,6 +30,7 @@ private:
   std::string device_, model_path_;
   std::string save_path_, debug_path_;
   bool debug_, use_roi_, use_traditional_;
+  bool use_trt_{false};
 
   const int class_num_ = 13;
   const float nms_threshold_ = 0.3;
@@ -37,6 +38,7 @@ private:
   double min_confidence_, binary_threshold_;
 
   std::unique_ptr<TRTInfer> trt_infer_;
+  cv::dnn::Net yolo_net_;
 
   cv::Rect roi_;
   cv::Point2f offset_;

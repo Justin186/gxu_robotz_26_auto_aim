@@ -8,6 +8,7 @@ add_subdirectory(planner/tinympc)
 add_library(auto_aim OBJECT 
     armor.cpp
     classifier.cpp 
+    trt_infer.cpp
     detector.cpp
     solver.cpp
     aimer.cpp
@@ -24,4 +25,4 @@ add_library(auto_aim OBJECT
     planner/planner.cpp
 )
 
-target_link_libraries(auto_aim io nvinfer nvonnxparser cudart tinympcstatic)
+target_link_libraries(auto_aim io nvinfer nvonnxparser CUDA::cudart tinympcstatic)

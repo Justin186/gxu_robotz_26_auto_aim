@@ -7,6 +7,9 @@
 #include <vector>
 #include <memory>
 #include <cuda_runtime_api.h>
+#if NV_TENSORRT_MAJOR >= 10
+#include <NvInferRuntime.h>
+#endif
 
 namespace auto_aim
 {
@@ -39,6 +42,10 @@ private:
   void* buffers_[2];
   int input_index_;
   int output_index_;
+#if NV_TENSORRT_MAJOR >= 10
+  std::string input_tensor_name_;
+  std::string output_tensor_name_;
+#endif
 };
 
 } // namespace auto_aim

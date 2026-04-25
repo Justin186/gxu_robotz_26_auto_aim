@@ -3,7 +3,8 @@
 
 #include <opencv2/opencv.hpp>
 #include <memory>
-class TRTInfer; // Forward decl
+#include "armor.hpp"
+#include "trt_infer.hpp"
 
 namespace auto_aim
 {

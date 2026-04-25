@@ -2,6 +2,7 @@
 #include "trt_infer.hpp"
 
 #include <yaml-cpp/yaml.h>
+#include <filesystem>
 
 
 namespace auto_aim
@@ -11,7 +12,17 @@ Classifier::Classifier(const std::string & config_path)
   auto yaml = YAML::LoadFile(config_path);
   auto model = yaml["classify_model"].as<std::string>();
   net_ = cv::dnn::readNetFromONNX(model);
-  trt_infer_ = std::make_unique<TRTInfer>(model);
+
+  // Keep yolov5 path stable: classifier defaults to OpenCV DNN.
+  // TensorRT classifier is optional and only enabled for serialized TRT engines.
+  try {
+    auto ext = std::filesystem::path(model).extension().string();
+    if (ext == ".engine" || ext == ".trt") {
+      trt_infer_ = std::make_unique<TRTInfer>(model);
+    }
+  } catch (...) {
+    trt_infer_.reset();
+  }
 }
 
 
@@ -61,6 +72,11 @@ void Classifier::classify(Armor & armor)
 
 void Classifier::ovclassify(Armor & armor)
 {
+  if (!trt_infer_) {
+    classify(armor);
+    return;
+  }
+
   if (armor.pattern.empty()) {
     armor.name = ArmorName::not_armor;
     return;

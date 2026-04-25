@@ -44,8 +44,8 @@ std::vector<YOLO11_BUFF::Object> YOLO11_BUFF::get_multicandidateboxes(cv::Mat & 
   std::vector<float> output_data(output_elements);
   trt_infer_->infer(input_data, output_data, 640, 640, 3, output_elements);
   const float * output_buffer = output_data.data();
-  const int out_rows = output_shape[1];  // 获得"output"节点的rows 15
-  const int out_cols = output_shape[2];  // 获得"output"节点的cols 8400
+  const int out_rows = 50;    // tensor shape: [1, 50, 8400]
+  const int out_cols = 8400;
   const cv::Mat det_output(
     out_rows, out_cols, CV_32F, (float *)output_buffer);  // output_buff类型转换
   std::vector<cv::Rect> boxes;                            // 目标框
@@ -74,7 +74,7 @@ std::vector<YOLO11_BUFF::Object> YOLO11_BUFF::get_multicandidateboxes(cv::Mat & 
 
       // 获取关键点
       std::vector<float> keypoints;
-      cv::Mat kpts = det_output.col(i).rowRange(NUM_POINTS, 15);
+      cv::Mat kpts = det_output.col(i).rowRange(5, 5 + NUM_POINTS * 2);
       for (int j = 0; j < NUM_POINTS; ++j) {
         const float x = kpts.at<float>(j * 2 + 0, 0) * factor;
         const float y = kpts.at<float>(j * 2 + 1, 0) * factor;
@@ -232,31 +232,11 @@ void YOLO11_BUFF::convert(
   if (BGR2RGB) cv::cvtColor(output, output, cv::COLOR_BGR2RGB);
 }
 
-;
-  cv::Mat blob_image;
-  // 下面根据scale范围进行数据转换, 这只是为了提高一点速度(主要是提高了交换通道的速度)
-  // 如果不在意这点速度提升的可以固定一种做法(两个if分支随便一个都可以)
-  if (scale < 1.0f) {
-    // 要缩小, 那么先缩小再交换通道
-    cv::warpAffine(input_image, blob_image, matrix, cv::Size(width, height));
-    convert(blob_image, blob_image, true, true);
-  } else {
-    // 要放大, 那么先交换通道再放大
-    convert(input_image, blob_image, true, true);
-    cv::warpAffine(blob_image, blob_image, matrix, cv::Size(width, height));
-  }
-
-  /// 将图像数据填入input_tensor
-  float * const input_tensor_data = input_tensor.data<float>();
-  // 原有图片数据为 HWC格式，模型输入节点要求的为 CHW 格式
-  for (size_t c = 0; c < num_channels; c++) {
-    for (size_t h = 0; h < height; h++) {
-      for (size_t w = 0; w < width; w++) {
-        input_tensor_data[c * width * height + h * width + w] =
-          blob_image.at<cv::Vec<float, 3>>(h, w)[c];
-      }
-    }
-  }
-  return 1 / scale;
+void YOLO11_BUFF::save(const std::string & programName, const cv::Mat & image)
+{
+  std::filesystem::create_directories("../result");
+  cv::imwrite("../result/" + programName + ".jpg", image);
 }
+
+}  // namespace auto_buff
 

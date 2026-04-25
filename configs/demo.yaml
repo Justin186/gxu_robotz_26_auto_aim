@@ -4,9 +4,9 @@ enemy_color: "blue"
 #####-----神经网络参数-----#####
 yolo_name: yolov5
 classify_model: assets/tiny_resnet.onnx
-yolo11_model_path: assets/yolo11.xml
-yolov8_model_path: assets/yolov8.xml
-yolov5_model_path: assets/yolov5.xml
+yolo11_model_path: assets/0526.trt
+yolov8_model_path: assets/0526.trt
+yolov5_model_path: assets/0526.trt
 device: GPU
 min_confidence: 0.8
 use_traditional: true

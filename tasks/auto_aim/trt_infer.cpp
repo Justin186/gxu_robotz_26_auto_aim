@@ -11,8 +11,8 @@ namespace auto_aim
 
 void TRTLogger::log(Severity severity, const char* msg) noexcept {
   if (severity <= Severity::kWARNING) {
-    if (auto_aim::tools::logger()) {
-       auto_aim::tools::logger()->warn("[TRT] {}", msg);
+   if (tools::logger()) {
+     tools::logger()->warn("[TRT] {}", msg);
     } else {
        std::cout << "[TRT] " << msg << std::endl;
     }
@@ -87,6 +87,26 @@ void TRTInfer::infer(const std::vector<float>& input_data, std::vector<float>& o
   size_t output_bytes = output_size * sizeof(float);
 
   if (buffers_[0] == nullptr) {
+#if NV_TENSORRT_MAJOR >= 10
+    input_index_ = -1;
+    output_index_ = -1;
+    const int io_count = engine_->getNbIOTensors();
+    for (int i = 0; i < io_count; ++i) {
+      const char* tensor_name = engine_->getIOTensorName(i);
+      if (engine_->getTensorIOMode(tensor_name) == nvinfer1::TensorIOMode::kINPUT) {
+        input_index_ = i;
+        input_tensor_name_ = tensor_name;
+      } else {
+        output_index_ = i;
+        output_tensor_name_ = tensor_name;
+      }
+    }
+    if (input_index_ < 0 || output_index_ < 0) {
+      throw std::runtime_error("Failed to locate TensorRT input/output tensors");
+    }
+    cudaMalloc(&buffers_[0], input_size);
+    cudaMalloc(&buffers_[1], output_bytes);
+#else
       input_index_ = 0; // Default to 0 for input
       for (int i = 0; i < engine_->getNbBindings(); ++i) {
           if (engine_->bindingIsInput(i)) {
@@ -97,11 +117,22 @@ void TRTInfer::infer(const std::vector<float>& input_data, std::vector<float>& o
       output_index_ = 1 - input_index_;
       cudaMalloc(&buffers_[input_index_], input_size);
       cudaMalloc(&buffers_[output_index_], output_bytes);
+#endif
   }
 
+#if NV_TENSORRT_MAJOR >= 10
+  nvinfer1::Dims4 input_shape{1, input_c, input_h, input_w};
+  context_->setInputShape(input_tensor_name_.c_str(), input_shape);
+  context_->setTensorAddress(input_tensor_name_.c_str(), buffers_[0]);
+  context_->setTensorAddress(output_tensor_name_.c_str(), buffers_[1]);
+  cudaMemcpyAsync(buffers_[0], input_data.data(), input_size, cudaMemcpyHostToDevice, stream_);
+  context_->enqueueV3(stream_);
+  cudaMemcpyAsync(output_data.data(), buffers_[1], output_bytes, cudaMemcpyDeviceToHost, stream_);
+#else
   cudaMemcpyAsync(buffers_[input_index_], input_data.data(), input_size, cudaMemcpyHostToDevice, stream_);
   context_->enqueueV2(buffers_, stream_, nullptr);
   cudaMemcpyAsync(output_data.data(), buffers_[output_index_], output_bytes, cudaMemcpyDeviceToHost, stream_);
+#endif
   cudaStreamSynchronize(stream_);
 }
 

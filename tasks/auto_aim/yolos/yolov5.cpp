@@ -5,6 +5,7 @@
 #include <yaml-cpp/yaml.h>
 
 #include <filesystem>
+#include <algorithm>
 
 #include "tools/img_tools.hpp"
 #include "tools/logger.hpp"
@@ -32,7 +33,16 @@ YOLOV5::YOLOV5(const std::string & config_path, bool debug)
 
   save_path_ = "imgs";
   std::filesystem::create_directory(save_path_);
-  trt_infer_ = std::make_unique<TRTInfer>(model_path_);
+
+  auto ext = std::filesystem::path(model_path_).extension().string();
+  std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+  if (ext == ".engine" || ext == ".trt") {
+    use_trt_ = true;
+    trt_infer_ = std::make_unique<TRTInfer>(model_path_);
+  } else {
+    use_trt_ = false;
+    yolo_net_ = cv::dnn::readNet(model_path_);
+  }
   /*
   ov::preprocess::PrePostProcessor ppp(model);
   auto & input = ppp.input();
@@ -98,11 +108,29 @@ std::list<Armor> YOLOV5::detect_impl(const cv::Mat & raw_img, int frame_count, c
   auto roi = cv::Rect(0, 0, w, h);
   cv::resize(bgr_img, input(roi), {w, h});
   cv::Mat blob = cv::dnn::blobFromImage(input, 1.0 / 255.0, cv::Size(), cv::Scalar(), true, false);
-  std::vector<float> input_data((float*)blob.data, (float*)blob.data + 1 * 3 * 640 * 640);
-  int output_elements = 25200 * 22;
-  std::vector<float> output_data(output_elements);
-  trt_infer_->infer(input_data, output_data, 640, 640, 3, output_elements);
-  cv::Mat output(25200, 22, CV_32F, output_data.data());
+  cv::Mat output;
+  if (use_trt_) {
+    std::vector<float> input_data((float*)blob.data, (float*)blob.data + 1 * 3 * 640 * 640);
+    int output_elements = 25200 * 22;
+    std::vector<float> output_data(output_elements);
+    trt_infer_->infer(input_data, output_data, 640, 640, 3, output_elements);
+    output = cv::Mat(25200, 22, CV_32F, output_data.data()).clone();
+  } else {
+    yolo_net_.setInput(blob);
+    cv::Mat raw = yolo_net_.forward();
+    if (raw.dims == 3 && raw.size[0] == 1) {
+      output = cv::Mat(raw.size[1], raw.size[2], CV_32F, raw.ptr<float>()).clone();
+    } else if (raw.dims == 4 && raw.size[0] == 1 && raw.size[1] == 1) {
+      output = cv::Mat(raw.size[2], raw.size[3], CV_32F, raw.ptr<float>()).clone();
+    } else if (raw.dims == 2) {
+      output = raw;
+    } else {
+      throw std::runtime_error("Unsupported YOLOv5 output shape from OpenCV DNN");
+    }
+    if (output.rows == 22 && output.cols == 25200) {
+      output = output.t();
+    }
+  }
 
   return parse(scale, output, raw_img, frame_count, out_debug_img);
 }

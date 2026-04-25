@@ -12,4 +12,4 @@ add_library(auto_buff OBJECT
     yolo11_buff.cpp
 )
 
-target_link_libraries(auto_buff auto_aim nvinfer nvonnxparser cudart ${CERES_LIBRARIES})
+target_link_libraries(auto_buff auto_aim nvinfer nvonnxparser CUDA::cudart ${CERES_LIBRARIES})

@@ -4,6 +4,7 @@
 #include <yaml-cpp/yaml.h>
 
 #include <filesystem>
+#include <numeric>
 
 #include "tools/img_tools.hpp"
 #include "tools/logger.hpp"
