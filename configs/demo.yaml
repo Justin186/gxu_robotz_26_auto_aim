@@ -9,7 +9,7 @@ yolov8_model_path: assets/0526.trt
 yolov5_model_path: assets/0526_fp16.trt
 device: GPU
 min_confidence: 0.8
-use_traditional: true
+use_traditional: false
 
 #####-----ROI-----#####
 roi: 

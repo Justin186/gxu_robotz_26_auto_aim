@@ -88,70 +88,78 @@ void TRTInfer::build_from_onnx(const std::string& onnx_path) {
   context_ = std::unique_ptr<nvinfer1::IExecutionContext>(engine_->createExecutionContext());
 }
 
-void TRTInfer::infer(const std::vector<float>& input_data, std::vector<float>& output_data, 
+void TRTInfer::infer(const std::vector<float>& input_data, std::vector<float>& output_data,
                      int input_w, int input_h, int input_c, int output_size) {
-  const size_t input_count = static_cast<size_t>(input_w) * input_h * input_c;
   const size_t output_count = static_cast<size_t>(output_size);
-
   if (output_data.size() < output_count) {
     output_data.resize(output_count);
   }
+  infer(input_data.data(), output_data.data(), input_w, input_h, input_c, output_size);
+}
 
-  if (buffers_[0] == nullptr) {
+void TRTInfer::ensure_io_initialized(size_t input_count, size_t output_count) {
+  if (buffers_[0] != nullptr) {
+    return;
+  }
+
 #if NV_TENSORRT_MAJOR >= 10
-    input_index_ = -1;
-    output_index_ = -1;
-    const int io_count = engine_->getNbIOTensors();
-    for (int i = 0; i < io_count; ++i) {
-      const char* tensor_name = engine_->getIOTensorName(i);
-      if (engine_->getTensorIOMode(tensor_name) == nvinfer1::TensorIOMode::kINPUT) {
-        input_index_ = i;
-        input_tensor_name_ = tensor_name;
-      } else {
-        output_index_ = i;
-        output_tensor_name_ = tensor_name;
-      }
+  input_index_ = -1;
+  output_index_ = -1;
+  const int io_count = engine_->getNbIOTensors();
+  for (int i = 0; i < io_count; ++i) {
+    const char* tensor_name = engine_->getIOTensorName(i);
+    if (engine_->getTensorIOMode(tensor_name) == nvinfer1::TensorIOMode::kINPUT) {
+      input_index_ = i;
+      input_tensor_name_ = tensor_name;
+    } else {
+      output_index_ = i;
+      output_tensor_name_ = tensor_name;
     }
-    if (input_index_ < 0 || output_index_ < 0) {
-      throw std::runtime_error("Failed to locate TensorRT input/output tensors");
-    }
-    input_dtype_ = engine_->getTensorDataType(input_tensor_name_.c_str());
-    output_dtype_ = engine_->getTensorDataType(output_tensor_name_.c_str());
-    input_bytes_ = input_count * get_data_type_size(input_dtype_);
-    output_bytes_ = output_count * get_data_type_size(output_dtype_);
-    cudaMalloc(&buffers_[0], input_bytes_);
-    cudaMalloc(&buffers_[1], output_bytes_);
+  }
+  if (input_index_ < 0 || output_index_ < 0) {
+    throw std::runtime_error("Failed to locate TensorRT input/output tensors");
+  }
+  input_dtype_ = engine_->getTensorDataType(input_tensor_name_.c_str());
+  output_dtype_ = engine_->getTensorDataType(output_tensor_name_.c_str());
+  input_bytes_ = input_count * get_data_type_size(input_dtype_);
+  output_bytes_ = output_count * get_data_type_size(output_dtype_);
+  cudaMalloc(&buffers_[0], input_bytes_);
+  cudaMalloc(&buffers_[1], output_bytes_);
 #else
-      input_index_ = 0; // Default to 0 for input
-      for (int i = 0; i < engine_->getNbBindings(); ++i) {
-          if (engine_->bindingIsInput(i)) {
-              input_index_ = i;
-              break;
-          }
-      }
-      output_index_ = 1 - input_index_;
-      input_dtype_ = engine_->getBindingDataType(input_index_);
-      output_dtype_ = engine_->getBindingDataType(output_index_);
-      input_bytes_ = input_count * get_data_type_size(input_dtype_);
-      output_bytes_ = output_count * get_data_type_size(output_dtype_);
-      cudaMalloc(&buffers_[input_index_], input_bytes_);
-      cudaMalloc(&buffers_[output_index_], output_bytes_);
+  input_index_ = 0;
+  for (int i = 0; i < engine_->getNbBindings(); ++i) {
+    if (engine_->bindingIsInput(i)) {
+      input_index_ = i;
+      break;
+    }
+  }
+  output_index_ = 1 - input_index_;
+  input_dtype_ = engine_->getBindingDataType(input_index_);
+  output_dtype_ = engine_->getBindingDataType(output_index_);
+  input_bytes_ = input_count * get_data_type_size(input_dtype_);
+  output_bytes_ = output_count * get_data_type_size(output_dtype_);
+  cudaMalloc(&buffers_[input_index_], input_bytes_);
+  cudaMalloc(&buffers_[output_index_], output_bytes_);
 #endif
-  }
+}
 
-  std::vector<uint16_t> input_fp16;
-  const void* input_host_ptr = input_data.data();
+void TRTInfer::infer(const float* input_data, float* output_data,
+                     int input_w, int input_h, int input_c, int output_size) {
+  const size_t input_count = static_cast<size_t>(input_w) * input_h * input_c;
+  const size_t output_count = static_cast<size_t>(output_size);
+  ensure_io_initialized(input_count, output_count);
+
+  const void* input_host_ptr = input_data;
   if (input_dtype_ == nvinfer1::DataType::kHALF) {
-    input_fp16.resize(input_count);
-    convert_fp32_to_fp16(input_data.data(), input_fp16.data(), input_count);
-    input_host_ptr = input_fp16.data();
+    input_fp16_buffer_.resize(input_count);
+    convert_fp32_to_fp16(input_data, input_fp16_buffer_.data(), input_count);
+    input_host_ptr = input_fp16_buffer_.data();
   }
 
-  std::vector<uint16_t> output_fp16;
-  void* output_host_ptr = output_data.data();
+  void* output_host_ptr = output_data;
   if (output_dtype_ == nvinfer1::DataType::kHALF) {
-    output_fp16.resize(output_count);
-    output_host_ptr = output_fp16.data();
+    output_fp16_buffer_.resize(output_count);
+    output_host_ptr = output_fp16_buffer_.data();
   }
 
 #if NV_TENSORRT_MAJOR >= 10
@@ -170,7 +178,46 @@ void TRTInfer::infer(const std::vector<float>& input_data, std::vector<float>& o
   cudaStreamSynchronize(stream_);
 
   if (output_dtype_ == nvinfer1::DataType::kHALF) {
-    convert_fp16_to_fp32(output_fp16.data(), output_data.data(), output_count);
+    convert_fp16_to_fp32(output_fp16_buffer_.data(), output_data, output_count);
+  }
+}
+
+void TRTInfer::infer(const uint16_t* input_data, float* output_data,
+                     int input_w, int input_h, int input_c, int output_size) {
+  const size_t input_count = static_cast<size_t>(input_w) * input_h * input_c;
+  const size_t output_count = static_cast<size_t>(output_size);
+  ensure_io_initialized(input_count, output_count);
+
+  const void* input_host_ptr = input_data;
+  if (input_dtype_ != nvinfer1::DataType::kHALF) {
+    input_fp32_buffer_.resize(input_count);
+    convert_fp16_to_fp32(input_data, input_fp32_buffer_.data(), input_count);
+    input_host_ptr = input_fp32_buffer_.data();
+  }
+
+  void* output_host_ptr = output_data;
+  if (output_dtype_ == nvinfer1::DataType::kHALF) {
+    output_fp16_buffer_.resize(output_count);
+    output_host_ptr = output_fp16_buffer_.data();
+  }
+
+#if NV_TENSORRT_MAJOR >= 10
+  nvinfer1::Dims4 input_shape{1, input_c, input_h, input_w};
+  context_->setInputShape(input_tensor_name_.c_str(), input_shape);
+  context_->setTensorAddress(input_tensor_name_.c_str(), buffers_[0]);
+  context_->setTensorAddress(output_tensor_name_.c_str(), buffers_[1]);
+  cudaMemcpyAsync(buffers_[0], input_host_ptr, input_bytes_, cudaMemcpyHostToDevice, stream_);
+  context_->enqueueV3(stream_);
+  cudaMemcpyAsync(output_host_ptr, buffers_[1], output_bytes_, cudaMemcpyDeviceToHost, stream_);
+#else
+  cudaMemcpyAsync(buffers_[input_index_], input_host_ptr, input_bytes_, cudaMemcpyHostToDevice, stream_);
+  context_->enqueueV2(buffers_, stream_, nullptr);
+  cudaMemcpyAsync(output_host_ptr, buffers_[output_index_], output_bytes_, cudaMemcpyDeviceToHost, stream_);
+#endif
+  cudaStreamSynchronize(stream_);
+
+  if (output_dtype_ == nvinfer1::DataType::kHALF) {
+    convert_fp16_to_fp32(output_fp16_buffer_.data(), output_data, output_count);
   }
 }
 

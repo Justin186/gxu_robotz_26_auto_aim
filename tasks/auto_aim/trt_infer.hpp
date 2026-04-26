@@ -7,6 +7,7 @@
 #include <vector>
 #include <memory>
 #include <cstddef>
+#include <cstdint>
 #include <cuda_runtime_api.h>
 #if NV_TENSORRT_MAJOR >= 10
 #include <NvInferRuntime.h>
@@ -29,6 +30,10 @@ public:
 
   void infer(const std::vector<float>& input_data, std::vector<float>& output_data, 
              int input_w, int input_h, int input_c, int output_size);
+  void infer(const float* input_data, float* output_data,
+             int input_w, int input_h, int input_c, int output_size);
+  void infer(const uint16_t* input_data, float* output_data,
+             int input_w, int input_h, int input_c, int output_size);
 
 private:
   void build_from_onnx(const std::string& onnx_path);
@@ -36,6 +41,7 @@ private:
   size_t get_data_type_size(nvinfer1::DataType type) const;
   void convert_fp32_to_fp16(const float* src, void* dst, size_t count) const;
   void convert_fp16_to_fp32(const void* src, float* dst, size_t count) const;
+  void ensure_io_initialized(size_t input_count, size_t output_count);
   
   TRTLogger logger_;
   std::unique_ptr<nvinfer1::IRuntime> runtime_;
@@ -50,6 +56,9 @@ private:
   nvinfer1::DataType output_dtype_;
   int input_index_;
   int output_index_;
+  std::vector<float> input_fp32_buffer_;
+  std::vector<uint16_t> input_fp16_buffer_;
+  std::vector<uint16_t> output_fp16_buffer_;
 #if NV_TENSORRT_MAJOR >= 10
   std::string input_tensor_name_;
   std::string output_tensor_name_;

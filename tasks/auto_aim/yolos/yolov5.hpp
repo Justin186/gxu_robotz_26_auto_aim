@@ -4,6 +4,8 @@
 #include <list>
 #include <opencv2/opencv.hpp>
 #include <memory>
+#include <array>
+#include <cstdint>
 class TRTInfer;
 #include <string>
 #include <vector>
@@ -39,6 +41,15 @@ private:
 
   std::unique_ptr<TRTInfer> trt_infer_;
   cv::dnn::Net yolo_net_;
+  cv::Mat net_input_;
+  cv::Mat blob_;
+  std::vector<uint16_t> trt_input_buffer_;
+  std::vector<float> trt_output_buffer_;
+  std::vector<int> parse_color_ids_;
+  std::vector<int> parse_num_ids_;
+  std::vector<float> parse_confidences_;
+  std::vector<cv::Rect> parse_boxes_;
+  std::vector<std::array<cv::Point2f, 4>> parse_keypoints_;
 
   cv::Rect roi_;
   cv::Point2f offset_;

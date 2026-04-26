@@ -6,12 +6,39 @@
 
 #include <filesystem>
 #include <algorithm>
+#include <chrono>
+#include <cstdint>
+#include <cstring>
 
 #include "tools/img_tools.hpp"
 #include "tools/logger.hpp"
 
 namespace auto_aim
 {
+namespace
+{
+uint16_t fp32_to_fp16_bits(float x)
+{
+  uint32_t bits;
+  std::memcpy(&bits, &x, sizeof(float));
+  uint32_t sign = (bits >> 16) & 0x8000u;
+  uint32_t mantissa = bits & 0x007fffffu;
+  int32_t exp = static_cast<int32_t>((bits >> 23) & 0xffu) - 127 + 15;
+
+  if (exp <= 0) {
+    if (exp < -10) {
+      return static_cast<uint16_t>(sign);
+    }
+    mantissa = (mantissa | 0x00800000u) >> (1 - exp);
+    return static_cast<uint16_t>(sign | ((mantissa + 0x00001000u) >> 13));
+  }
+  if (exp >= 31) {
+    return static_cast<uint16_t>(sign | 0x7c00u);
+  }
+  return static_cast<uint16_t>(sign | (static_cast<uint32_t>(exp) << 10) | ((mantissa + 0x00001000u) >> 13));
+}
+}  // namespace
+
 YOLOV5::YOLOV5(const std::string & config_path, bool debug)
 : debug_(debug), detector_(config_path, false)
 {
@@ -33,6 +60,14 @@ YOLOV5::YOLOV5(const std::string & config_path, bool debug)
 
   save_path_ = "imgs";
   std::filesystem::create_directory(save_path_);
+  net_input_ = cv::Mat(640, 640, CV_8UC3, cv::Scalar(0, 0, 0));
+  trt_input_buffer_.resize(3 * 640 * 640);
+  trt_output_buffer_.resize(25200 * 22);
+  parse_color_ids_.reserve(25200);
+  parse_num_ids_.reserve(25200);
+  parse_confidences_.reserve(25200);
+  parse_boxes_.reserve(25200);
+  parse_keypoints_.reserve(25200);
 
   auto ext = std::filesystem::path(model_path_).extension().string();
   std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
@@ -79,6 +114,7 @@ std::list<Armor> YOLOV5::detect(const cv::Mat & raw_img, int frame_count, cv::Ma
 
 std::list<Armor> YOLOV5::detect_impl(const cv::Mat & raw_img, int frame_count, cv::Mat * out_debug_img)
 {
+  const auto t_total_begin = std::chrono::steady_clock::now();
   if (raw_img.empty()) {
     tools::logger()->warn("Empty img!, camera drop!");
     return std::list<Armor>();
@@ -104,22 +140,46 @@ std::list<Armor> YOLOV5::detect_impl(const cv::Mat & raw_img, int frame_count, c
   auto w = static_cast<int>(bgr_img.cols * scale);
 
   // preproces
-  auto input = cv::Mat(640, 640, CV_8UC3, cv::Scalar(0, 0, 0));
+  const auto t_pre_begin = std::chrono::steady_clock::now();
+  net_input_.setTo(cv::Scalar(0, 0, 0));
   auto roi = cv::Rect(0, 0, w, h);
-  cv::resize(bgr_img, input(roi), {w, h});
-  cv::Mat blob = cv::dnn::blobFromImage(input, 1.0 / 255.0, cv::Size(), cv::Scalar(), true, false);
+  cv::resize(bgr_img, net_input_(roi), {w, h});
+  if (use_trt_) {
+    constexpr int input_h = 640;
+    constexpr int input_w = 640;
+    constexpr float inv_255 = 1.0f / 255.0f;
+    const int channel_stride = input_h * input_w;
+    uint16_t * r = trt_input_buffer_.data();
+    uint16_t * g = r + channel_stride;
+    uint16_t * b = g + channel_stride;
+
+    for (int y = 0; y < input_h; ++y) {
+      const cv::Vec3b * row_ptr = net_input_.ptr<cv::Vec3b>(y);
+      int base = y * input_w;
+      for (int x = 0; x < input_w; ++x) {
+        const cv::Vec3b & px = row_ptr[x];
+        const int idx = base + x;
+        r[idx] = fp32_to_fp16_bits(static_cast<float>(px[2]) * inv_255);
+        g[idx] = fp32_to_fp16_bits(static_cast<float>(px[1]) * inv_255);
+        b[idx] = fp32_to_fp16_bits(static_cast<float>(px[0]) * inv_255);
+      }
+    }
+  } else {
+    cv::dnn::blobFromImage(net_input_, blob_, 1.0 / 255.0, cv::Size(), cv::Scalar(), true, false, CV_32F);
+  }
+  const auto t_pre_end = std::chrono::steady_clock::now();
+
+  const auto t_infer_begin = std::chrono::steady_clock::now();
   cv::Mat output;
   if (use_trt_) {
-    std::vector<float> input_data((float*)blob.data, (float*)blob.data + 1 * 3 * 640 * 640);
     int output_elements = 25200 * 22;
-    std::vector<float> output_data(output_elements);
-    trt_infer_->infer(input_data, output_data, 640, 640, 3, output_elements);
-    output = cv::Mat(25200, 22, CV_32F, output_data.data()).clone();
+    trt_infer_->infer(trt_input_buffer_.data(), trt_output_buffer_.data(), 640, 640, 3, output_elements);
+    output = cv::Mat(25200, 22, CV_32F, trt_output_buffer_.data());
     if (output.rows == 22 && output.cols == 25200) {
       output = output.t();
     }
   } else {
-    yolo_net_.setInput(blob);
+    yolo_net_.setInput(blob_);
     cv::Mat raw = yolo_net_.forward();
     if (raw.dims == 3 && raw.size[0] == 1) {
       output = cv::Mat(raw.size[1], raw.size[2], CV_32F, raw.ptr<float>()).clone();
@@ -134,77 +194,101 @@ std::list<Armor> YOLOV5::detect_impl(const cv::Mat & raw_img, int frame_count, c
       output = output.t();
     }
   }
+  const auto t_infer_end = std::chrono::steady_clock::now();
 
-  return parse(scale, output, raw_img, frame_count, out_debug_img);
+  const auto t_post_begin = std::chrono::steady_clock::now();
+  auto armors = parse(scale, output, raw_img, frame_count, out_debug_img);
+  const auto t_post_end = std::chrono::steady_clock::now();
+
+  if (frame_count >= 0 && frame_count % 30 == 0) {
+    const double pre_ms = std::chrono::duration<double, std::milli>(t_pre_end - t_pre_begin).count();
+    const double infer_ms = std::chrono::duration<double, std::milli>(t_infer_end - t_infer_begin).count();
+    const double post_ms = std::chrono::duration<double, std::milli>(t_post_end - t_post_begin).count();
+    const double total_ms = std::chrono::duration<double, std::milli>(t_post_end - t_total_begin).count();
+    tools::logger()->info(
+      "[YOLOv5 profile] frame={} pre={:.2f}ms infer={:.2f}ms post={:.2f}ms total={:.2f}ms",
+      frame_count, pre_ms, infer_ms, post_ms, total_ms);
+  }
+
+  return armors;
 }
 
 std::list<Armor> YOLOV5::parse(
   double scale, cv::Mat & output, const cv::Mat & bgr_img, int frame_count, cv::Mat * out_debug_img)
 {
   // for each row: xywh + classess
-  std::vector<int> color_ids, num_ids;
-  std::vector<float> confidences;
-  std::vector<cv::Rect> boxes;
-  std::vector<std::vector<cv::Point2f>> armors_key_points;
+  parse_color_ids_.clear();
+  parse_num_ids_.clear();
+  parse_confidences_.clear();
+  parse_boxes_.clear();
+  parse_keypoints_.clear();
+
   for (int r = 0; r < output.rows; r++) {
-    double score = output.at<float>(r, 8);
+    const float * row = output.ptr<float>(r);
+    double score = row[8];
     score = sigmoid(score);
 
     if (score < score_threshold_) continue;
 
-    std::vector<cv::Point2f> armor_key_points;
+    int _color_id = 0;
+    int _class_id = 0;
+    float color_max = row[9];
+    for (int i = 1; i < 4; ++i) {
+      if (row[9 + i] > color_max) {
+        color_max = row[9 + i];
+        _color_id = i;
+      }
+    }
+    float class_max = row[13];
+    for (int i = 1; i < 9; ++i) {
+      if (row[13 + i] > class_max) {
+        class_max = row[13 + i];
+        _class_id = i;
+      }
+    }
 
-    //颜色和类别独热向量
-    cv::Mat color_scores = output.row(r).colRange(9, 13);     //color
-    cv::Mat classes_scores = output.row(r).colRange(13, 22);  //num
-    cv::Point class_id, color_id;
-    int _class_id, _color_id;
-    double score_color, score_num;
-    cv::minMaxLoc(classes_scores, NULL, &score_num, NULL, &class_id);
-    cv::minMaxLoc(color_scores, NULL, &score_color, NULL, &color_id);
-    _class_id = class_id.x;
-    _color_id = color_id.x;
+    std::array<cv::Point2f, 4> keypoints{
+      cv::Point2f(row[0] / scale, row[1] / scale),
+      cv::Point2f(row[6] / scale, row[7] / scale),
+      cv::Point2f(row[4] / scale, row[5] / scale),
+      cv::Point2f(row[2] / scale, row[3] / scale)};
 
-    armor_key_points.push_back(
-      cv::Point2f(output.at<float>(r, 0) / scale, output.at<float>(r, 1) / scale));
-    armor_key_points.push_back(
-      cv::Point2f(output.at<float>(r, 6) / scale, output.at<float>(r, 7) / scale));
-    armor_key_points.push_back(
-      cv::Point2f(output.at<float>(r, 4) / scale, output.at<float>(r, 5) / scale));
-    armor_key_points.push_back(
-      cv::Point2f(output.at<float>(r, 2) / scale, output.at<float>(r, 3) / scale));
+    float min_x = keypoints[0].x;
+    float max_x = keypoints[0].x;
+    float min_y = keypoints[0].y;
+    float max_y = keypoints[0].y;
 
-    float min_x = armor_key_points[0].x;
-    float max_x = armor_key_points[0].x;
-    float min_y = armor_key_points[0].y;
-    float max_y = armor_key_points[0].y;
-
-    for (int i = 1; i < armor_key_points.size(); i++) {
-      if (armor_key_points[i].x < min_x) min_x = armor_key_points[i].x;
-      if (armor_key_points[i].x > max_x) max_x = armor_key_points[i].x;
-      if (armor_key_points[i].y < min_y) min_y = armor_key_points[i].y;
-      if (armor_key_points[i].y > max_y) max_y = armor_key_points[i].y;
+    for (size_t i = 1; i < keypoints.size(); i++) {
+      if (keypoints[i].x < min_x) min_x = keypoints[i].x;
+      if (keypoints[i].x > max_x) max_x = keypoints[i].x;
+      if (keypoints[i].y < min_y) min_y = keypoints[i].y;
+      if (keypoints[i].y > max_y) max_y = keypoints[i].y;
     }
 
     cv::Rect rect(min_x, min_y, max_x - min_x, max_y - min_y);
 
-    color_ids.emplace_back(_color_id);
-    num_ids.emplace_back(_class_id);
-    boxes.emplace_back(rect);
-    confidences.emplace_back(score);
-    armors_key_points.emplace_back(armor_key_points);
+    parse_color_ids_.emplace_back(_color_id);
+    parse_num_ids_.emplace_back(_class_id);
+    parse_boxes_.emplace_back(rect);
+    parse_confidences_.emplace_back(score);
+    parse_keypoints_.emplace_back(keypoints);
   }
 
   std::vector<int> indices;
-  cv::dnn::NMSBoxes(boxes, confidences, score_threshold_, nms_threshold_, indices);
+  cv::dnn::NMSBoxes(parse_boxes_, parse_confidences_, score_threshold_, nms_threshold_, indices);
 
   std::list<Armor> armors;
   for (const auto & i : indices) {
+    std::vector<cv::Point2f> armor_key_points{
+      parse_keypoints_[i][0], parse_keypoints_[i][1], parse_keypoints_[i][2], parse_keypoints_[i][3]};
     if (use_roi_) {
       armors.emplace_back(
-        color_ids[i], num_ids[i], confidences[i], boxes[i], armors_key_points[i], offset_);
+        parse_color_ids_[i], parse_num_ids_[i], parse_confidences_[i], parse_boxes_[i],
+        std::move(armor_key_points), offset_);
     } else {
-      armors.emplace_back(color_ids[i], num_ids[i], confidences[i], boxes[i], armors_key_points[i]);
+      armors.emplace_back(
+        parse_color_ids_[i], parse_num_ids_[i], parse_confidences_[i], parse_boxes_[i],
+        std::move(armor_key_points));
     }
   }
 
