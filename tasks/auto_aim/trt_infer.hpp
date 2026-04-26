@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <cstddef>
 #include <cuda_runtime_api.h>
 #if NV_TENSORRT_MAJOR >= 10
 #include <NvInferRuntime.h>
@@ -32,6 +33,9 @@ public:
 private:
   void build_from_onnx(const std::string& onnx_path);
   void load_engine(const std::string& engine_path);
+  size_t get_data_type_size(nvinfer1::DataType type) const;
+  void convert_fp32_to_fp16(const float* src, void* dst, size_t count) const;
+  void convert_fp16_to_fp32(const void* src, float* dst, size_t count) const;
   
   TRTLogger logger_;
   std::unique_ptr<nvinfer1::IRuntime> runtime_;
@@ -40,6 +44,10 @@ private:
   cudaStream_t stream_;
   
   void* buffers_[2];
+  size_t input_bytes_;
+  size_t output_bytes_;
+  nvinfer1::DataType input_dtype_;
+  nvinfer1::DataType output_dtype_;
   int input_index_;
   int output_index_;
 #if NV_TENSORRT_MAJOR >= 10

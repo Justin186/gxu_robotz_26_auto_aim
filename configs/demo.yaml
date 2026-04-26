@@ -6,7 +6,7 @@ yolo_name: yolov5
 classify_model: assets/tiny_resnet.onnx
 yolo11_model_path: assets/0526.trt
 yolov8_model_path: assets/0526.trt
-yolov5_model_path: assets/0526.trt
+yolov5_model_path: assets/0526_fp16.trt
 device: GPU
 min_confidence: 0.8
 use_traditional: true

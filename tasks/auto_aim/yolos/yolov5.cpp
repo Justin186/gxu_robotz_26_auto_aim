@@ -115,6 +115,9 @@ std::list<Armor> YOLOV5::detect_impl(const cv::Mat & raw_img, int frame_count, c
     std::vector<float> output_data(output_elements);
     trt_infer_->infer(input_data, output_data, 640, 640, 3, output_elements);
     output = cv::Mat(25200, 22, CV_32F, output_data.data()).clone();
+    if (output.rows == 22 && output.cols == 25200) {
+      output = output.t();
+    }
   } else {
     yolo_net_.setInput(blob);
     cv::Mat raw = yolo_net_.forward();
