@@ -31,6 +31,8 @@ TRTInfer::TRTInfer(const std::string& model_path) {
   output_dtype_ = nvinfer1::DataType::kFLOAT;
   input_index_ = 0;
   output_index_ = 1;
+  host_input_staging_ = nullptr;
+  host_output_staging_ = nullptr;
   cudaStreamCreate(&stream_);
   auto path = std::filesystem::path(model_path);
   if (path.extension() == ".engine" || path.extension() == ".trt") {
@@ -43,6 +45,8 @@ TRTInfer::TRTInfer(const std::string& model_path) {
 TRTInfer::~TRTInfer() {
   if (buffers_[0]) cudaFree(buffers_[0]);
   if (buffers_[1]) cudaFree(buffers_[1]);
+  if (host_input_staging_) cudaFreeHost(host_input_staging_);
+  if (host_output_staging_) cudaFreeHost(host_output_staging_);
   cudaStreamDestroy(stream_);
 }
 
@@ -141,6 +145,9 @@ void TRTInfer::ensure_io_initialized(size_t input_count, size_t output_count) {
   cudaMalloc(&buffers_[input_index_], input_bytes_);
   cudaMalloc(&buffers_[output_index_], output_bytes_);
 #endif
+
+  cudaHostAlloc(&host_input_staging_, input_bytes_, cudaHostAllocDefault);
+  cudaHostAlloc(&host_output_staging_, output_bytes_, cudaHostAllocDefault);
 }
 
 void TRTInfer::infer(const float* input_data, float* output_data,
@@ -162,20 +169,28 @@ void TRTInfer::infer(const float* input_data, float* output_data,
     output_host_ptr = output_fp16_buffer_.data();
   }
 
+  std::memcpy(host_input_staging_, input_host_ptr, input_bytes_);
+
 #if NV_TENSORRT_MAJOR >= 10
   nvinfer1::Dims4 input_shape{1, input_c, input_h, input_w};
   context_->setInputShape(input_tensor_name_.c_str(), input_shape);
   context_->setTensorAddress(input_tensor_name_.c_str(), buffers_[0]);
   context_->setTensorAddress(output_tensor_name_.c_str(), buffers_[1]);
-  cudaMemcpyAsync(buffers_[0], input_host_ptr, input_bytes_, cudaMemcpyHostToDevice, stream_);
+  cudaMemcpyAsync(buffers_[0], host_input_staging_, input_bytes_, cudaMemcpyHostToDevice, stream_);
   context_->enqueueV3(stream_);
-  cudaMemcpyAsync(output_host_ptr, buffers_[1], output_bytes_, cudaMemcpyDeviceToHost, stream_);
+  cudaMemcpyAsync(host_output_staging_, buffers_[1], output_bytes_, cudaMemcpyDeviceToHost, stream_);
 #else
-  cudaMemcpyAsync(buffers_[input_index_], input_host_ptr, input_bytes_, cudaMemcpyHostToDevice, stream_);
+  cudaMemcpyAsync(buffers_[input_index_], host_input_staging_, input_bytes_, cudaMemcpyHostToDevice, stream_);
   context_->enqueueV2(buffers_, stream_, nullptr);
-  cudaMemcpyAsync(output_host_ptr, buffers_[output_index_], output_bytes_, cudaMemcpyDeviceToHost, stream_);
+  cudaMemcpyAsync(host_output_staging_, buffers_[output_index_], output_bytes_, cudaMemcpyDeviceToHost, stream_);
 #endif
   cudaStreamSynchronize(stream_);
+
+  if (output_dtype_ == nvinfer1::DataType::kHALF) {
+    std::memcpy(output_fp16_buffer_.data(), host_output_staging_, output_bytes_);
+  } else {
+    std::memcpy(output_data, host_output_staging_, output_bytes_);
+  }
 
   if (output_dtype_ == nvinfer1::DataType::kHALF) {
     convert_fp16_to_fp32(output_fp16_buffer_.data(), output_data, output_count);
@@ -201,20 +216,28 @@ void TRTInfer::infer(const uint16_t* input_data, float* output_data,
     output_host_ptr = output_fp16_buffer_.data();
   }
 
+  std::memcpy(host_input_staging_, input_host_ptr, input_bytes_);
+
 #if NV_TENSORRT_MAJOR >= 10
   nvinfer1::Dims4 input_shape{1, input_c, input_h, input_w};
   context_->setInputShape(input_tensor_name_.c_str(), input_shape);
   context_->setTensorAddress(input_tensor_name_.c_str(), buffers_[0]);
   context_->setTensorAddress(output_tensor_name_.c_str(), buffers_[1]);
-  cudaMemcpyAsync(buffers_[0], input_host_ptr, input_bytes_, cudaMemcpyHostToDevice, stream_);
+  cudaMemcpyAsync(buffers_[0], host_input_staging_, input_bytes_, cudaMemcpyHostToDevice, stream_);
   context_->enqueueV3(stream_);
-  cudaMemcpyAsync(output_host_ptr, buffers_[1], output_bytes_, cudaMemcpyDeviceToHost, stream_);
+  cudaMemcpyAsync(host_output_staging_, buffers_[1], output_bytes_, cudaMemcpyDeviceToHost, stream_);
 #else
-  cudaMemcpyAsync(buffers_[input_index_], input_host_ptr, input_bytes_, cudaMemcpyHostToDevice, stream_);
+  cudaMemcpyAsync(buffers_[input_index_], host_input_staging_, input_bytes_, cudaMemcpyHostToDevice, stream_);
   context_->enqueueV2(buffers_, stream_, nullptr);
-  cudaMemcpyAsync(output_host_ptr, buffers_[output_index_], output_bytes_, cudaMemcpyDeviceToHost, stream_);
+  cudaMemcpyAsync(host_output_staging_, buffers_[output_index_], output_bytes_, cudaMemcpyDeviceToHost, stream_);
 #endif
   cudaStreamSynchronize(stream_);
+
+  if (output_dtype_ == nvinfer1::DataType::kHALF) {
+    std::memcpy(output_fp16_buffer_.data(), host_output_staging_, output_bytes_);
+  } else {
+    std::memcpy(output_data, host_output_staging_, output_bytes_);
+  }
 
   if (output_dtype_ == nvinfer1::DataType::kHALF) {
     convert_fp16_to_fp32(output_fp16_buffer_.data(), output_data, output_count);

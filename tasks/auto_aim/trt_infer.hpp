@@ -59,6 +59,8 @@ private:
   std::vector<float> input_fp32_buffer_;
   std::vector<uint16_t> input_fp16_buffer_;
   std::vector<uint16_t> output_fp16_buffer_;
+  void* host_input_staging_;
+  void* host_output_staging_;
 #if NV_TENSORRT_MAJOR >= 10
   std::string input_tensor_name_;
   std::string output_tensor_name_;

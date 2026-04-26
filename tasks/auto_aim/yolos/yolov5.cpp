@@ -68,6 +68,9 @@ YOLOV5::YOLOV5(const std::string & config_path, bool debug)
   parse_confidences_.reserve(25200);
   parse_boxes_.reserve(25200);
   parse_keypoints_.reserve(25200);
+  for (int i = 0; i < 256; ++i) {
+    fp16_lut_[i] = fp32_to_fp16_bits(static_cast<float>(i) / 255.0f);
+  }
 
   auto ext = std::filesystem::path(model_path_).extension().string();
   std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
@@ -147,7 +150,6 @@ std::list<Armor> YOLOV5::detect_impl(const cv::Mat & raw_img, int frame_count, c
   if (use_trt_) {
     constexpr int input_h = 640;
     constexpr int input_w = 640;
-    constexpr float inv_255 = 1.0f / 255.0f;
     const int channel_stride = input_h * input_w;
     uint16_t * r = trt_input_buffer_.data();
     uint16_t * g = r + channel_stride;
@@ -159,9 +161,9 @@ std::list<Armor> YOLOV5::detect_impl(const cv::Mat & raw_img, int frame_count, c
       for (int x = 0; x < input_w; ++x) {
         const cv::Vec3b & px = row_ptr[x];
         const int idx = base + x;
-        r[idx] = fp32_to_fp16_bits(static_cast<float>(px[2]) * inv_255);
-        g[idx] = fp32_to_fp16_bits(static_cast<float>(px[1]) * inv_255);
-        b[idx] = fp32_to_fp16_bits(static_cast<float>(px[0]) * inv_255);
+        r[idx] = fp16_lut_[px[2]];
+        g[idx] = fp16_lut_[px[1]];
+        b[idx] = fp16_lut_[px[0]];
       }
     }
   } else {

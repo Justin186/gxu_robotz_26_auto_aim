@@ -50,6 +50,7 @@ private:
   std::vector<float> parse_confidences_;
   std::vector<cv::Rect> parse_boxes_;
   std::vector<std::array<cv::Point2f, 4>> parse_keypoints_;
+  std::array<uint16_t, 256> fp16_lut_;
 
   cv::Rect roi_;
   cv::Point2f offset_;
