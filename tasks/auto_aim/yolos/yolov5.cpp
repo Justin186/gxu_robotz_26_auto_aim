@@ -37,6 +37,41 @@ uint16_t fp32_to_fp16_bits(float x)
   }
   return static_cast<uint16_t>(sign | (static_cast<uint32_t>(exp) << 10) | ((mantissa + 0x00001000u) >> 13));
 }
+
+float fp16_bits_to_fp32(uint16_t x)
+{
+#if defined(__aarch64__) || defined(__ARM_FEATURE_FP16_SCALAR_ARITHMETIC)
+  const __fp16 h = *reinterpret_cast<const __fp16*>(&x);
+  return static_cast<float>(h);
+#else
+  uint32_t sign = (static_cast<uint32_t>(x & 0x8000u)) << 16;
+  uint32_t exp = (x >> 10) & 0x1fu;
+  uint32_t mantissa = x & 0x03ffu;
+  uint32_t bits;
+
+  if (exp == 0) {
+    if (mantissa == 0) {
+      bits = sign;
+    } else {
+      exp = 1;
+      while ((mantissa & 0x0400u) == 0) {
+        mantissa <<= 1;
+        --exp;
+      }
+      mantissa &= 0x03ffu;
+      bits = sign | ((exp + 127 - 15) << 23) | (mantissa << 13);
+    }
+  } else if (exp == 31) {
+    bits = sign | 0x7f800000u | (mantissa << 13);
+  } else {
+    bits = sign | ((exp + 127 - 15) << 23) | (mantissa << 13);
+  }
+
+  float out;
+  std::memcpy(&out, &bits, sizeof(float));
+  return out;
+#endif
+}
 }  // namespace
 
 YOLOV5::YOLOV5(const std::string & config_path, bool debug)
@@ -62,6 +97,7 @@ YOLOV5::YOLOV5(const std::string & config_path, bool debug)
   std::filesystem::create_directory(save_path_);
   net_input_ = cv::Mat(640, 640, CV_8UC3, cv::Scalar(0, 0, 0));
   trt_input_buffer_.resize(3 * 640 * 640);
+  trt_output_buffer_fp16_.resize(25200 * 22);
   trt_output_buffer_.resize(25200 * 22);
   parse_color_ids_.reserve(25200);
   parse_num_ids_.reserve(25200);
@@ -175,10 +211,14 @@ std::list<Armor> YOLOV5::detect_impl(const cv::Mat & raw_img, int frame_count, c
   cv::Mat output;
   if (use_trt_) {
     int output_elements = 25200 * 22;
-    trt_infer_->infer(trt_input_buffer_.data(), trt_output_buffer_.data(), 640, 640, 3, output_elements);
-    output = cv::Mat(25200, 22, CV_32F, trt_output_buffer_.data());
-    if (output.rows == 22 && output.cols == 25200) {
-      output = output.t();
+    if (trt_infer_->output_is_fp16()) {
+      trt_infer_->infer(trt_input_buffer_.data(), trt_output_buffer_fp16_.data(), 640, 640, 3, output_elements);
+    } else {
+      trt_infer_->infer(trt_input_buffer_.data(), trt_output_buffer_.data(), 640, 640, 3, output_elements);
+      output = cv::Mat(25200, 22, CV_32F, trt_output_buffer_.data());
+      if (output.rows == 22 && output.cols == 25200) {
+        output = output.t();
+      }
     }
   } else {
     yolo_net_.setInput(blob_);
@@ -199,7 +239,12 @@ std::list<Armor> YOLOV5::detect_impl(const cv::Mat & raw_img, int frame_count, c
   const auto t_infer_end = std::chrono::steady_clock::now();
 
   const auto t_post_begin = std::chrono::steady_clock::now();
-  auto armors = parse(scale, output, raw_img, frame_count, out_debug_img);
+  std::list<Armor> armors;
+  if (use_trt_ && trt_infer_->output_is_fp16()) {
+    armors = parse_fp16(scale, trt_output_buffer_fp16_.data(), 25200, 22, raw_img, frame_count, out_debug_img);
+  } else {
+    armors = parse(scale, output, raw_img, frame_count, out_debug_img);
+  }
   const auto t_post_end = std::chrono::steady_clock::now();
 
   if (frame_count >= 0 && frame_count % 30 == 0) {
@@ -215,6 +260,104 @@ std::list<Armor> YOLOV5::detect_impl(const cv::Mat & raw_img, int frame_count, c
   return armors;
 }
 
+std::list<Armor> YOLOV5::parse_fp16(
+  double scale, const uint16_t* output, int rows, int cols, const cv::Mat & bgr_img, int frame_count,
+  cv::Mat * out_debug_img)
+{
+  parse_color_ids_.clear();
+  parse_num_ids_.clear();
+  parse_confidences_.clear();
+  parse_boxes_.clear();
+  parse_keypoints_.clear();
+
+  for (int r = 0; r < rows; ++r) {
+    const uint16_t * row = output + r * cols;
+    const float raw_score = fp16_bits_to_fp32(row[8]);
+    if (raw_score < score_logit_threshold_) continue;
+
+    const float score = static_cast<float>(sigmoid(raw_score));
+
+    int _color_id = 0;
+    int _class_id = 0;
+    float color_max = fp16_bits_to_fp32(row[9]);
+    for (int i = 1; i < 4; ++i) {
+      const float color = fp16_bits_to_fp32(row[9 + i]);
+      if (color > color_max) {
+        color_max = color;
+        _color_id = i;
+      }
+    }
+
+    float class_max = fp16_bits_to_fp32(row[13]);
+    for (int i = 1; i < 9; ++i) {
+      const float cls = fp16_bits_to_fp32(row[13 + i]);
+      if (cls > class_max) {
+        class_max = cls;
+        _class_id = i;
+      }
+    }
+
+    std::array<cv::Point2f, 4> keypoints{
+      cv::Point2f(fp16_bits_to_fp32(row[0]) / scale, fp16_bits_to_fp32(row[1]) / scale),
+      cv::Point2f(fp16_bits_to_fp32(row[6]) / scale, fp16_bits_to_fp32(row[7]) / scale),
+      cv::Point2f(fp16_bits_to_fp32(row[4]) / scale, fp16_bits_to_fp32(row[5]) / scale),
+      cv::Point2f(fp16_bits_to_fp32(row[2]) / scale, fp16_bits_to_fp32(row[3]) / scale)};
+
+    float min_x = keypoints[0].x;
+    float max_x = keypoints[0].x;
+    float min_y = keypoints[0].y;
+    float max_y = keypoints[0].y;
+    for (size_t i = 1; i < keypoints.size(); ++i) {
+      if (keypoints[i].x < min_x) min_x = keypoints[i].x;
+      if (keypoints[i].x > max_x) max_x = keypoints[i].x;
+      if (keypoints[i].y < min_y) min_y = keypoints[i].y;
+      if (keypoints[i].y > max_y) max_y = keypoints[i].y;
+    }
+
+    parse_color_ids_.emplace_back(_color_id);
+    parse_num_ids_.emplace_back(_class_id);
+    parse_boxes_.emplace_back(cv::Rect(min_x, min_y, max_x - min_x, max_y - min_y));
+    parse_confidences_.emplace_back(score);
+    parse_keypoints_.emplace_back(keypoints);
+  }
+
+  std::vector<int> indices;
+  cv::dnn::NMSBoxes(parse_boxes_, parse_confidences_, score_threshold_, nms_threshold_, indices);
+
+  std::list<Armor> armors;
+  for (const auto & i : indices) {
+    std::vector<cv::Point2f> armor_key_points{
+      parse_keypoints_[i][0], parse_keypoints_[i][1], parse_keypoints_[i][2], parse_keypoints_[i][3]};
+    if (use_roi_) {
+      armors.emplace_back(
+        parse_color_ids_[i], parse_num_ids_[i], parse_confidences_[i], parse_boxes_[i],
+        std::move(armor_key_points), offset_);
+    } else {
+      armors.emplace_back(
+        parse_color_ids_[i], parse_num_ids_[i], parse_confidences_[i], parse_boxes_[i],
+        std::move(armor_key_points));
+    }
+  }
+
+  tmp_img_ = bgr_img;
+  for (auto it = armors.begin(); it != armors.end();) {
+    if (!check_name(*it)) {
+      it = armors.erase(it);
+      continue;
+    }
+    if (!check_type(*it)) {
+      it = armors.erase(it);
+      continue;
+    }
+    if (use_traditional_) detector_.detect(*it, bgr_img);
+    it->center_norm = get_center_norm(bgr_img, it->center);
+    ++it;
+  }
+
+  if (debug_) draw_detections(bgr_img, armors, frame_count, out_debug_img);
+  return armors;
+}
+
 std::list<Armor> YOLOV5::parse(
   double scale, cv::Mat & output, const cv::Mat & bgr_img, int frame_count, cv::Mat * out_debug_img)
 {
@@ -227,10 +370,11 @@ std::list<Armor> YOLOV5::parse(
 
   for (int r = 0; r < output.rows; r++) {
     const float * row = output.ptr<float>(r);
-    double score = row[8];
-    score = sigmoid(score);
+    const float raw_score = row[8];
+    if (raw_score < score_logit_threshold_) continue;
 
-    if (score < score_threshold_) continue;
+    double score = raw_score;
+    score = sigmoid(score);
 
     int _color_id = 0;
     int _class_id = 0;

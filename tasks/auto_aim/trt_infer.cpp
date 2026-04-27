@@ -33,6 +33,7 @@ TRTInfer::TRTInfer(const std::string& model_path) {
   output_index_ = 1;
   host_input_staging_ = nullptr;
   host_output_staging_ = nullptr;
+  io_bound_ = false;
   cudaStreamCreate(&stream_);
   auto path = std::filesystem::path(model_path);
   if (path.extension() == ".engine" || path.extension() == ".trt") {
@@ -146,6 +147,10 @@ void TRTInfer::ensure_io_initialized(size_t input_count, size_t output_count) {
   cudaMalloc(&buffers_[output_index_], output_bytes_);
 #endif
 
+  tools::logger()->info(
+    "[TRT IO] input_dtype={} output_dtype={} input_bytes={} output_bytes={}",
+    static_cast<int>(input_dtype_), static_cast<int>(output_dtype_), input_bytes_, output_bytes_);
+
   cudaHostAlloc(&host_input_staging_, input_bytes_, cudaHostAllocDefault);
   cudaHostAlloc(&host_output_staging_, output_bytes_, cudaHostAllocDefault);
 }
@@ -172,10 +177,13 @@ void TRTInfer::infer(const float* input_data, float* output_data,
   std::memcpy(host_input_staging_, input_host_ptr, input_bytes_);
 
 #if NV_TENSORRT_MAJOR >= 10
-  nvinfer1::Dims4 input_shape{1, input_c, input_h, input_w};
-  context_->setInputShape(input_tensor_name_.c_str(), input_shape);
-  context_->setTensorAddress(input_tensor_name_.c_str(), buffers_[0]);
-  context_->setTensorAddress(output_tensor_name_.c_str(), buffers_[1]);
+  if (!io_bound_) {
+    nvinfer1::Dims4 input_shape{1, input_c, input_h, input_w};
+    context_->setInputShape(input_tensor_name_.c_str(), input_shape);
+    context_->setTensorAddress(input_tensor_name_.c_str(), buffers_[0]);
+    context_->setTensorAddress(output_tensor_name_.c_str(), buffers_[1]);
+    io_bound_ = true;
+  }
   cudaMemcpyAsync(buffers_[0], host_input_staging_, input_bytes_, cudaMemcpyHostToDevice, stream_);
   context_->enqueueV3(stream_);
   cudaMemcpyAsync(host_output_staging_, buffers_[1], output_bytes_, cudaMemcpyDeviceToHost, stream_);
@@ -219,10 +227,13 @@ void TRTInfer::infer(const uint16_t* input_data, float* output_data,
   std::memcpy(host_input_staging_, input_host_ptr, input_bytes_);
 
 #if NV_TENSORRT_MAJOR >= 10
-  nvinfer1::Dims4 input_shape{1, input_c, input_h, input_w};
-  context_->setInputShape(input_tensor_name_.c_str(), input_shape);
-  context_->setTensorAddress(input_tensor_name_.c_str(), buffers_[0]);
-  context_->setTensorAddress(output_tensor_name_.c_str(), buffers_[1]);
+  if (!io_bound_) {
+    nvinfer1::Dims4 input_shape{1, input_c, input_h, input_w};
+    context_->setInputShape(input_tensor_name_.c_str(), input_shape);
+    context_->setTensorAddress(input_tensor_name_.c_str(), buffers_[0]);
+    context_->setTensorAddress(output_tensor_name_.c_str(), buffers_[1]);
+    io_bound_ = true;
+  }
   cudaMemcpyAsync(buffers_[0], host_input_staging_, input_bytes_, cudaMemcpyHostToDevice, stream_);
   context_->enqueueV3(stream_);
   cudaMemcpyAsync(host_output_staging_, buffers_[1], output_bytes_, cudaMemcpyDeviceToHost, stream_);
@@ -244,6 +255,46 @@ void TRTInfer::infer(const uint16_t* input_data, float* output_data,
   }
 }
 
+void TRTInfer::infer(const uint16_t* input_data, uint16_t* output_data,
+                     int input_w, int input_h, int input_c, int output_size) {
+  const size_t input_count = static_cast<size_t>(input_w) * input_h * input_c;
+  const size_t output_count = static_cast<size_t>(output_size);
+  ensure_io_initialized(input_count, output_count);
+
+  const void* input_host_ptr = input_data;
+  if (input_dtype_ != nvinfer1::DataType::kHALF) {
+    input_fp32_buffer_.resize(input_count);
+    convert_fp16_to_fp32(input_data, input_fp32_buffer_.data(), input_count);
+    input_host_ptr = input_fp32_buffer_.data();
+  }
+
+  std::memcpy(host_input_staging_, input_host_ptr, input_bytes_);
+
+#if NV_TENSORRT_MAJOR >= 10
+  if (!io_bound_) {
+    nvinfer1::Dims4 input_shape{1, input_c, input_h, input_w};
+    context_->setInputShape(input_tensor_name_.c_str(), input_shape);
+    context_->setTensorAddress(input_tensor_name_.c_str(), buffers_[0]);
+    context_->setTensorAddress(output_tensor_name_.c_str(), buffers_[1]);
+    io_bound_ = true;
+  }
+  cudaMemcpyAsync(buffers_[0], host_input_staging_, input_bytes_, cudaMemcpyHostToDevice, stream_);
+  context_->enqueueV3(stream_);
+  cudaMemcpyAsync(host_output_staging_, buffers_[1], output_bytes_, cudaMemcpyDeviceToHost, stream_);
+#else
+  cudaMemcpyAsync(buffers_[input_index_], host_input_staging_, input_bytes_, cudaMemcpyHostToDevice, stream_);
+  context_->enqueueV2(buffers_, stream_, nullptr);
+  cudaMemcpyAsync(host_output_staging_, buffers_[output_index_], output_bytes_, cudaMemcpyDeviceToHost, stream_);
+#endif
+  cudaStreamSynchronize(stream_);
+
+  if (output_dtype_ == nvinfer1::DataType::kHALF) {
+    std::memcpy(output_data, host_output_staging_, output_bytes_);
+  } else {
+    convert_fp32_to_fp16(static_cast<const float*>(host_output_staging_), output_data, output_count);
+  }
+}
+
 size_t TRTInfer::get_data_type_size(nvinfer1::DataType type) const {
   switch (type) {
     case nvinfer1::DataType::kFLOAT:
@@ -262,6 +313,12 @@ size_t TRTInfer::get_data_type_size(nvinfer1::DataType type) const {
 }
 
 void TRTInfer::convert_fp32_to_fp16(const float* src, void* dst, size_t count) const {
+#if defined(__aarch64__) || defined(__ARM_FEATURE_FP16_SCALAR_ARITHMETIC)
+  auto* out = reinterpret_cast<__fp16*>(dst);
+  for (size_t i = 0; i < count; ++i) {
+    out[i] = static_cast<__fp16>(src[i]);
+  }
+#else
   auto* out = static_cast<uint16_t*>(dst);
   for (size_t i = 0; i < count; ++i) {
     float x = src[i];
@@ -284,9 +341,16 @@ void TRTInfer::convert_fp32_to_fp16(const float* src, void* dst, size_t count) c
       out[i] = static_cast<uint16_t>(sign | (static_cast<uint32_t>(exp) << 10) | ((mantissa + 0x00001000u) >> 13));
     }
   }
+#endif
 }
 
 void TRTInfer::convert_fp16_to_fp32(const void* src, float* dst, size_t count) const {
+#if defined(__aarch64__) || defined(__ARM_FEATURE_FP16_SCALAR_ARITHMETIC)
+  const auto* in = reinterpret_cast<const __fp16*>(src);
+  for (size_t i = 0; i < count; ++i) {
+    dst[i] = static_cast<float>(in[i]);
+  }
+#else
   const auto* in = static_cast<const uint16_t*>(src);
   for (size_t i = 0; i < count; ++i) {
     uint32_t h = in[i];
@@ -315,6 +379,7 @@ void TRTInfer::convert_fp16_to_fp32(const void* src, float* dst, size_t count) c
 
     std::memcpy(&dst[i], &bits, sizeof(float));
   }
+#endif
 }
 
 } // namespace auto_aim

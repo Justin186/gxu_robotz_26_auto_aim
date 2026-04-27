@@ -6,6 +6,7 @@
 #include <memory>
 #include <array>
 #include <cstdint>
+#include <cmath>
 class TRTInfer;
 #include <string>
 #include <vector>
@@ -37,6 +38,7 @@ private:
   const int class_num_ = 13;
   const float nms_threshold_ = 0.3;
   const float score_threshold_ = 0.7;
+  const float score_logit_threshold_ = static_cast<float>(std::log(score_threshold_ / (1.0f - score_threshold_)));
   double min_confidence_, binary_threshold_;
 
   std::unique_ptr<TRTInfer> trt_infer_;
@@ -44,6 +46,7 @@ private:
   cv::Mat net_input_;
   cv::Mat blob_;
   std::vector<uint16_t> trt_input_buffer_;
+  std::vector<uint16_t> trt_output_buffer_fp16_;
   std::vector<float> trt_output_buffer_;
   std::vector<int> parse_color_ids_;
   std::vector<int> parse_num_ids_;
@@ -65,6 +68,7 @@ private:
   cv::Point2f get_center_norm(const cv::Mat & bgr_img, const cv::Point2f & center) const;
 
   std::list<Armor> parse(double scale, cv::Mat & output, const cv::Mat & bgr_img, int frame_count, cv::Mat * out_debug_img = nullptr);
+  std::list<Armor> parse_fp16(double scale, const uint16_t* output, int rows, int cols, const cv::Mat & bgr_img, int frame_count, cv::Mat * out_debug_img = nullptr);
 
   std::list<Armor> detect_impl(const cv::Mat & raw_img, int frame_count, cv::Mat * out_debug_img);
 

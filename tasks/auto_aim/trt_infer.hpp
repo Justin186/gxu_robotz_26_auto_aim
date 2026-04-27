@@ -34,6 +34,9 @@ public:
              int input_w, int input_h, int input_c, int output_size);
   void infer(const uint16_t* input_data, float* output_data,
              int input_w, int input_h, int input_c, int output_size);
+  void infer(const uint16_t* input_data, uint16_t* output_data,
+             int input_w, int input_h, int input_c, int output_size);
+  bool output_is_fp16() const { return output_dtype_ == nvinfer1::DataType::kHALF; }
 
 private:
   void build_from_onnx(const std::string& onnx_path);
@@ -61,6 +64,7 @@ private:
   std::vector<uint16_t> output_fp16_buffer_;
   void* host_input_staging_;
   void* host_output_staging_;
+  bool io_bound_;
 #if NV_TENSORRT_MAJOR >= 10
   std::string input_tensor_name_;
   std::string output_tensor_name_;
