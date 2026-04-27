@@ -3,12 +3,43 @@
 #include <yaml-cpp/yaml.h>
 
 #include <tuple>
+#include <limits>
 
 #include "tools/logger.hpp"
 #include "tools/math_tools.hpp"
 
 namespace auto_aim
 {
+namespace
+{
+constexpr float kImgCenterX = 1440.0f / 2.0f;
+constexpr float kImgCenterY = 1080.0f / 2.0f;
+
+inline float center_dist2(const Armor & a)
+{
+  const float dx = a.center.x - kImgCenterX;
+  const float dy = a.center.y - kImgCenterY;
+  return dx * dx + dy * dy;
+}
+
+std::list<Armor>::iterator select_best_armor(std::list<Armor> & armors)
+{
+  if (armors.empty()) return armors.end();
+
+  auto best = armors.begin();
+  for (auto it = std::next(armors.begin()); it != armors.end(); ++it) {
+    if (it->priority < best->priority) {
+      best = it;
+      continue;
+    }
+    if (it->priority == best->priority && center_dist2(*it) < center_dist2(*best)) {
+      best = it;
+    }
+  }
+  return best;
+}
+}  // namespace
+
 Tracker::Tracker(const std::string & config_path, Solver & solver)
 : solver_{solver},
   detect_count_(0),
@@ -55,17 +86,7 @@ std::list<Target> Tracker::track(
   //            solver_.oupost_reprojection_error(a, -15 * CV_PI / 180.0);
   // });
 
-  // 优先选择靠近图像中心的装甲板
-  armors.sort([](const Armor & a, const Armor & b) {
-    cv::Point2f img_center(1440 / 2, 1080 / 2);  // TODO
-    auto distance_1 = cv::norm(a.center - img_center);
-    auto distance_2 = cv::norm(b.center - img_center);
-    return distance_1 < distance_2;
-  });
-
-  // 按优先级排序，优先级最高在首位(优先级越高数字越小，1的优先级最高)
-  armors.sort(
-    [](const auto_aim::Armor & a, const auto_aim::Armor & b) { return a.priority < b.priority; });
+  auto best_armor_it = select_best_armor(armors);
 
   bool found;
   if (state_ == "lost") {
@@ -126,16 +147,7 @@ std::tuple<omniperception::DetectionResult, std::list<Target>> Tracker::track(
     return a.ypd_in_world[2] > 7.0;
   });
 
-  // 优先选择靠近图像中心的装甲板
-  armors.sort([](const Armor & a, const Armor & b) {
-    cv::Point2f img_center(1440 / 2, 1080 / 2);  // TODO
-    auto distance_1 = cv::norm(a.center - img_center);
-    auto distance_2 = cv::norm(b.center - img_center);
-    return distance_1 < distance_2;
-  });
-
-  // 按优先级排序，优先级最高在首位(优先级越高数字越小，1的优先级最高)
-  armors.sort([](const Armor & a, const Armor & b) { return a.priority < b.priority; });
+  auto best_armor_it = select_best_armor(armors);
 
   bool found;
   if (state_ == "lost") {
@@ -143,9 +155,12 @@ std::tuple<omniperception::DetectionResult, std::list<Target>> Tracker::track(
   }
 
   // 此时主相机画面中出现了优先级更高的装甲板，切换目标
-  else if (state_ == "tracking" && !armors.empty() && armors.front().priority < target_.priority) {
+  else if (
+    state_ == "tracking" && best_armor_it != armors.end() &&
+    best_armor_it->priority < target_.priority)
+  {
     found = set_target(armors, t);
-    tools::logger()->debug("auto_aim switch target to {}", ARMOR_NAMES[armors.front().name]);
+    tools::logger()->debug("auto_aim switch target to {}", ARMOR_NAMES[best_armor_it->name]);
   }
 
   // 此时全向感知相机画面中出现了优先级更高的装甲板，切换目标
@@ -242,10 +257,10 @@ void Tracker::state_machine(bool found)
 
 bool Tracker::set_target(std::list<Armor> & armors, std::chrono::steady_clock::time_point t)
 {
-  if (armors.empty()) return false;
+  auto best_it = select_best_armor(armors);
+  if (best_it == armors.end()) return false;
 
-  auto & armor = armors.front();
-  solver_.solve(armor);
+  auto & armor = *best_it;
 
   // 根据兵种优化初始化参数
   auto is_balance = (armor.type == ArmorType::big) &&
@@ -279,27 +294,20 @@ bool Tracker::update_target(std::list<Armor> & armors, std::chrono::steady_clock
 {
   target_.predict(t);
 
-  int found_count = 0;
-  double min_x = 1e10;  // 画面最左侧
-  for (const auto & armor : armors) {
-    if (armor.name != target_.name || armor.type != target_.armor_type) continue;
-    found_count++;
-    min_x = armor.center.x < min_x ? armor.center.x : min_x;
-  }
-
-  if (found_count == 0) return false;
-
+  Armor * best_match = nullptr;
+  float best_dist2 = std::numeric_limits<float>::max();
   for (auto & armor : armors) {
-    if (
-      armor.name != target_.name || armor.type != target_.armor_type
-      //  || armor.center.x != min_x
-    )
-      continue;
-
-    solver_.solve(armor);
-
-    target_.update(armor);
+    if (armor.name != target_.name || armor.type != target_.armor_type) continue;
+    const float d2 = center_dist2(armor);
+    if (d2 < best_dist2) {
+      best_dist2 = d2;
+      best_match = &armor;
+    }
   }
+
+  if (!best_match) return false;
+
+  target_.update(*best_match);
 
   return true;
 }
