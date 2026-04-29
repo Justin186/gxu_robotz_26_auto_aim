@@ -11,22 +11,19 @@
 namespace omniperception
 {
 Perceptron::Perceptron(
-  io::USBCamera * usbcam1, io::USBCamera * usbcam2, io::USBCamera * usbcam3,
-  io::USBCamera * usbcam4, const std::string & config_path)
+  io::CameraBase * usbcam1, io::CameraBase * usbcam2, const std::string & config_path)
 : detection_queue_(10), decider_(config_path), stop_flag_(false)
 {
   // 初始化 YOLO 模型
   yolo_parallel1_ = std::make_shared<auto_aim::YOLO>(config_path, false);
   yolo_parallel2_ = std::make_shared<auto_aim::YOLO>(config_path, false);
-  yolo_parallel3_ = std::make_shared<auto_aim::YOLO>(config_path, false);
-  yolo_parallel4_ = std::make_shared<auto_aim::YOLO>(config_path, false);
+
 
   std::this_thread::sleep_for(std::chrono::seconds(2));
-  // 创建四个线程进行并行推理
+  // 创建两个线程进行并行推理，并把识别结果放入线程安全队列中
   threads_.emplace_back([&] { parallel_infer(usbcam1, yolo_parallel1_); });
   threads_.emplace_back([&] { parallel_infer(usbcam2, yolo_parallel2_); });
-  threads_.emplace_back([&] { parallel_infer(usbcam3, yolo_parallel3_); });
-  threads_.emplace_back([&] { parallel_infer(usbcam4, yolo_parallel4_); });
+
 
   tools::logger()->info("Perceptron initialized.");
 }
@@ -48,23 +45,24 @@ Perceptron::~Perceptron()
   tools::logger()->info("Perceptron destructed.");
 }
 
+//读取线程安全队列中的所有检测结果并返回一个包含这些结果的向量。这个函数会不断地从队列中取出检测结果，直到队列为空为止。
 std::vector<DetectionResult> Perceptron::get_detection_queue()
 {
-  std::vector<DetectionResult> result;
+  std::vector<DetectionResult> result;//包含检测结果
   DetectionResult temp;
 
   // 注意：这里的 pop 不阻塞（假设队列为空时会报错或忽略）
   while (!detection_queue_.empty()) {
-    detection_queue_.pop(temp);
-    result.push_back(std::move(temp));
+    detection_queue_.pop(temp);//把队列中的第一个元素取出放到temp中
+    result.push_back(std::move(temp));//std::move不复制而是直接转移数据进result，temp就空了.push_back把temp放到result的末尾
   }
 
   return result;
 }
 
-// 将并行推理逻辑移动到类成员函数
+// 将并行推理逻辑移动到类成员函数，执行了读取图像，使用 YOLO 进行检测，并将结果推入线程安全队列的功能
 void Perceptron::parallel_infer(
-  io::USBCamera * cam, std::shared_ptr<auto_aim::YOLO> & yolov8_parallel)
+  io::CameraBase * cam, std::shared_ptr<auto_aim::YOLO> & yolov8_parallel)
 {
   if (!cam) {
     tools::logger()->error("Camera pointer is null!");
@@ -80,9 +78,9 @@ void Perceptron::parallel_infer(
         if (stop_flag_) break;  // 检查是否需要退出
       }
 
-      cam->read(usb_img, ts);
+      cam->read(usb_img, ts);//这以后img就有数据了，yolo_parallel就可以用来检测了
       if (usb_img.empty()) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(30));
+        //std::this_thread::sleep_for(std::chrono::milliseconds(10));
         continue;
       }
 

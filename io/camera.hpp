@@ -6,14 +6,10 @@
 #include <opencv2/opencv.hpp>
 #include <string>
 
+#include "io/camera_base.hpp"
+
 namespace io
 {
-class CameraBase
-{
-public:
-  virtual ~CameraBase() = default;
-  virtual void read(cv::Mat & img, std::chrono::steady_clock::time_point & timestamp) = 0;
-};
 
 class Camera
 {

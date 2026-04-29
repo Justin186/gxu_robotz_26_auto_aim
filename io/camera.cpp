@@ -35,6 +35,10 @@ Camera::Camera(const std::string & config_path)
 void Camera::read(cv::Mat & img, std::chrono::steady_clock::time_point & timestamp)
 {
   camera_->read(img, timestamp);
+  
+  cv::resize(img, img, {}, 0.5, 0.5);  // 显示时缩小图片尺寸
+  cv::imshow("reprojection", img);
+
 }
 
 }  // namespace io

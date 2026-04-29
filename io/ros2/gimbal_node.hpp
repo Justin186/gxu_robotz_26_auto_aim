@@ -24,6 +24,8 @@ public:
     void send_cmd_vel_debug(const geometry_msgs::msg::Twist::SharedPtr msg);
     void send(io::VisionToGimbal VisionToGimbal);
 
+    std::shared_ptr<ROS2> get_ros2() { return ros2_; }
+
     static bool is_move;
 
 private:

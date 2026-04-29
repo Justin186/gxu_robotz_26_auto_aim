@@ -4,6 +4,7 @@
 #include "publish2nav.hpp"
 #include "subscribe2nav.hpp"
 
+#include <opencv2/opencv.hpp>
 #include <optional>
 #include <sp_msgs/msg/rmul.hpp>
 
@@ -22,6 +23,7 @@ public:
   void publish_game_status(const sp_msgs::msg::RMUL & msg);
 
   std::optional<geometry_msgs::msg::Twist> subscribe_cmd_vel();
+  bool get_image(cv::Mat & img, std::chrono::steady_clock::time_point & timestamp);
 
 private:
   std::shared_ptr<Publish2Nav> publish2nav_;

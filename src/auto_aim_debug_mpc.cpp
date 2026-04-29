@@ -80,6 +80,10 @@ int main(int argc, char * argv[])
     
     std::deque<bool> fire_history;
     const size_t history_max_size = fire_duty_window;
+    
+    // 用于降低 Rerun 的发送频率 (1000Hz -> 50Hz)
+    size_t rerun_counter = 0;
+    const size_t rerun_interval = 20;
 
     while (!quit) {
       auto target = target_queue.front();
@@ -89,14 +93,17 @@ int main(int argc, char * argv[])
 
       gimbal.send(
         plan.control, plan.fire && fire,
-        plan.yaw, plan.yaw_vel, plan.yaw_acc,
-        -plan.pitch, -plan.pitch_vel, -plan.pitch_acc);
+        plan.v_yaw, plan.yaw_vel, plan.yaw_acc,
+        plan.v_pitch, plan.pitch_vel, plan.pitch_acc);
 
       auto fired = gs.bullet_count > last_bullet_count;
       last_bullet_count = gs.bullet_count;
 
       // 实时记录一下yaw和pitch的角度，让它们在Rerun上产生时间序列图表，类似PlotJuggler
       auto current_time = std::chrono::steady_clock::now();
+      
+      bool do_rerun = rerun && (rerun_counter % rerun_interval == 0);
+
       // rec.set_time_duration_secs("plots_time", tools::delta_time(current_time, t0));
       
       auto q_gimbal = gimbal.q(current_time); // 必须使用当前时间去获取四元数
@@ -105,7 +112,7 @@ int main(int argc, char * argv[])
       Eigen::Matrix3d R_gimbal2world = R_imubody2world * R_gimbal2imubody;
       
       // 以云台中心作为原点，绘制云台当前坐标系。利用 TransformAxes3D 能够画出红绿蓝(XYZ)三个箭头的坐标轴
-      if (rerun) rec->log("world/gimbal", 
+      if (do_rerun) rec->log("world/gimbal", 
         rerun::Transform3D(
           rerun::Vec3D{0.0f, 0.0f, 0.0f}, // 云台坐标系原点在世界坐标系中的位置（我们这里假设云台安装在机器人正中心，所以就是全局原点）
           rerun::Mat3x3({ // Rerun的Mat3x3为【列主序】(Column-Major)！必须修成这样，否则矩阵就是转置的，会导致所有旋转颠倒。
@@ -119,7 +126,7 @@ int main(int argc, char * argv[])
       
       // 我们从已经修正好的真实的 IMU 旋转矩阵里，提取出云台当前的真实世界前方(X轴)，并强行拍平在水平面上。
       Eigen::Vector3d forward_world = R_gimbal2world.col(0); 
-      forward_world.z() = 0.0; // 强制砍掉所有的 Z 轴数值，让它在全局地图里绝对处于绝对水平！
+      // forward_world.z() = 0.0; // 强制砍掉所有的 Z 轴数值，让它在全局地图里绝对处于绝对水平！
       if (forward_world.norm() > 1e-6) forward_world.normalize();
       else forward_world = Eigen::Vector3d(1.0, 0.0, 0.0);
 
@@ -149,11 +156,12 @@ int main(int argc, char * argv[])
       fire_duty /= fire_history.size();
 
       // 因为 Rerun 自动对子层应用正向旋转，这正好抵消了我们刚刚乘的逆向转置矩阵（且R_gimbal矩阵已被正确修复），现在肯定完全水平了！
-      if (rerun) { 
+      if (do_rerun) { 
         rec->log("world/gimbal/yaw_line",
           rerun::LineStrips3D(strips).with_colors({{255, 165, 0}}) // 橙色直线
         );
         rec->log("yaw/plan_yaw", rerun::Scalars(plan.yaw));
+        rec->log("yaw/plan_yaw_offset", rerun::Scalars(plan.v_yaw));
         rec->log("yaw/target_yaw", rerun::Scalars(plan.target_yaw));
         rec->log("yaw/gimbal_yaw", rerun::Scalars(gs.yaw / 57.3));
         rec->log("yaw/gimbal_yaw_vel", rerun::Scalars(gs.yaw_vel));
@@ -162,8 +170,9 @@ int main(int argc, char * argv[])
       
 
         rec->log("pitch/plan_pitch", rerun::Scalars(plan.pitch));
+        rec->log("pitch/plan_pitch_offset", rerun::Scalars(plan.v_pitch));
         rec->log("pitch/target_pitch", rerun::Scalars(plan.target_pitch));
-        rec->log("pitch/gimbal_pitch", rerun::Scalars(-gs.pitch / 57.3));
+        rec->log("pitch/gimbal_pitch", rerun::Scalars(gs.pitch / 57.3));
         rec->log("pitch/plan_pitch_vel", rerun::Scalars(plan.pitch_vel));
         rec->log("pitch/plan_pitch_acc", rerun::Scalars(plan.pitch_acc));
 
@@ -251,7 +260,7 @@ int main(int argc, char * argv[])
             {(float)target->ekf_x()[1], (float)target->ekf_x()[3], (float)target->ekf_x()[5]}
         };
         
-        if (rerun) {
+        if (do_rerun) {
           rec->log("world/target/armors", rerun::Clear::FLAT);
           rec->log("world/target/armors_direction", rerun::Clear::FLAT);
           rec->log("world/target/aim_point", rerun::Clear::FLAT);
@@ -268,12 +277,12 @@ int main(int argc, char * argv[])
           rec->log("world/target/vehicle_velocity", rerun::Arrows3D::from_vectors(vehicle_velocity).with_origins(vehicle_center).with_colors({{0, 255, 255}}));
         }
           
-        if (rerun) rec->log("scalar/target/w", rerun::Scalars(target->ekf_x()[7])); // 记录目标的旋转角速度w
-        if (rerun) rec->log("scalar/target/z", rerun::Scalars(target->ekf_x()[4]));
-        if (rerun) rec->log("scalar/target/vz", rerun::Scalars(target->ekf_x()[5]));
+        if (do_rerun) rec->log("scalar/target/w", rerun::Scalars(target->ekf_x()[7])); // 记录目标的旋转角速度w
+        if (do_rerun) rec->log("scalar/target/z", rerun::Scalars(target->ekf_x()[4]));
+        if (do_rerun) rec->log("scalar/target/vz", rerun::Scalars(target->ekf_x()[5]));
       } else {
         // 丢失目标时清空绘制，防止屏幕上留着鬼影
-        if (rerun) {
+        if (do_rerun) {
           rec->log("world/target/armors", rerun::Clear::FLAT);
           rec->log("world/target/armors_direction", rerun::Clear::FLAT);
           rec->log("world/target/armors_rect", rerun::Clear::FLAT);
@@ -285,7 +294,8 @@ int main(int argc, char * argv[])
         }
       }
       // =========================
-
+      
+      rerun_counter++;
       std::this_thread::sleep_for(1ms);
     }
   });

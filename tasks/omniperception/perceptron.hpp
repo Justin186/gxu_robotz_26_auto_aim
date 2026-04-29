@@ -7,7 +7,7 @@
 
 #include "decider.hpp"
 #include "detection.hpp"
-#include "io/usbcamera/usbcamera.hpp"
+#include "io/camera_base.hpp"
 #include "tasks/auto_aim/armor.hpp"
 #include "tools/thread_pool.hpp"
 #include "tools/thread_safe_queue.hpp"
@@ -19,14 +19,13 @@ class Perceptron
 {
 public:
   Perceptron(
-    io::USBCamera * usbcma1, io::USBCamera * usbcam2, io::USBCamera * usbcam3,
-    io::USBCamera * usbcam4, const std::string & config_path);
+    io::CameraBase * usbcma1, io::CameraBase * usbcam2, const std::string & config_path);
 
   ~Perceptron();
 
   std::vector<DetectionResult> get_detection_queue();
 
-  void parallel_infer(io::USBCamera * cam, std::shared_ptr<auto_aim::YOLO> & yolo_parallel);
+  void parallel_infer(io::CameraBase * cam, std::shared_ptr<auto_aim::YOLO> & yolo_parallel);
 
 private:
   std::vector<std::thread> threads_;
@@ -34,8 +33,7 @@ private:
 
   std::shared_ptr<auto_aim::YOLO> yolo_parallel1_;
   std::shared_ptr<auto_aim::YOLO> yolo_parallel2_;
-  std::shared_ptr<auto_aim::YOLO> yolo_parallel3_;
-  std::shared_ptr<auto_aim::YOLO> yolo_parallel4_;
+
 
   Decider decider_;
   bool stop_flag_;

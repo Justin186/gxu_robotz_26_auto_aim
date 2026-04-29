@@ -3,7 +3,9 @@ namespace io
 {
 ROS2::ROS2()
 {
-  rclcpp::init(0, nullptr);
+  if (!rclcpp::ok()) {
+    rclcpp::init(0, nullptr);
+  }
   node_ = std::make_shared<rclcpp::Node>("ros2_interface_node");
   robot_status_publisher_ = node_->create_publisher<sp_msgs::msg::RMUL>("/robot_status", 10);
   game_status_publisher_ = node_->create_publisher<sp_msgs::msg::RMUL>("/game_status", 10);
@@ -32,6 +34,11 @@ void ROS2::publish_game_status(const sp_msgs::msg::RMUL & msg) { game_status_pub
 std::optional<geometry_msgs::msg::Twist> ROS2::subscribe_cmd_vel()
 {
   return subscribe2nav_->subscribe_cmd_vel();
+}
+
+bool ROS2::get_image(cv::Mat & img, std::chrono::steady_clock::time_point & timestamp)
+{
+  return subscribe2nav_->get_image(img, timestamp);
 }
 
 }  // namespace io
