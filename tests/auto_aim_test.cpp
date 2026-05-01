@@ -69,6 +69,8 @@ int main(int argc, char * argv[])
   for (int frame_count = start_index; !exiter.exit(); frame_count++) {
     if (end_index > 0 && frame_count > end_index) break;
 
+    auto start = std::chrono::steady_clock::now();
+
     video.read(img);
     if (img.empty()) break;
 
@@ -99,19 +101,11 @@ int main(int argc, char * argv[])
 
     auto finish = std::chrono::steady_clock::now();
     
-    // 计算 FPS
-    fps_frame_count++;
-    auto fps_elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-      finish - fps_start_time).count() / 10.0;
-    if (fps_elapsed >= 1.0) {  // 每秒更新一次 FPS
-      current_fps = fps_frame_count / fps_elapsed;
-      fps_frame_count = 0;
-      fps_start_time = finish;
-    }
+    auto dt = tools::delta_time(finish, start);
 
     tools::logger()->info(
       "[{}] FPS: {:.1f}, yolo: {:.1f}ms, tracker: {:.1f}ms, aimer: {:.1f}ms", frame_count,
-      current_fps,
+      1/dt,
       tools::delta_time(tracker_start, yolo_start) * 1e3,
       tools::delta_time(aimer_start, tracker_start) * 1e3,
       tools::delta_time(finish, aimer_start) * 1e3);
