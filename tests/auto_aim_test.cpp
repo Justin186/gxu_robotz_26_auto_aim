@@ -43,7 +43,7 @@ int main(int argc, char * argv[])
   cv::VideoCapture video(video_path);
   std::ifstream text(text_path);
 
-  auto_aim::YOLO yolo(config_path,false);
+  auto_aim::YOLO yolo(config_path, false);
   auto_aim::Solver solver(config_path);
   auto_aim::Tracker tracker(config_path, solver);
   auto_aim::Aimer aimer(config_path);
@@ -68,8 +68,6 @@ int main(int argc, char * argv[])
 
   for (int frame_count = start_index; !exiter.exit(); frame_count++) {
     if (end_index > 0 && frame_count > end_index) break;
-
-    auto start = std::chrono::steady_clock::now();
 
     video.read(img);
     if (img.empty()) break;
@@ -101,7 +99,7 @@ int main(int argc, char * argv[])
 
     auto finish = std::chrono::steady_clock::now();
     
-    auto dt = tools::delta_time(finish, start);
+    auto dt = tools::delta_time(finish, yolo_start);
 
     tools::logger()->info(
       "[{}] FPS: {:.1f}, yolo: {:.1f}ms, tracker: {:.1f}ms, aimer: {:.1f}ms", frame_count,
@@ -109,6 +107,21 @@ int main(int argc, char * argv[])
       tools::delta_time(tracker_start, yolo_start) * 1e3,
       tools::delta_time(aimer_start, tracker_start) * 1e3,
       tools::delta_time(finish, aimer_start) * 1e3);
+
+    tools::draw_text(
+      img,
+      fmt::format(
+        "command is {},{:.2f},{:.2f},shoot:{}", command.control, command.yaw * 57.3,
+        command.pitch * 57.3, command.shoot),
+      {10, 60}, {154, 50, 205});
+
+    Eigen::Quaternion gimbal_q = {w, x, y, z};
+    tools::draw_text(
+      img,
+      fmt::format(
+        "gimbal yaw{:.2f}", (tools::eulers(gimbal_q.toRotationMatrix(), 2, 1, 0) * 57.3)[0]),
+      {10, 90}, {255, 255, 255});
+
 
     if (!targets.empty()) {
       auto target = targets.front();
@@ -118,10 +131,29 @@ int main(int argc, char * argv[])
         last_t = t;
         continue;
       }
+
+      std::vector<Eigen::Vector4d> armor_xyza_list;
+
+      // 当前帧target更新后
+      armor_xyza_list = target.armor_xyza_list();
+      for (const Eigen::Vector4d & xyza : armor_xyza_list) {
+        auto image_points =
+          solver.reproject_armor(xyza.head(3), xyza[3], target.armor_type, target.name);
+        tools::draw_points(img, image_points, {0, 255, 0});
+      }
+
+      // aimer瞄准位置
+      auto aim_point = aimer.debug_aim_point;
+      Eigen::Vector4d aim_xyza = aim_point.xyza;
+      auto image_points =
+        solver.reproject_armor(aim_xyza.head(3), aim_xyza[3], target.armor_type, target.name);
+      if (aim_point.valid) tools::draw_points(img, image_points, {0, 0, 255});
     }
+
+    cv::resize(img, img, {}, 0.5, 0.5);  // 显示时缩小图片尺寸
     // cv::imshow("reprojection", img);
-    // auto key = cv::waitKey(1);
-    // if (key == 'q') break;
+    auto key = cv::waitKey(1);
+    if (key == 'q') break;
   }
 
   return 0;

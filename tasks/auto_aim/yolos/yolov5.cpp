@@ -247,15 +247,15 @@ std::list<Armor> YOLOV5::detect_impl(const cv::Mat & raw_img, int frame_count, c
   }
   const auto t_post_end = std::chrono::steady_clock::now();
 
-  if (frame_count >= 0 && frame_count % 30 == 0) {
-    const double pre_ms = std::chrono::duration<double, std::milli>(t_pre_end - t_pre_begin).count();
-    const double infer_ms = std::chrono::duration<double, std::milli>(t_infer_end - t_infer_begin).count();
-    const double post_ms = std::chrono::duration<double, std::milli>(t_post_end - t_post_begin).count();
-    const double total_ms = std::chrono::duration<double, std::milli>(t_post_end - t_total_begin).count();
-    tools::logger()->info(
-      "[YOLOv5 profile] frame={} pre={:.2f}ms infer={:.2f}ms post={:.2f}ms total={:.2f}ms",
-      frame_count, pre_ms, infer_ms, post_ms, total_ms);
-  }
+  // if (frame_count >= 0 && frame_count % 30 == 0) {
+  //   const double pre_ms = std::chrono::duration<double, std::milli>(t_pre_end - t_pre_begin).count();
+  //   const double infer_ms = std::chrono::duration<double, std::milli>(t_infer_end - t_infer_begin).count();
+  //   const double post_ms = std::chrono::duration<double, std::milli>(t_post_end - t_post_begin).count();
+  //   const double total_ms = std::chrono::duration<double, std::milli>(t_post_end - t_total_begin).count();
+  //   tools::logger()->info(
+  //     "[YOLOv5 profile] frame={} pre={:.2f}ms infer={:.2f}ms post={:.2f}ms total={:.2f}ms",
+  //     frame_count, pre_ms, infer_ms, post_ms, total_ms);
+  // }
 
   return armors;
 }

@@ -297,6 +297,7 @@ int main(int argc, char * argv[])
           rec->log("world/target/vehicle_velocity", rerun::Clear::FLAT);
         }
       }
+      std::this_thread::sleep_for(5ms);
     }
   });
 
@@ -313,6 +314,8 @@ int main(int argc, char * argv[])
     if (end_index > 0 && frame_count > end_index) break;
 
     video.read(img);
+    auto start = std::chrono::steady_clock::now();
+    
     if (img.empty()) break;
 
     double t_file, w, x, y, z;
@@ -351,6 +354,9 @@ int main(int argc, char * argv[])
         solver.reproject_armor(aim_xyza.head(3), aim_xyza[3], target.armor_type, target.name);
       tools::draw_points(img, image_points, {0, 0, 255});
     }
+    
+    double fps = 1.0 / tools::delta_time(std::chrono::steady_clock::now(), start);
+    tools::draw_text(img, fmt::format("FPS: {:.2f}", fps), {10, 30});
 
     if (rerun) {
       if (!debug_detection_img.empty()) {
@@ -368,9 +374,9 @@ int main(int argc, char * argv[])
       cv::imshow("detection", debug_detection_img);
       cv::imshow("reprojection_offline", img);
     }
+    if (rerun) rec->log("scalar/fps", rerun::Scalars((float)fps));
     
-    // Playback control
-    auto key = cv::waitKey(15); // Approx 30fps
+    auto key = cv::waitKey(1);
     if (key == 'q') break;
   }
 
