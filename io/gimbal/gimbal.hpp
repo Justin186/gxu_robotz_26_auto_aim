@@ -26,8 +26,6 @@ struct __attribute__((packed)) GimbalToVision
   float bullet_speed;
   uint16_t bullet_count;  // 子弹累计发送次数
   float gimbal_yaw;
-  uint8_t game_progress; // 当前比赛阶段
-  uint16_t current_hp; // 哨兵当前血量
   uint16_t crc16;
 };
 
@@ -60,17 +58,24 @@ struct __attribute__((packed)) NavToGimbal
     uint16_t crc16;
 };
 
-struct __attribute__((packed)) GimbalToNav
+struct __attribute__((packed)) GimbalToNav   // 从电控接收，发给导航
 {
-    uint8_t head = 0x5A;
-    uint8_t game_progress; // 当前比赛阶段
-    uint16_t stage_remain_time; // 当前阶段剩余时间
-    uint8_t rfid_supply_arrived; // 我方哨兵补给区
-    uint8_t rfid_control_arrived; // 控制区交互卡反馈
-    uint16_t current_hp; // 哨兵当前血量
-    uint8_t is_attacked; // 是否受到攻击 0->未受到攻击 1->受到攻击
-    float gimbal_yaw; // 云台与底盘的相对角度
-    uint16_t crc16;
+    uint8_t head[2] = {0xB5, 0xA5};   // 改为双字节
+        // ---- 以下字段严格对应 STM32_to_PC ----
+    uint8_t  vulnerability_buff;         // 机器人负防御增益
+    uint16_t current_hp;                 // 当前血量
+    uint16_t shooter_17mm_barrel_heat;   // 枪口热量
+    uint16_t projectile_allowance_17mm;  // 剩余允许发弹量
+    uint8_t  current_posture;            // 当前姿态 (1=进攻 2=防御 3=移动)
+    uint16_t exchanged_ammo_total;       // 累计成功兑换的允许发弹量
+    uint8_t  game_progress;              // 当前比赛阶段
+    uint16_t stage_remain_time;          // 当前阶段剩余时间
+    uint16_t outpost_Hp;                 // 前哨站血量
+    uint16_t base_Hp;                    // 基地血量
+    float    pos_x;                      // 位置 x (米)
+    float    pos_y;                      // 位置 y (米)
+    // ---- 以上字段完全来自电控新协议 ----
+    uint16_t crc16;                      // CRC16 校验，保持不变
 };
 
 enum class GimbalMode

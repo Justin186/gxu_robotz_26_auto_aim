@@ -116,7 +116,7 @@ int main(int argc, char * argv[])
             continue;
         }
 
-        if (false) {
+        if (first_scan) {
           scan_cmd_angle = gs.yaw * 57.3; // 以当前实际yaw为起点
           first_scan = false;
         }
@@ -182,7 +182,7 @@ int main(int argc, char * argv[])
       tools::draw_points(img, image_points, {0, 0, 255});
     }
 
-    cv::resize(img, img, {}, 0.5, 0.5);  // 显示时缩小图片尺寸
+    cv::resize(img, img, {}, 0.7, 0.7);  // 显示时缩小图片尺寸
     cv::imshow("reprojection", img);
     auto key = cv::waitKey(1);
     if (key == 'q') break;

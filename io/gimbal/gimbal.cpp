@@ -218,8 +218,8 @@ void Gimbal::read_thread()
       state_.pitch_vel = rx_data_.pitch_vel;
       state_.bullet_speed = rx_data_.bullet_speed;
       state_.bullet_count = rx_data_.bullet_count;
-      state_.current_hp = rx_data_.current_hp;                       
-      state_.game_progress = rx_data_.game_progress;
+      // tools::logger()->info("[Gimbal] receiver state data from diankong");
+
       switch (rx_data_.mode) {
         case 0:
           mode_ = GimbalMode::IDLE;
@@ -238,24 +238,38 @@ void Gimbal::read_thread()
           tools::logger()->warn("[Gimbal] Invalid mode: {}", rx_data_.mode);
           break;
       }
-    } else if (head == 0x5A) {
-      rx_nav_data_.head = head;
-      if (!read(
-            reinterpret_cast<uint8_t *>(&rx_nav_data_) + 1, sizeof(rx_nav_data_) - 1)) {
+    }  else if (head == 0xB5) {
+    // 读取第二个字节
+    uint8_t second_byte;
+    if (!read(&second_byte, 1)) {
         error_count++;
         continue;
-      }
-      if (!tools::check_crc16(
-            reinterpret_cast<uint8_t *>(&rx_nav_data_), sizeof(rx_nav_data_))) {
-          tools::logger()->debug("[Gimbal] NavToGimbal CRC16 check failed. Should be {}", tools::get_crc16(reinterpret_cast<uint8_t *>(&rx_nav_data_), sizeof(rx_nav_data_)-2));
-          continue;
-      }
-      
-      error_count = 0;
-    } else {
-      // Invalid header
-      continue;
     }
+    // 检查是否为合法帧头 (0xB5 0xA5)
+    if (second_byte != 0xA5) {
+        continue;   // 不是导航帧，丢弃
+    }
+    // 填充双字节头
+    rx_nav_data_.head[0] = head;
+    rx_nav_data_.head[1] = second_byte;
+    // tools::logger()->info("[Gimbal] receiver data from diankong");
+    // 读取剩余数据 (总长度 - 2)
+    if (!read(reinterpret_cast<uint8_t *>(&rx_nav_data_) + 2, sizeof(rx_nav_data_) - 2)) {
+        error_count++;
+        continue;
+    }
+    // CRC16 校验（注意：sizeof(rx_nav_data_) 现在包含双字节头）
+    if (!tools::check_crc16(reinterpret_cast<uint8_t *>(&rx_nav_data_), sizeof(rx_nav_data_))) {
+        tools::logger()->debug("[Gimbal] NavToGimbal CRC16 check failed. Should be {}",
+                               tools::get_crc16(reinterpret_cast<uint8_t *>(&rx_nav_data_),
+                                                sizeof(rx_nav_data_) - 2));
+        continue;
+    }
+    error_count = 0;
+} else {
+    // Invalid header
+    continue;
+}
   }
 
   tools::logger()->info("[Gimbal] read_thread stopped.");

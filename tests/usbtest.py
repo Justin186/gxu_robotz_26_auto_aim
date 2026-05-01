@@ -2,11 +2,12 @@
 import cv2
 import time
 
+
 def test_camera():
     cap = cv2.VideoCapture('/dev/video0', cv2.CAP_V4L2)
     cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 720)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
     # 1 秒窗口统计，避免瞬时 FPS 抖动
     sec_start = time.time()
@@ -48,6 +49,7 @@ def test_camera():
 
     cap.release()
     cv2.destroyAllWindows()
+
 
 if __name__ == "__main__":
     test_camera()
