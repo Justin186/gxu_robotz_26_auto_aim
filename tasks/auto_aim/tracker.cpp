@@ -35,7 +35,7 @@ std::list<Target> Tracker::track(
   last_timestamp_ = t;
 
   // 时间间隔过长，说明可能发生了相机离线
-  if (state_ != "lost" && dt > 0.1) {
+  if (state_ != "lost" && dt > 0.2) {
     tools::logger()->warn("[Tracker] Large dt: {:.3f}s", dt);
     state_ = "lost";
   }
@@ -74,7 +74,7 @@ std::list<Target> Tracker::track(
 
   // 发散检测
   if (state_ != "lost" && target_.diverged()) {
-    tools::logger()->debug("[Tracker] Target diverged!");
+    tools::logger()->debug("[Tracker] Target diverged!,but debug,so not lost");
     state_ = "lost";
     return {};
   }
@@ -140,6 +140,8 @@ std::tuple<omniperception::DetectionResult, std::list<Target>> Tracker::track(
   else if (
     state_ == "tracking" && !temp_target.armors.empty() &&
     temp_target.armors.front().priority < target_.priority && target_.convergened()) {
+    // 全向感知先发现更高优先级目标后，先进入switching，
+    // 等主相机真正看到同优先级目标，再由后续状态机完成接管
     state_ = "switching";
     switch_target = omniperception::DetectionResult{
       temp_target.armors, t, temp_target.delta_yaw, temp_target.delta_pitch};
@@ -149,10 +151,12 @@ std::tuple<omniperception::DetectionResult, std::list<Target>> Tracker::track(
   }
 
   else if (state_ == "switching") {
+    // switching阶段不直接更新EKF，只确认主相机是否已经看到期望切换到的目标
     found = !armors.empty() && armors.front().priority == omni_target_priority_;
   }
 
   else if (state_ == "detecting" && pre_state_ == "switching") {
+    // switching确认成功后的第一帧需要重新建目标，避免沿用旧目标状态
     found = set_target(armors, t);
   }
 
@@ -180,6 +184,7 @@ std::tuple<omniperception::DetectionResult, std::list<Target>> Tracker::track(
 void Tracker::state_machine(bool found)
 {
   if (state_ == "lost") {
+    // lost下首次发现目标，只进入detecting，等连续命中足够帧数再转tracking
     if (!found) return;
 
     state_ = "detecting";
@@ -187,6 +192,7 @@ void Tracker::state_machine(bool found)
   }
 
   else if (state_ == "detecting") {
+    // detecting用于抑制误检，只有连续检测达到阈值才认为真正锁定
     if (found) {
       detect_count_++;
       if (detect_count_ >= min_detect_count_) state_ = "tracking";
@@ -197,6 +203,7 @@ void Tracker::state_machine(bool found)
   }
 
   else if (state_ == "tracking") {
+    // tracking中单帧丢失不立刻放弃，先进入temp_lost等待短时恢复
     if (found) return;
 
     temp_lost_count_ = 1;
@@ -205,8 +212,10 @@ void Tracker::state_machine(bool found)
 
   else if (state_ == "switching") {
     if (found) {
+      // 主相机确认到待切换目标后，回到detecting并在下一帧重建目标
       state_ = "detecting";
     } else {
+      // switching长期等不到主相机确认，则放弃本次切换
       temp_lost_count_++;
       if (temp_lost_count_ > 200) state_ = "lost";
     }
@@ -214,11 +223,12 @@ void Tracker::state_machine(bool found)
 
   else if (state_ == "temp_lost") {
     if (found) {
+      // 目标在容忍窗口内重新出现，直接恢复tracking
       state_ = "tracking";
     } else {
       temp_lost_count_++;
       if (target_.name == ArmorName::outpost)
-        //前哨站的temp_lost_count需要设置的大一些
+        // 前哨站转速和遮挡特性更特殊，允许更长的短时丢失窗口
         max_temp_lost_count_ = outpost_max_temp_lost_count_;
       else
         max_temp_lost_count_ = normal_temp_lost_count_;

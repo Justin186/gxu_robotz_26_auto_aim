@@ -84,6 +84,7 @@ int main(int argc, char * argv[])
   auto R_gimbal2imubody_data = tools::read<std::vector<double>>(yaml, "R_gimbal2imubody");
   Eigen::Matrix<double, 3, 3, Eigen::RowMajor> R_gimbal2imubody(R_gimbal2imubody_data.data());
   auto fire_duty_window = tools::read<size_t>(yaml, "fire_duty_window", 500);
+  const int scan_lost_threshold = 8;
 
   tools::ThreadSafeQueue<std::optional<auto_aim::Target>, true> target_queue(1);
   target_queue.push(std::nullopt);
@@ -100,9 +101,9 @@ int main(int argc, char * argv[])
     const size_t rerun_interval = 20;
 
     auto last_scan_time = std::chrono::steady_clock::now();
-    double scan_cmd_angle = 0.0;
-    double scan_t = 0.0;
+    omniperception::ScanState scan_state;
     bool first_scan = true;
+    int lost_count = 0;
 
     while (!quit) {
       auto target = target_queue.front();
@@ -113,8 +114,10 @@ int main(int argc, char * argv[])
 
       auto plan = planner.plan(target, gs.bullet_speed, gs.yaw, gs.pitch, current_time);
       bool do_rerun = rerun && (rerun_counter % rerun_interval == 0);
+      auto tracker_state = tracker.state();
 
-      if (tracker.state() != "lost") {
+      if (tracker_state != "lost") {
+        lost_count = 0;
         first_scan = true;
         gimbal.set_aim_status(true);
         gimbal.send(
@@ -122,43 +125,35 @@ int main(int argc, char * argv[])
           plan.v_yaw, plan.yaw_vel, plan.yaw_acc,
           plan.v_pitch, plan.pitch_vel, plan.pitch_acc);
         std::this_thread::sleep_for(10ms);
-      } else if (tracker.state() == "lost" && !io::GimbalNode::is_move) {
+      } else if (tracker_state == "lost") {
+        lost_count++;
         gimbal.set_aim_status(false);
 
-        bool used_omniperception = false;
-        auto detect_results = perceptron.get_detection_queue();
-        if (!detect_results.empty()) {
-          auto best_result = detect_results.back();
-          double yaw = tools::limit_rad((gs.yaw * 57.3 + best_result.delta_yaw * 57.3) / 57.3);
-          double pitch = tools::limit_rad((gs.pitch * 57.3 + best_result.delta_pitch * 57.3) / 57.3);
-          gimbal.send(true, false, yaw, 0, 0, pitch, 0, 0);
+        if (lost_count < scan_lost_threshold) {
+          // 这里不continue，后面的rerun仍需要记录当前帧状态
           first_scan = true;
-          used_omniperception = true;
-          std::this_thread::sleep_for(10ms);
-        }
+          gimbal.send(true, false, gs.yaw, 0, 0, gs.pitch, 0, 0);
+        } else {
+          bool used_omniperception = false;
+          auto detect_results = perceptron.get_detection_queue();
+          if (!detect_results.empty()) {
+            auto best_result = detect_results.back();
+            double yaw = tools::limit_rad((gs.yaw * 57.3 + best_result.delta_yaw * 57.3) / 57.3);
+            double pitch =
+              tools::limit_rad((gs.pitch * 57.3 + best_result.delta_pitch * 57.3) / 57.3);
+            gimbal.send(true, false, yaw, 0, 0, pitch, 0, 0);
+            first_scan = true;
+            used_omniperception = true;
+          }
 
-        if (!used_omniperception) {
-          if (first_scan) {
-            scan_cmd_angle = gs.yaw * 57.3;
+          if (!used_omniperception) {
+            auto scan_result = omniperception::scan(gs.yaw, dt, first_scan, scan_state);
             first_scan = false;
+            gimbal.send(true, false, scan_result.yaw, 0, 0, scan_result.pitch, 0, 0);
           }
-
-          double delta_angle = 60;
-          double amplitude = 5.0;
-          double period = 1;
-
-          scan_cmd_angle += delta_angle * dt;
-          double yaw = tools::limit_rad(scan_cmd_angle / 57.3);
-          double pitch = tools::limit_rad(amplitude * std::sin(2 * M_PI * scan_t / period) / 57.3 - 0.1);
-          gimbal.send(true, false, yaw, 0, 0, pitch, 0, 0);
-
-          scan_t += dt;
-          if (scan_t >= period) {
-            scan_t -= period;
-          }
-
-          std::this_thread::sleep_for(10ms);
         }
+
+        std::this_thread::sleep_for(10ms);
       } else {
         std::this_thread::sleep_for(10ms);
       }

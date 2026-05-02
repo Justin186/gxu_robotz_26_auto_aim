@@ -57,10 +57,11 @@ int main(int argc, char * argv[])
   omniperception::Perceptron perceptron(
     &ros_cam_left, &usb_cam_right, config_path);
 
-  auto_aim::YOLO yolo(config_path, true); 
+  auto_aim::YOLO yolo(config_path, false);
   auto_aim::Solver solver(config_path);
   auto_aim::Tracker tracker(config_path, solver);
   auto_aim::Planner planner(config_path);
+  const int scan_lost_threshold = 8;
 
   tools::ThreadSafeQueue<std::optional<auto_aim::Target>, true> target_queue(1);
   target_queue.push(std::nullopt);
@@ -73,6 +74,7 @@ int main(int argc, char * argv[])
     auto last_scan_time = std::chrono::steady_clock::now();
     omniperception::ScanState scan_state;
     bool first_scan = true;
+    int lost_count = 0;
 
     while (!quit) {
       auto target = target_queue.front();
@@ -80,8 +82,10 @@ int main(int argc, char * argv[])
       auto current_time = std::chrono::steady_clock::now();
       double dt = tools::delta_time(current_time, last_scan_time);
       last_scan_time = current_time;
+      auto tracker_state = tracker.state();
 
-      if (tracker.state() != "lost") { 
+      if (tracker_state != "lost") { 
+        lost_count = 0;
         first_scan = true;
         auto plan = planner.plan(target, gs.bullet_speed);
         gimbal.set_aim_status(true);
@@ -93,9 +97,18 @@ int main(int argc, char * argv[])
 
         std::this_thread::sleep_for(10ms);
       } 
-      else if (tracker.state() == "lost" && !io::GimbalNode::is_move)
+      else if (tracker_state == "lost")
       { 
+        lost_count++;
         gimbal.set_aim_status(false);
+
+        if (lost_count < scan_lost_threshold) {
+          // 短时lost先稳住云台，不立刻进入侧向接管/盲扫
+          first_scan = true;
+          gimbal.send(true, false, gs.yaw, 0, 0, gs.pitch, 0, 0);
+          std::this_thread::sleep_for(10ms);
+          continue;
+        }
         
         // 侧后方相机的全向感知接入点
         auto detect_results = perceptron.get_detection_queue();
@@ -132,9 +145,21 @@ int main(int argc, char * argv[])
 
   cv::Mat img;
   std::chrono::steady_clock::time_point t;
+  auto fps_window_start = std::chrono::steady_clock::now();
+  size_t fps_frame_count = 0;
 
   while (!exiter.exit()) {
     camera.read(img, t); // 相机读取通常是阻塞的，控制了整体循环频率
+    fps_frame_count++;
+    auto now = std::chrono::steady_clock::now();
+    double fps_elapsed = std::chrono::duration<double>(now - fps_window_start).count();
+    if (fps_elapsed >= 1.0) {
+      double main_camera_fps = static_cast<double>(fps_frame_count) / fps_elapsed;
+      fmt::print("Main camera FPS: {:.2f}\n", main_camera_fps);
+      fps_window_start = now;
+      fps_frame_count = 0;
+    }
+
     auto q = gimbal.q(t);
     // 比赛进行中则开始录制
     if (gimbal.nav_state().game_progress == 4) { // 1: 准备阶段, 4: 比赛进行中 (需确认game_progress对应的值, 根据不同赛季可能不同, 这里用户只要求是1)
@@ -150,27 +175,27 @@ int main(int argc, char * argv[])
     else
       target_queue.push(std::nullopt);
 
-    if (!targets.empty()) {
-      auto target = targets.front();
-
-      // 当前帧target更新后
-      std::vector<Eigen::Vector4d> armor_xyza_list = target.armor_xyza_list();
-      for (const Eigen::Vector4d & xyza : armor_xyza_list) {
-        auto image_points =
-          solver.reproject_armor(xyza.head(3), xyza[3], target.armor_type, target.name);
-        tools::draw_points(img, image_points, {0, 255, 0});
-      }
-
-      Eigen::Vector4d aim_xyza = planner.debug_xyza;
-      auto image_points =
-        solver.reproject_armor(aim_xyza.head(3), aim_xyza[3], target.armor_type, target.name);
-      tools::draw_points(img, image_points, {0, 0, 255});
-    }
-
-    cv::resize(img, img, {}, 0.7, 0.7);  // 显示时缩小图片尺寸
-    cv::imshow("reprojection", img);
-    auto key = cv::waitKey(1);
-    if (key == 'q') break;
+    // 已按要求注释掉当前文件中的所有可视化代码，仅保留终端 FPS 输出。
+    // if (!targets.empty()) {
+    //   auto target = targets.front();
+    //
+    //   std::vector<Eigen::Vector4d> armor_xyza_list = target.armor_xyza_list();
+    //   for (const Eigen::Vector4d & xyza : armor_xyza_list) {
+    //     auto image_points =
+    //       solver.reproject_armor(xyza.head(3), xyza[3], target.armor_type, target.name);
+    //     tools::draw_points(img, image_points, {0, 255, 0});
+    //   }
+    //
+    //   Eigen::Vector4d aim_xyza = planner.debug_xyza;
+    //   auto image_points =
+    //     solver.reproject_armor(aim_xyza.head(3), aim_xyza[3], target.armor_type, target.name);
+    //   tools::draw_points(img, image_points, {0, 0, 255});
+    // }
+    //
+    // cv::resize(img, img, {}, 0.7, 0.7);
+    // cv::imshow("reprojection", img);
+    // auto key = cv::waitKey(1);
+    // if (key == 'q') break;
   }
 
   quit = true;

@@ -51,16 +51,16 @@ int main(int argc, char * argv[])
     double dt = tools::delta_time(current_time, last_scan_time);
     last_scan_time = current_time;
 
-    double delta_angle = 100; // 哨兵扫描：yaw 每秒旋转度数
+    double delta_angle = 160; // 哨兵扫描：yaw 每秒旋转度数
     double amplitude = 20.0;   // 哨兵扫描：pitch 上下扫动幅度(度)
-    double period = 1;       // 哨兵扫描：pitch 扫动周期(秒)
+    double period = 0.6;       // 哨兵扫描：pitch 扫动周期(秒)
 
     scan_cmd_angle += delta_angle * dt;
     double yaw = tools::limit_rad(scan_cmd_angle / 57.3);
     double yaw_vel = delta_angle / 57.3;
     double yaw_acc = 0.0;
     
-    double pitch = tools::limit_rad(amplitude * std::sin(2 * M_PI * scan_t / period) / 57.3 - 0.1);
+    double pitch = tools::limit_rad(amplitude * std::sin(2 * M_PI * scan_t / period) / 57.3 + 0.1);
     double pitch_vel = (amplitude / 57.3) * (2 * M_PI / period) * std::cos(2 * M_PI * scan_t / period);
     double pitch_acc = -(amplitude / 57.3) * std::pow(2 * M_PI / period, 2) * std::sin(2 * M_PI * scan_t / period);
     
