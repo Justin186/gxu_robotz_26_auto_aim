@@ -8,9 +8,9 @@ using namespace std::chrono_literals;
 
 namespace io
 {
-HikRobot::HikRobot(double exposure_ms, double gain, const std::string & vid_pid, bool need_rotation)
+HikRobot::HikRobot(double exposure_ms, double gain, const std::string & sn, const std::string & vid_pid, bool need_rotation)
 : exposure_us_(exposure_ms * 1e3), gain_(gain), queue_(1), 
-  daemon_quit_(false), vid_(-1), pid_(-1), need_rotation_(need_rotation)
+  daemon_quit_(false), sn_(sn), vid_(-1), pid_(-1), need_rotation_(need_rotation)
 {
   set_vid_pid(vid_pid);
   if (libusb_init(NULL)) tools::logger()->warn("Unable to init libusb!");
@@ -71,7 +71,27 @@ void HikRobot::capture_start()
     return;
   }
 
-  ret = MV_CC_CreateHandle(&handle_, device_list.pDeviceInfo[0]);
+  int device_index = 0;
+  if (!sn_.empty()) {
+    bool found = false;
+    for (unsigned int i = 0; i < device_list.nDeviceNum; ++i) {
+      MV_CC_DEVICE_INFO* pDeviceInfo = device_list.pDeviceInfo[i];
+      if (pDeviceInfo->nTLayerType == MV_USB_DEVICE) {
+        std::string current_sn(reinterpret_cast<char*>(pDeviceInfo->SpecialInfo.stUsb3VInfo.chSerialNumber));
+        if (current_sn == sn_) {
+          device_index = i;
+          found = true;
+          break;
+        }
+      }
+    }
+    if (!found) {
+      tools::logger()->warn("HikRobot camera with SN \'{}\' not found!", sn_);
+      return;
+    }
+  }
+
+  ret = MV_CC_CreateHandle(&handle_, device_list.pDeviceInfo[device_index]);
   if (ret != MV_OK) {
     tools::logger()->warn("MV_CC_CreateHandle failed: {:#x}", ret);
     return;
@@ -254,8 +274,39 @@ void HikRobot::reset_usb() const
 {
   if (vid_ == -1 || pid_ == -1) return;
 
-  // https://github.com/ralight/usb-reset/blob/master/usb-reset.c
-  auto handle = libusb_open_device_with_vid_pid(NULL, vid_, pid_);
+  libusb_device **devs;
+  ssize_t cnt = libusb_get_device_list(NULL, &devs);
+  if (cnt < 0) return;
+
+  libusb_device_handle *handle = nullptr;
+
+  for (ssize_t i = 0; i < cnt; ++i) {
+    libusb_device *dev = devs[i];
+    struct libusb_device_descriptor desc;
+    if (libusb_get_device_descriptor(dev, &desc) < 0) continue;
+
+    if (desc.idVendor == vid_ && desc.idProduct == pid_) {
+      if (sn_.empty()) {
+        libusb_open(dev, &handle);
+        break;
+      }
+      
+      libusb_device_handle *temp_handle = nullptr;
+      if (libusb_open(dev, &temp_handle) == 0) {
+        unsigned char string_data[256];
+        if (libusb_get_string_descriptor_ascii(temp_handle, desc.iSerialNumber, string_data, sizeof(string_data)) > 0) {
+          if (sn_ == reinterpret_cast<char*>(string_data)) {
+            handle = temp_handle;
+            break;
+          }
+        }
+        libusb_close(temp_handle);
+      }
+    }
+  }
+
+  libusb_free_device_list(devs, 1);
+
   if (!handle) {
     tools::logger()->warn("Unable to open usb!");
     return;

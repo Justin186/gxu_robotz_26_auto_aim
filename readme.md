@@ -78,15 +78,16 @@ IMU型号：使用C板内置BMI088作为IMU\
         chmod +x autostart.sh
         ```
 
-5. USB2CAN设置（可选）
+5. USB Bulk设置
     1. 创建`.rules`文件:
         ```
-        sudo touch /etc/udev/rules.d/99-can-up.rules
+        sudo touch /etc/udev/rules.d/99-can-up.rules/etc/udev/rules.d/99-robomaster.rules
         ```
     2. 在该文件中写入:
         ```
-        ACTION=="add", KERNEL=="can0", RUN+="/sbin/ip link set can0 up type can bitrate 1000000"
-        ACTION=="add", KERNEL=="can1", RUN+="/sbin/ip link set can1 up type can bitrate 1000000"
+        SUBSYSTEM=="usb", ATTRS{idVendor}=="0483", ATTRS{idProduct}=="5750", MODE="0666", GROUP="plugdev"
+        ```
+        注: 这里的`idVendor`和`idProduct`需要根据实际设备进行修改，可以通过`lsusb`命令查看。
 
 6. 使用GPU推理（可选）
     ```

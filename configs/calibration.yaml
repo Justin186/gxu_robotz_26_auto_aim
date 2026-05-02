@@ -2,7 +2,7 @@ pattern_cols: 11
 pattern_rows: 8
 center_distance_mm: 40
 
-R_gimbal2imubody: [-1, 0, 0, 0, 1, 0,  0, 0, -1]
+R_gimbal2imubody: [-1, 0, 0, 0, -1, 0,  0, 0, 1]
 
 camera_name: "hikrobot"
 exposure_ms: 20
@@ -18,3 +18,7 @@ quaternion_canid: 0x01
 bullet_speed_canid: 0x110
 send_canid: 0xff
 can_interface: "can0"
+
+# 重投影误差: 0.0806px
+camera_matrix: [2369.9807969883059, 0, 685.57277296836901, 0, 2370.5465120732474, 532.17546254368904, 0, 0, 1]
+distort_coeffs: [-0.056246800268191545, 0.18493344518033611, -0.0023135109603493144, -0.0017698356282135827, 0]

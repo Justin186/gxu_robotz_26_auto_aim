@@ -35,9 +35,10 @@ usb_gain: 10 #0-96
 
 #####-----工业相机参数-----#####
 camera_name: "hikrobot"
-exposure_ms: 10
+exposure_ms: 7
 gain: 16.9
 vid_pid: "2bdf:0001"
+sn: "DA1830793"
 need_rotation: true
 
 #####-----传统方法参数-----#####
@@ -65,14 +66,14 @@ outpost_max_temp_lost_count: 75
 
 #####-----aimer参数-----#####
 yaw_offset: 0 # degree -2.5
-pitch_offset: -0.7  # degree 2
+pitch_offset: 0  # degree 2
 comming_angle: 40 # degree
 leaving_angle: 20 # degree
 left_yaw_offset: -1
 right_yaw_offset: -0.6
 decision_speed: 10 # rad/s
 high_speed_delay_time: 0.026 # s
-low_speed_delay_time: 0.0115 # s
+low_speed_delay_time: 0.007 # s
 max_armor_angle: 70 # degree
 defult_bullet_speed: 22 # m/s
 
@@ -86,21 +87,23 @@ auto_fire: true # 是否由自瞄控制射击
 mode: 1
 
 #####-----工业相机标定参数-----#####
-R_gimbal2imubody: [1, 0, 0, 0, 1, 0,  0, 0, 1]
+R_gimbal2imubody: [-1, 0, 0, 0, -1, 0,  0, 0, 1]
 # R_gimbal2imubody: [0, -1, 0, 1, 0, 0,  0, 0, 1]
-t_pitchlink2gimbal: [-31, 0, 0]  # 单位mm
+t_pitchlink2gimbal: [0, 0, 0]  # 单位mm
 
-# 重投影误差: 0.0534px
-camera_matrix: [2359.7528187598982, 0, 696.43298916431195, 0, 2360.1894340625981, 536.79875280770045, 0, 0, 1]
-distort_coeffs: [-0.05456741286284772, 0.15811583807666588, 0.00016957902475501404, 0.00021339196559506428, 0]
+# 重投影误差: 0.0857px
+camera_matrix: [2383.1456515203563, 0, 682.39284463077865, 0, 2383.6319990396564, 531.62986424539395, 0, 0, 1]
+distort_coeffs: [-0.051130992717124228, 0.14143983305304811, -0.0021443325830808459, -0.0025124818898308904, 0]
 
-# 相机同理想情况的偏角: yaw-1.74 pitch2.46 roll1.31 degree
+# # 相机同理想情况的偏角: yaw-1.74 pitch2.46 roll1.31 degree
 R_camera2pitchlink: [0, 0, 1, -1, 0, 0, 0, -1, 0]
-t_camera2pitchlink: [0.19, 0, 0.05]
+t_camera2pitchlink: [0.30267, 0.06428, 0.0205]
 # # 相机同理想情况的偏角: yaw4.38 pitch1.01 roll0.98 degree
 # R_camera2pitchlink: [-0.076104570960546569, 0.018872810343276987, 0.99692121619948382, -0.9969541335835046, 0.015651763417430464, -0.076403388882226073, -0.017045521689729247, -0.99969937447798352, 0.017624155544407882]
 # t_camera2pitchlink: [0.19564190654669131, -0.011577145726875815, 0.091229337414245146]
-
+# 相机同理想情况的偏角: yaw-3.45 pitch-0.16 roll1.94 degree
+# R_camera2pitchlink: [0.060078043007294246, -0.0047520219486962296, 0.99818237163146339, -0.99762011631022296, 0.0336088892734554, 0.060204203299949459, -0.033833892498362078, -0.999423764400869, -0.0027215563939690934]
+# t_camera2pitchlink: [0.34618353960576453, 0.094731366293554983, 0.038116817305929515]
 
 #####-----gimbal参数-----#####
 vid: 0x0483

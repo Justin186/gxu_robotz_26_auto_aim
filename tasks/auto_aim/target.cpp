@@ -194,7 +194,7 @@ void Target::update(const Armor & armor) // EKF中的第二大步：更新
   }
 
   // 如果最小角度误差过大（比如超过0.8弧度，约45度），说明可能出现严重误匹配或异常观测值，直接丢弃该帧观测
-  if (min_angle_error > 0.8) {
+  if (min_angle_error > 1) {
     tools::logger()->warn("[Target] Matched armor angle error too large ({:.3f} rad), dropped observation to avoid jumping", min_angle_error);
     return;
   }
@@ -217,6 +217,33 @@ void Target::update(const Armor & armor) // EKF中的第二大步：更新
 
 void Target::update_ypda(const Armor & armor, int id)
 {
+  if (name == ArmorName::outpost && !outpost_z_resolved_ && id >= 0 && id < 3) {
+    outpost_z_sum_[id] += armor.xyz_in_world[2];
+    outpost_z_count_[id]++;
+
+    // 判断三个id的装甲板是否都有足够(如10次)观测，以求稳定平均
+    if (outpost_z_count_[0] > 10 && outpost_z_count_[1] > 10 && outpost_z_count_[2] > 10) {
+      double avgs[3] = {outpost_z_sum_[0] / outpost_z_count_[0],
+                        outpost_z_sum_[1] / outpost_z_count_[1],
+                        outpost_z_sum_[2] / outpost_z_count_[2]};
+      
+      int sorted_ids[3] = {0, 1, 2};
+      std::sort(sorted_ids, sorted_ids + 3, [&avgs](int a, int b) {
+        return avgs[a] < avgs[b];
+      });
+
+      // 实地高度理论值：1.114 (低)，1.216 (中)，1.318 (高)
+      // 则相对于 1.216，三者偏移为 -0.102, 0, 0.102
+      outpost_z_offset_[sorted_ids[0]] = -0.102;
+      outpost_z_offset_[sorted_ids[1]] = 0.0;
+      outpost_z_offset_[sorted_ids[2]] = 0.102;
+
+      outpost_z_resolved_ = true;
+      tools::logger()->info("[Target] Outpost Z sorted! id[{}]=-0.102, id[{}]={:.3f}, id[{}]={:.3f}",
+                            sorted_ids[0], sorted_ids[1], 0.0, sorted_ids[2], 0.102);
+    }
+  }
+
   // 同济并没有采用更新xyza的方法，而是选择ypda为观测量进行更新，因为这更符合测量本质，而且yaw/pitch误差几乎独立于距离，如果使用xyz，距离误差会线性放大到x,y误差
   // 获取观测雅可比矩阵H
   Eigen::MatrixXd H = h_jacobian(ekf_.x, id);
@@ -225,8 +252,8 @@ void Target::update_ypda(const Armor & armor, int id)
   auto delta_angle = tools::limit_rad(armor.ypr_in_world[0] - center_yaw); // 装甲板朝向与车身朝向的夹角
   // 算出观测噪声协方差矩阵R的对角线元素
   Eigen::VectorXd R_dig{
-      {4e-3,  // 固定yaw噪声
-      4e-2,  // 固定pitch噪声
+      {8e-3,  // 固定yaw噪声
+      4e-3,  // 固定pitch噪声
       log(std::abs(delta_angle) + 1) + 1,  // 自适应距离噪声：当装甲板不在正对时（delta_angle大），距离估计不准，增大噪声
       log(std::abs(armor.ypd_in_world[2]) + 1) / 200 + 9e-2}};  // 自适应角度噪声：距离越远，角度估计越不准
 
@@ -255,31 +282,39 @@ void Target::update_ypda(const Armor & armor, int id)
   const Eigen::VectorXd & ypr = armor.ypr_in_world;
   Eigen::VectorXd z{{ypd[0], ypd[1], ypd[2], ypr[0]}};  //获得观测量
 
-  // 计算上一帧估计的速度 (vx, vy, vz) 和角速度 (w)
-  Eigen::Vector3d last_v(ekf_.x[1], ekf_.x[3], ekf_.x[5]);
-  double last_w = ekf_.x[7];
-
   ekf_.update(z, H, R, h, z_subtract); // 送进EKF进行更新
   
-  // 计算更新后新估计的速度和角速度
+  // 提取更新后的速度，送入滑动窗口以计算真实的物理加速度
   Eigen::Vector3d current_v(ekf_.x[1], ekf_.x[3], ekf_.x[5]);
   double current_w = ekf_.x[7];
+  auto now = std::chrono::steady_clock::now();
   
-  // 提取前后两帧的速度变化量（即隐含的加速度/角加速度大小）
-  // 这里的差值实际上反映了EKF对速度状态的瞬间修正量（也就是"由于模型不符导致的突变加速度"）
-  double delta_v = (current_v - last_v).norm();
-  double delta_w = std::abs(current_w - last_w);
-  
-  // 核心逻辑：如果速度变化极大（强机动/急停/急转），或者基于观测算出的残差极大
-  // 则重置机动倒计时，并根据情况膨胀协方差
-  if (delta_v > 2 || delta_w > 2) { 
-    // 发生了极大的速度或角速度突变（说明正在剧烈加速或减速、换向）
-    tools::logger()->warn("[Target] Acceleration/Maneuver Detected! delta_v: {:.3f}, delta_w: {:.3f}", delta_v, delta_w);
-    maneuver_ticks = 10; // 设置机动状态，暂缓开火
-  } else {
-    if (maneuver_ticks > 0) {
-      maneuver_ticks--;
+  velocity_history_.push_back({now, current_v});
+  w_history_.push_back({now, current_w});
+
+  // 保证窗口内元素不超过10个（平滑多帧）
+  while (velocity_history_.size() > 10) velocity_history_.pop_front();
+  while (w_history_.size() > 10) w_history_.pop_front();
+
+  // 当收集了至少两帧数据时，开始计算真实的物理加速度（过载）
+  if (velocity_history_.size() >= 2) {
+    auto dt_history = tools::delta_time(velocity_history_.back().first, velocity_history_.front().first);
+    if (dt_history > 0.05) { // 确保有足够的时间跨度防止除数过小放大噪声
+      double true_acc = (velocity_history_.back().second - velocity_history_.front().second).norm() / dt_history;
+      double true_w_acc = std::abs(w_history_.back().second - w_history_.front().second) / dt_history;
+      
+      // 真实加速度大于 5 m/s^2 或角加速度大于 10 rad/s^2 判定为强机动
+      if (true_acc > 5.0 || true_w_acc > 10.0) {
+        tools::logger()->warn("[Target] Acceleration/Maneuver Detected! a: {:.3f} m/s^2, w_acc: {:.3f} rad/s^2", true_acc, true_w_acc);
+        maneuver_ticks = 10; // 设置机动状态，暂缓开火
+      } else {
+        if (maneuver_ticks > 0) maneuver_ticks--;
+      }
+    } else {
+      if (maneuver_ticks > 0) maneuver_ticks--;
     }
+  } else {
+    if (maneuver_ticks > 0) maneuver_ticks--;
   }
 }
 
@@ -340,6 +375,10 @@ Eigen::Vector3d Target::h_armor_xyz(const Eigen::VectorXd & x, int id) const
   auto armor_x = x[0] - r * std::cos(angle);
   auto armor_y = x[2] - r * std::sin(angle);
   auto armor_z = (use_l_h) ? x[4] + x[10] : x[4];
+
+  if (name == ArmorName::outpost && id >= 0 && id < 3) {
+    armor_z = x[4] + outpost_z_offset_[id];
+  }
 
   return {armor_x, armor_y, armor_z};
 }

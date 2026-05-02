@@ -11,6 +11,7 @@
 
 #include "io/camera.hpp"
 #include "io/gimbal/gimbal.hpp"
+#include "tasks/video_encoder/video_encoder.hpp"
 #include "tasks/auto_aim/planner/planner.hpp"
 #include "tasks/auto_aim/solver.hpp"
 #include "tasks/auto_aim/tracker.hpp"
@@ -30,6 +31,7 @@ const std::string keys =
   "{f              | true                   | 是否开火}"
   "{imshow         | true                   | 是否显示图像窗口}"
   "{rerun          | false                  | 是否将数据记录到Rerun}"
+  "{camera         | configs/camera.yaml      | 位置参数，yaml配置文件路径 }"
   "{@config-path   | configs/hero.yaml      | 位置参数，yaml配置文件路径 }";
 
 int main(int argc, char * argv[])
@@ -39,6 +41,7 @@ int main(int argc, char * argv[])
 
   cv::CommandLineParser cli(argc, argv, keys);
   auto config_path = cli.get<std::string>(0);
+  auto camera_config_path = cli.get<std::string>("camera");
   auto rerun_ip = cli.get<std::string>("ip");
   auto fire = cli.get<bool>("f");
   auto imshow = cli.get<bool>("imshow");
@@ -59,6 +62,7 @@ int main(int argc, char * argv[])
 
   io::Gimbal gimbal(config_path);
   io::Camera camera(config_path);
+  io::Camera lob_camera(camera_config_path);
 
   auto_aim::YOLO yolo(config_path, imshow);
   auto_aim::Solver solver(config_path);
@@ -73,6 +77,25 @@ int main(int argc, char * argv[])
   t_pitchlink2gimbal /= 1000.0; // mm to m
 
   auto fire_duty_window = tools::read<size_t>(yaml, "fire_duty_window", 500);
+
+  tasks::VideoEncoderConfig encoder_config;
+  // TODO: 后续如果是双相机，就在 yaml 里读取相应的图传相机配置
+  encoder_config.target_bitrate = 80;
+  encoder_config.output_fps = 60;       // 利用大带宽重新拉回 60 FPS 流畅度
+  
+  tasks::VideoEncoder video_encoder(encoder_config, [&](const uint8_t* data, size_t size){
+    gimbal.send_video(data, size);
+
+    static int video_send_count = 0;
+    static auto last_video_send_time = std::chrono::steady_clock::now();
+    video_send_count++;
+    auto now = std::chrono::steady_clock::now();
+    if (std::chrono::duration_cast<std::chrono::seconds>(now - last_video_send_time).count() >= 1) {
+      tools::logger()->info("[VideoEncoder] Send frequency: {} Hz", video_send_count);
+      video_send_count = 0;
+      last_video_send_time = now;
+    }
+  });
 
   tools::ThreadSafeQueue<std::optional<auto_aim::Target>, true> target_queue(1);
   target_queue.push(std::nullopt);
@@ -94,7 +117,7 @@ int main(int argc, char * argv[])
       gimbal.send(
         plan.control, plan.fire && fire,
         plan.yaw, plan.yaw_vel, plan.yaw_acc,
-        -plan.pitch, -plan.pitch_vel, -plan.pitch_acc);
+        plan.pitch, plan.pitch_vel, plan.pitch_acc);
 
       auto fired = gs.bullet_count > last_bullet_count;
       last_bullet_count = gs.bullet_count;
@@ -124,6 +147,7 @@ int main(int argc, char * argv[])
       
       // 我们从已经修正好的真实的 IMU 旋转矩阵里，提取出云台当前的真实世界前方(X轴)，并强行拍平在水平面上。
       Eigen::Vector3d forward_world = R_gimbal2world.col(0); 
+      forward_world.z() = 0.0; // 强制砍掉所有的 Z 轴数值，让它在全局地图里绝对处于绝对水平！
       if (forward_world.norm() > 1e-6) forward_world.normalize();
       else forward_world = Eigen::Vector3d(1.0, 0.0, 0.0);
 
@@ -131,7 +155,7 @@ int main(int argc, char * argv[])
       Eigen::Vector3d local_dir = R_gimbal2world.transpose() * forward_world;
       
       // 用户要求在全局（世界坐标系）下降 0.27m。我们需要将世界系下的向下向量 (0, 0, -0.27) 也反向变换到 gimbal 局部系里，作为线段的起点偏移
-      Eigen::Vector3d world_offset(0.0, 0.0, 0.0);
+      Eigen::Vector3d world_offset(0.0, 0.0, -0.28);
       Eigen::Vector3d local_offset = R_gimbal2world.transpose() * world_offset;
 
       std::vector<rerun::components::LineStrip3D> strips;
@@ -167,7 +191,7 @@ int main(int argc, char * argv[])
 
         rec->log("pitch/plan_pitch", rerun::Scalars(plan.pitch));
         rec->log("pitch/target_pitch", rerun::Scalars(plan.target_pitch));
-        rec->log("pitch/gimbal_pitch", rerun::Scalars(-gs.pitch));
+        rec->log("pitch/gimbal_pitch", rerun::Scalars(gs.pitch));
         rec->log("pitch/plan_pitch_vel", rerun::Scalars(plan.pitch_vel));
         rec->log("pitch/plan_pitch_acc", rerun::Scalars(plan.pitch_acc));
 
@@ -290,7 +314,26 @@ int main(int argc, char * argv[])
       }
       // =========================
 
-      std::this_thread::sleep_for(10ms);
+      std::this_thread::sleep_for(1ms);
+    }
+  });
+
+  std::mutex lob_mutex;
+  cv::Mat shared_lob_preview;
+
+  auto lob_thread = std::thread([&]() {
+    cv::Mat lob_img;
+    std::chrono::steady_clock::time_point lob_t;
+    while (!quit) {
+      lob_camera.read(lob_img, lob_t);
+      if (!lob_img.empty()) {
+        cv::Mat encoded_preview = video_encoder.push_frame(lob_img);
+        {
+          std::lock_guard<std::mutex> lock(lob_mutex);
+          shared_lob_preview = encoded_preview.clone();
+        }
+      }
+      std::this_thread::sleep_for(1ms);
     }
   });
 
@@ -337,6 +380,16 @@ int main(int argc, char * argv[])
       cv::resize(img, img, {}, 0.5, 0.5);  // 显示时缩小图片尺寸
       cv::imshow("reprojection", img);
 
+      cv::Mat current_lob_preview;
+      {
+        std::lock_guard<std::mutex> lock(lob_mutex);
+        if (!shared_lob_preview.empty()) {
+          current_lob_preview = shared_lob_preview.clone();
+        }
+      }
+      if (!current_lob_preview.empty()) {
+        cv::imshow("Video Encoder Preview", current_lob_preview);
+      }
     }
     if (rerun) rec->log("scalar/fps", rerun::Scalars((float)fps));
     auto key = cv::waitKey(1);
@@ -345,6 +398,7 @@ int main(int argc, char * argv[])
 
   quit = true;
   if (plan_thread.joinable()) plan_thread.join();
+  if (lob_thread.joinable()) lob_thread.join();
   gimbal.send(false, false, 0, 0, 0, 0, 0, 0);
 
   return 0;

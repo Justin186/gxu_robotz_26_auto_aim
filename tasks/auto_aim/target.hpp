@@ -52,6 +52,16 @@ private:
   int switch_count_;
   int update_count_;
 
+  // 记录历史速度以计算真实的物理加速度
+  std::deque<std::pair<std::chrono::steady_clock::time_point, Eigen::Vector3d>> velocity_history_;
+  std::deque<std::pair<std::chrono::steady_clock::time_point, double>> w_history_;
+
+  // 前哨站特殊处理
+  bool outpost_z_resolved_ = false;
+  double outpost_z_sum_[3] = {0, 0, 0};
+  int outpost_z_count_[3] = {0, 0, 0};
+  double outpost_z_offset_[3] = {0, 0, 0};
+
   bool is_switch_, is_converged_;
 
   tools::ExtendedKalmanFilter ekf_;
