@@ -94,7 +94,11 @@ int main(int argc, char * argv[])
       gimbal.send(
         plan.control, plan.fire && fire,
         plan.v_yaw, plan.yaw_vel, plan.yaw_acc,
-        plan.v_pitch, plan.pitch_vel, plan.pitch_acc);
+        plan.v_pitch, plan.pitch_vel, plan.pitch_acc);      
+      // gimbal.send(
+      //   plan.control, plan.fire && fire,
+      //   plan.v_yaw, plan.yaw_vel, plan.yaw_acc,
+      //   0, 0, 0);
 
       auto fired = gs.bullet_count > last_bullet_count;
       last_bullet_count = gs.bullet_count;
@@ -320,7 +324,7 @@ int main(int argc, char * argv[])
     else
       target_queue.push(std::nullopt);
 
-    if (imshow) {
+    if (imshow == true) {
       if (!targets.empty()) {
         auto target = targets.front();
 
@@ -339,7 +343,7 @@ int main(int argc, char * argv[])
       }
 
       tools::draw_text(img, fmt::format("FPS: {:.2f}", fps), {10, 30});
-      cv::resize(img, img, {}, 0.5, 0.5);  // 显示时缩小图片尺寸
+      cv::resize(img, img, {}, 1, 1);  // 显示时缩小图片尺寸
       cv::imshow("reprojection", img);
     }
     if (rerun) rec->log("scalar/fps", rerun::Scalars((float)fps));

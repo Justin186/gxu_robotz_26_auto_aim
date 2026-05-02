@@ -16,14 +16,14 @@ namespace omniperception
 ScanResult omni_scan(double dt, ScanState & state)
 {
   double delta_angle = 60.0;
-  double amplitude = 15.0;
-  double period = 1.5;
+  double amplitude = 25.0;
+  double period = 0.75;
 
   state.scan_cmd_angle += delta_angle * dt;
 
   double yaw = tools::limit_rad(state.scan_cmd_angle / 57.3);
   double pitch =
-    tools::limit_rad(amplitude * std::sin(2 * M_PI * state.scan_t / period) / 57.3 - 0.1);
+    tools::limit_rad(amplitude * std::sin(2 * M_PI * state.scan_t / period) / 57.3 - 0.15);
 
   state.scan_t += dt;
   if (state.scan_t >= period) {
@@ -35,9 +35,9 @@ ScanResult omni_scan(double dt, ScanState & state)
 
 ScanResult short_lost_scan(double start_yaw_deg, double dt, ScanState & state)
 {
-  double delta_angle = 60.0;
-  double amplitude = 15.0;
-  double period = 1.5;
+  double delta_angle = 150.0; // yaw速度v
+  double amplitude = 30.0; // pitch振幅，单位degree
+  double period = 0.75; // pitch周期
 
   state.scan_cmd_angle += state.scan_direction * delta_angle * dt;
 
