@@ -1,5 +1,6 @@
 #include "perceptron.hpp"
 
+#include <cmath>
 #include <chrono>
 #include <memory>
 #include <thread>
@@ -7,9 +8,83 @@
 #include "tasks/auto_aim/yolo.hpp"
 #include "tools/exiter.hpp"
 #include "tools/logger.hpp"
+#include "tools/math_tools.hpp"
 
 namespace omniperception
 {
+
+ScanResult omni_scan(double dt, ScanState & state)
+{
+  double delta_angle = 60.0;
+  double amplitude = 15.0;
+  double period = 1.5;
+
+  state.scan_cmd_angle += delta_angle * dt;
+
+  double yaw = tools::limit_rad(state.scan_cmd_angle / 57.3);
+  double pitch =
+    tools::limit_rad(amplitude * std::sin(2 * M_PI * state.scan_t / period) / 57.3 - 0.1);
+
+  state.scan_t += dt;
+  if (state.scan_t >= period) {
+    state.scan_t -= period;
+  }
+
+  return {yaw, pitch};
+}
+
+ScanResult short_lost_scan(double start_yaw_deg, double dt, ScanState & state)
+{
+  double delta_angle = 60.0;
+  double amplitude = 15.0;
+  double period = 1.5;
+
+  state.scan_cmd_angle += state.scan_direction * delta_angle * dt;
+
+  if (state.scan_cmd_angle <= start_yaw_deg - 15.0) {
+    state.scan_cmd_angle = start_yaw_deg - 15.0;
+    state.scan_direction = 1;
+    state.direction_changes++;
+  } else if (state.scan_cmd_angle >= start_yaw_deg + 15.0) {
+    state.scan_cmd_angle = start_yaw_deg + 15.0;
+    state.scan_direction = -1;
+    state.direction_changes++;
+  }
+
+  if (state.direction_changes >= 4) {
+    state.use_omni_scan = true;
+  }
+
+  double yaw = tools::limit_rad(state.scan_cmd_angle / 57.3);
+  double pitch =
+    tools::limit_rad(amplitude * std::sin(2 * M_PI * state.scan_t / period) / 57.3 - 0.1);
+
+  state.scan_t += dt;
+  if (state.scan_t >= period) {
+    state.scan_t -= period;
+  }
+
+  return {yaw, pitch};
+}
+
+ScanResult scan(double current_yaw, double dt, bool first_scan, ScanState & state)
+{
+  if (first_scan) {
+    state.start_angle = current_yaw * 57.3;
+    state.scan_cmd_angle = state.start_angle;
+    state.scan_t = 0.0;
+    state.scan_direction = -1;
+    state.direction_changes = 0;
+    state.use_omni_scan = false;
+  }
+
+  if (state.use_omni_scan) {
+    return omni_scan(dt, state);
+  } else {
+    return short_lost_scan(state.start_angle, dt, state);
+  }
+}
+
 Perceptron::Perceptron(
   io::CameraBase * usbcam1, io::CameraBase * usbcam2, const std::string & config_path)
 : detection_queue_(10), decider_(config_path), stop_flag_(false)

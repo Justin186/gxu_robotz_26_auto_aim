@@ -2,18 +2,43 @@
 #define OMNIPERCEPTION__PERCEPTRON_HPP
 
 #include <chrono>
+#include <condition_variable>
 #include <list>
 #include <memory>
+#include <mutex>
+#include <thread>
+#include <vector>
 
 #include "decider.hpp"
 #include "detection.hpp"
 #include "io/camera_base.hpp"
 #include "tasks/auto_aim/armor.hpp"
+#include "tasks/auto_aim/yolo.hpp"
 #include "tools/thread_pool.hpp"
 #include "tools/thread_safe_queue.hpp"
 
 namespace omniperception
 {
+
+struct ScanResult
+{
+  double yaw;
+  double pitch;
+};
+
+struct ScanState
+{
+  double start_angle = 0.0;
+  double scan_cmd_angle = 0.0;
+  double scan_t = 0.0;
+  int scan_direction = -1;
+  int direction_changes = 0;
+  bool use_omni_scan = false;
+};
+
+ScanResult omni_scan(double dt, ScanState & state);
+ScanResult short_lost_scan(double start_yaw_deg, double dt, ScanState & state);
+ScanResult scan(double current_yaw, double dt, bool first_scan, ScanState & state);
 
 class Perceptron
 {

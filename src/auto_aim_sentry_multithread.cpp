@@ -71,8 +71,7 @@ int main(int argc, char * argv[])
     // 如果需要统计射击，可以加回来，但不做 Plotter 绘图
 
     auto last_scan_time = std::chrono::steady_clock::now();
-    double scan_cmd_angle = 0.0;
-    double scan_t = 0.0;
+    omniperception::ScanState scan_state;
     bool first_scan = true;
 
     while (!quit) {
@@ -101,40 +100,26 @@ int main(int argc, char * argv[])
         // 侧后方相机的全向感知接入点
         auto detect_results = perceptron.get_detection_queue();
         if (!detect_results.empty()) {
-            // 获取最新鲜的一帧识别结果
-            auto best_result = detect_results.back();
-            // 直接加上侧向相机发送回来的相对角度即可猛回头
-            double yaw = tools::limit_rad((gs.yaw * 57.3 + best_result.delta_yaw * 57.3) / 57.3);
-            double pitch = tools::limit_rad((gs.pitch * 57.3 + best_result.delta_pitch * 57.3) / 57.3);
-            
-            gimbal.send(true, false, yaw, 0, 0, pitch, 0, 0); 
-            // 如果云台性能很强，可以通过 yaw_vel 拉满让其大陀螺甩过去
-            
-            // 跳过下面的盲扫，并重置扫面扫描起始角度
-            first_scan = true;
-            std::this_thread::sleep_for(10ms);
-            continue;
+          // 获取最新鲜的一帧识别结果
+          auto best_result = detect_results.back();
+          // 直接加上侧向相机发送回来的相对角度即可猛回头
+          double yaw = tools::limit_rad((gs.yaw * 57.3 + best_result.delta_yaw * 57.3) / 57.3);
+          double pitch =
+            tools::limit_rad((gs.pitch * 57.3 + best_result.delta_pitch * 57.3) / 57.3);
+
+          gimbal.send(true, false, yaw, 0, 0, pitch, 0, 0);
+          // 如果云台性能很强，可以通过 yaw_vel 拉满让其大陀螺甩过去
+
+          // 跳过下面的盲扫，并重置扫面扫描起始角度
+          first_scan = true;
+          std::this_thread::sleep_for(10ms);
+          continue;
         }
 
-        if (first_scan) {
-          scan_cmd_angle = gs.yaw * 57.3; // 以当前实际yaw为起点
-          first_scan = false;
-        }
+        auto scan_result = omniperception::scan(gs.yaw, dt, first_scan, scan_state);
+        first_scan = false;
 
-        double delta_angle = 60; // 哨兵扫描：yaw 每秒旋转度数
-        double amplitude = 5.0;   // 哨兵扫描：pitch 上下扫动幅度(度)
-        double period = 1;       // 哨兵扫描：pitch 扫动周期(秒)
-
-        scan_cmd_angle += delta_angle * dt;
-        double yaw = tools::limit_rad(scan_cmd_angle / 57.3);
-        double pitch = tools::limit_rad(amplitude * std::sin(2 * M_PI * scan_t / period) / 57.3 - 0.1);
-        
-        gimbal.send(true, false, yaw, 0, 0, pitch, 0, 0);
-
-        scan_t += dt;
-        if (scan_t >= period) {
-            scan_t -= period;
-        }
+        gimbal.send(true, false, scan_result.yaw, 0, 0, scan_result.pitch, 0, 0);
 
         std::this_thread::sleep_for(10ms);
       }
