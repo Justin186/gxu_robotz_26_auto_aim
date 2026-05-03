@@ -53,10 +53,10 @@ GimbalState Gimbal::state() const
   return state_;
 }
 
-GimbalToNav Gimbal::nav_state() const
+NavState Gimbal::nav_state() const
 {
   std::lock_guard<std::mutex> lock(mutex_);
-  return rx_nav_data_;
+  return current_nav_state_;
 }
 
 void Gimbal::set_aim_status(bool detect_enemy)
@@ -266,6 +266,20 @@ void Gimbal::read_thread()
         continue;
     }
     error_count = 0;
+
+    std::lock_guard<std::mutex> lock(mutex_);
+    current_nav_state_.vulnerability_buff        = rx_nav_data_.vulnerability_buff;
+    current_nav_state_.current_hp                = rx_nav_data_.current_hp;
+    current_nav_state_.shooter_17mm_barrel_heat  = rx_nav_data_.shooter_17mm_barrel_heat;
+    current_nav_state_.projectile_allowance_17mm = rx_nav_data_.projectile_allowance_17mm;
+    current_nav_state_.current_posture           = rx_nav_data_.current_posture;
+    current_nav_state_.exchanged_ammo_total      = rx_nav_data_.exchanged_ammo_total;
+    current_nav_state_.game_progress             = rx_nav_data_.game_progress;
+    current_nav_state_.stage_remain_time         = rx_nav_data_.stage_remain_time;
+    current_nav_state_.outpost_Hp                = rx_nav_data_.outpost_Hp;
+    current_nav_state_.base_Hp                   = rx_nav_data_.base_Hp;
+    current_nav_state_.pos_x                     = rx_nav_data_.pos_x;
+    current_nav_state_.pos_y                     = rx_nav_data_.pos_y;
 } else {
     // Invalid header
     continue;

@@ -98,6 +98,22 @@ struct GimbalState
   uint8_t game_progress; // 当前比赛阶段
 };
 
+struct NavState
+{
+  uint8_t  vulnerability_buff;         // 机器人负防御增益
+  uint16_t current_hp;                 // 当前血量
+  uint16_t shooter_17mm_barrel_heat;   // 枪口热量
+  uint16_t projectile_allowance_17mm;  // 剩余允许发弹量
+  uint8_t  current_posture;            // 当前姿态 (1=进攻 2=防御 3=移动)
+  uint16_t exchanged_ammo_total;       // 累计成功兑换的允许发弹量
+  uint8_t  game_progress;              // 当前比赛阶段
+  uint16_t stage_remain_time;          // 当前阶段剩余时间
+  uint16_t outpost_Hp;                 // 前哨站血量
+  uint16_t base_Hp;                    // 基地血量
+  float    pos_x;                      // 位置 x (米)
+  float    pos_y;                      // 位置 y (米)
+};
+
 class Gimbal
 {
 public:
@@ -107,7 +123,7 @@ public:
 
   GimbalMode mode() const;
   GimbalState state() const;
-  GimbalToNav nav_state() const;
+  NavState nav_state() const;
   
   // 新增接口：设置视觉自瞄状态
   void set_aim_status(bool detect_enemy);
@@ -139,6 +155,7 @@ private:
 
   GimbalMode mode_ = GimbalMode::IDLE;
   GimbalState state_;
+  NavState current_nav_state_{};
   tools::ThreadSafeQueue<std::tuple<Eigen::Quaterniond, std::chrono::steady_clock::time_point>>
     queue_{1000};
 

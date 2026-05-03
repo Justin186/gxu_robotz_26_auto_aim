@@ -50,6 +50,7 @@ int main(int argc, char * argv[])
 
     auto t = std::chrono::steady_clock::now();
     auto state = gimbal.state();
+    auto nav_state = gimbal.nav_state();
     auto q = gimbal.q(t);
     auto ypr = tools::eulers(q, 2, 1, 0);
 
@@ -88,7 +89,19 @@ int main(int argc, char * argv[])
     data["fired"] = fired ? 1 : 0;
     data["fire"] = test_fire && fire ? 1 : 0;
     data["t"] = tools::delta_time(t, t0);
-    data["hp"] = (float)state.current_hp;
+    // 从 NavState 获取数据
+    data["hp"] = (float)nav_state.current_hp;
+    data["vulnerability_buff"] = nav_state.vulnerability_buff;
+    data["shooter_17mm_barrel_heat"] = nav_state.shooter_17mm_barrel_heat;
+    data["projectile_allowance_17mm"] = nav_state.projectile_allowance_17mm;
+    data["current_posture"] = nav_state.current_posture;
+    data["exchanged_ammo_total"] = nav_state.exchanged_ammo_total;
+    data["game_progress"] = nav_state.game_progress;
+    data["stage_remain_time"] = nav_state.stage_remain_time;
+    data["outpost_Hp"] = nav_state.outpost_Hp;
+    data["base_Hp"] = nav_state.base_Hp;
+    data["pos_x"] = nav_state.pos_x;
+    data["pos_y"] = nav_state.pos_y;
     plotter.plot(data);
 
     std::this_thread::sleep_for(9ms);
