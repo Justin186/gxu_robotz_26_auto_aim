@@ -23,11 +23,13 @@ struct Plan
   float target_yaw;
   float target_pitch;
   float yaw;
+  float pitch;
   float yaw_vel;
   float yaw_acc;
-  float pitch;
   float pitch_vel;
   float pitch_acc;
+  float v_yaw;
+  float v_pitch;
 };
 
 class Planner
@@ -54,10 +56,12 @@ private:
   TinySolver * yaw_solver_;
   TinySolver * pitch_solver_;
 
+  int tracking_id_ = -1; // 记录当前物理帧跟踪的装甲板ID，用于提供滞回阈值
+
   void setup_yaw_solver(const std::string & config_path);
   void setup_pitch_solver(const std::string & config_path);
 
-  Eigen::Matrix<double, 2, 1> aim(const Target & target, double bullet_speed);
+  Eigen::Matrix<double, 2, 1> aim(const Target & target, double bullet_speed, int & id_state);
   Trajectory get_trajectory(Target & target, double yaw0, double bullet_speed);
 };
 

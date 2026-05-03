@@ -36,10 +36,10 @@ const std::string keys =
   "{ip             | 192.168.1.2            | Rerun 查看器的IP地址}"
   "{imshow         | true                   | 是否显示图像窗口}"
   "{rerun          | true                   | 是否将数据记录到Rerun}"
-  "{config-path c  | configs/hero.yaml      | yaml配置文件路径 }"
+  "{config-path c  | configs/sentry.yaml    | yaml配置文件路径 }"
   "{start-index s  | 0                      | 视频起始帧下标    }"
   "{end-index e    | 0                      | 视频结束帧下标    }"
-  "{@input-path    | assets/hero/hero       | avi和txt文件的路径}";
+  "{@input-path    | assets/sentry/sentry   | avi和txt文件的路径}";
 
 int main(int argc, char * argv[])
 {
@@ -88,9 +88,6 @@ int main(int argc, char * argv[])
   auto yaml = tools::load(config_path);
   auto R_gimbal2imubody_data = tools::read<std::vector<double>>(yaml, "R_gimbal2imubody");
   Eigen::Matrix<double, 3, 3, Eigen::RowMajor> R_gimbal2imubody(R_gimbal2imubody_data.data());
-  auto t_pitchlink2gimbal_data = tools::read<std::vector<double>>(yaml, "t_pitchlink2gimbal");
-  Eigen::Vector3d t_pitchlink2gimbal(t_pitchlink2gimbal_data.data());
-  t_pitchlink2gimbal /= 1000.0; // mm to m
 
   auto fire_duty_window = tools::read<size_t>(yaml, "fire_duty_window", 500);
 
@@ -122,15 +119,14 @@ int main(int argc, char * argv[])
       double mock_yaw = eulers[0];
       double mock_pitch = eulers[1];
 
-      auto plan = planner.plan(target, 11, mock_yaw, mock_pitch, current_time);
+      auto plan = planner.plan(target, 21, mock_yaw, mock_pitch, current_time);
 
       Eigen::Matrix3d R_imubody2world = q_gimbal.toRotationMatrix();
       Eigen::Matrix3d R_gimbal2world = R_imubody2world * R_gimbal2imubody;
-      Eigen::Vector3d t_gimbal2world = R_gimbal2world * (-t_pitchlink2gimbal);
       
       if (rerun) rec->log("world/gimbal", 
         rerun::Transform3D(
-          rerun::Vec3D{(float)t_gimbal2world.x(), (float)t_gimbal2world.y(), (float)t_gimbal2world.z()},
+          rerun::Vec3D{0.0f, 0.0f, 0.0f},
           rerun::Mat3x3({
             (float)R_gimbal2world(0,0), (float)R_gimbal2world(1,0), (float)R_gimbal2world(2,0),
             (float)R_gimbal2world(0,1), (float)R_gimbal2world(1,1), (float)R_gimbal2world(2,1),
@@ -280,8 +276,8 @@ int main(int argc, char * argv[])
           }
           if (!aim_vertices.empty()) {
               rec->log("world/target/aim_rect", rerun::Mesh3D(aim_vertices).with_vertex_colors(aim_colors));
-          }
-          
+        }
+        
           rec->log("world/target/vehicle_center", rerun::Points3D(vehicle_center).with_radii({0.03f}).with_colors({{0, 255, 255}}));
           rec->log("world/target/vehicle_velocity", rerun::Arrows3D::from_vectors(vehicle_velocity).with_origins(vehicle_center).with_colors({{0, 255, 255}}));
         }

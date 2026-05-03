@@ -3,6 +3,8 @@
 #include <yaml-cpp/yaml.h>
 
 #include <vector>
+
+#include "tools/logger.hpp"
 #include "tools/math_tools.hpp"
 
 namespace auto_aim
@@ -27,13 +29,11 @@ Solver::Solver(const std::string & config_path) : R_gimbal2world_(Eigen::Matrix3
   auto yaml = YAML::LoadFile(config_path);
 
   auto R_gimbal2imubody_data = yaml["R_gimbal2imubody"].as<std::vector<double>>();
-  auto R_camera2pitchlink_data = yaml["R_camera2pitchlink"].as<std::vector<double>>();
-  auto t_camera2pitchlink_data = yaml["t_camera2pitchlink"].as<std::vector<double>>();
-  auto t_pitchlink2gimbal_data = yaml["t_pitchlink2gimbal"].as<std::vector<double>>();
+  auto R_camera2gimbal_data = yaml["R_camera2gimbal"].as<std::vector<double>>();
+  auto t_camera2gimbal_data = yaml["t_camera2gimbal"].as<std::vector<double>>();
   R_gimbal2imubody_ = Eigen::Matrix<double, 3, 3, Eigen::RowMajor>(R_gimbal2imubody_data.data());
-  R_camera2pitchlink_ = Eigen::Matrix<double, 3, 3, Eigen::RowMajor>(R_camera2pitchlink_data.data());
-  t_camera2pitchlink_ = Eigen::Matrix<double, 3, 1>(t_camera2pitchlink_data.data());
-  t_pitchlink2gimbal_ = Eigen::Matrix<double, 3, 1>(t_pitchlink2gimbal_data.data()) / 1e3;
+  R_camera2gimbal_ = Eigen::Matrix<double, 3, 3, Eigen::RowMajor>(R_camera2gimbal_data.data());
+  t_camera2gimbal_ = Eigen::Matrix<double, 3, 1>(t_camera2gimbal_data.data());
 
   auto camera_matrix_data = yaml["camera_matrix"].as<std::vector<double>>();
   auto distort_coeffs_data = yaml["distort_coeffs"].as<std::vector<double>>();
@@ -64,19 +64,14 @@ void Solver::solve(Armor & armor) const
 
   Eigen::Vector3d xyz_in_camera;
   cv::cv2eigen(tvec, xyz_in_camera);
-
-  // 从 R_gimbal2world_ 中提取欧拉角
-  Eigen::Vector3d gimbal_ypr = tools::eulers(R_gimbal2world_, 2, 1, 0);
-  Eigen::Matrix3d R_pitchlink2gimbal = tools::rotation_matrix(Eigen::Vector3d(0, gimbal_ypr[1], 0));
-  Eigen::Vector3d xyz_in_pitchlink = R_camera2pitchlink_ * xyz_in_camera + t_camera2pitchlink_;
-  armor.xyz_in_gimbal = R_pitchlink2gimbal * xyz_in_pitchlink + t_pitchlink2gimbal_;
-  armor.xyz_in_world = R_gimbal2world_ * R_pitchlink2gimbal.transpose() * armor.xyz_in_gimbal;
+  armor.xyz_in_gimbal = R_camera2gimbal_ * xyz_in_camera + t_camera2gimbal_;
+  armor.xyz_in_world = R_gimbal2world_ * armor.xyz_in_gimbal;
 
   cv::Mat rmat;
   cv::Rodrigues(rvec, rmat);
   Eigen::Matrix3d R_armor2camera;
   cv::cv2eigen(rmat, R_armor2camera);
-  Eigen::Matrix3d R_armor2gimbal = R_camera2pitchlink_ * R_armor2camera;
+  Eigen::Matrix3d R_armor2gimbal = R_camera2gimbal_ * R_armor2camera;
   Eigen::Matrix3d R_armor2world = R_gimbal2world_ * R_armor2gimbal;
   armor.ypr_in_gimbal = tools::eulers(R_armor2gimbal, 2, 1, 0);
   armor.ypr_in_world = tools::eulers(R_armor2world, 2, 1, 0);
@@ -110,22 +105,18 @@ std::vector<cv::Point2f> Solver::reproject_armor(
   };
   // clang-format on
 
-  Eigen::Vector3d gimbal_ypr = tools::eulers(R_gimbal2world_, 2, 1, 0);
-  Eigen::Matrix3d R_pitchlink2gimbal = tools::rotation_matrix(Eigen::Vector3d(0, gimbal_ypr[1], 0));
   // get R_armor2camera t_armor2camera
   const Eigen::Vector3d & t_armor2world = xyz_in_world;
   Eigen::Matrix3d R_armor2camera =
-    R_camera2pitchlink_.transpose() * R_gimbal2world_.transpose() * R_armor2world;
+    R_camera2gimbal_.transpose() * R_gimbal2world_.transpose() * R_armor2world;
 
   // t_armor2world = R_gimbal2world_ * t_armor2gimbal + t_gimbal2world = R_gimbal2world_ * t_armor2gimbal
   // => t_armor2gimbal = R_gimbal2world_.transpose() * t_armor2world
-  // t_armor2pitchlink = R_camera2pitchlink_ * t_armor2camera + t_camera2pitchlink_
-  // t_armor2gimbal = R_pitchlink2gimbal.transpose() * (R_pitchlink2gimbal * t_armor2pitchlink + t_pitchlink2gimbal_)
-  // = t_armor2pitchlink + R_pitchlink2gimbal.transpose() * t_pitchlink2gimbal_
-  // = R_camera2pitchlink_ * t_armor2camera + t_camera2pitchlink_ + R_pitchlink2gimbal.transpose() * t_pitchlink2gimbal_
-  // => t_armor2camera = R_camera2pitchlink_.transpose() * [R_gimbal2world_.transpose() * t_armor2world - t_camera2pitchlink_ - R_pitchlink2gimbal.transpose() * t_pitchlink2gimbal_]
+  // t_armor2gimbal = R_camera2gimbal_ * t_armor2camera + t_camera2gimbal_
+  // => t_armor2camera = R_camera2gimbal_.transpose() * (t_armor2gimbal - t_camera2gimbal_)
+  // = R_camera2gimbal_.transpose() * (R_gimbal2world_.transpose() * t_armor2world - t_camera2gimbal_)  
   Eigen::Vector3d t_armor2camera =
-    R_camera2pitchlink_.transpose() * (R_gimbal2world_.transpose() * t_armor2world - t_camera2pitchlink_ - R_pitchlink2gimbal.transpose() * t_pitchlink2gimbal_); // 重要改动
+    R_camera2gimbal_.transpose() * (R_gimbal2world_.transpose() * t_armor2world - t_camera2gimbal_);
 
   // get rvec tvec
   cv::Vec3d rvec;
@@ -156,14 +147,14 @@ double Solver::oupost_reprojection_error(Armor armor, const double & pitch)
 
   Eigen::Vector3d xyz_in_camera;
   cv::cv2eigen(tvec, xyz_in_camera);
-  armor.xyz_in_gimbal = R_camera2pitchlink_ * xyz_in_camera + t_camera2pitchlink_ + t_pitchlink2gimbal_; // 重要改动
+  armor.xyz_in_gimbal = R_camera2gimbal_ * xyz_in_camera + t_camera2gimbal_;
   armor.xyz_in_world = R_gimbal2world_ * armor.xyz_in_gimbal;
 
   cv::Mat rmat;
   cv::Rodrigues(rvec, rmat);
   Eigen::Matrix3d R_armor2camera;
   cv::cv2eigen(rmat, R_armor2camera);
-  Eigen::Matrix3d R_armor2gimbal = R_camera2pitchlink_ * R_armor2camera;
+  Eigen::Matrix3d R_armor2gimbal = R_camera2gimbal_ * R_armor2camera;
   Eigen::Matrix3d R_armor2world = R_gimbal2world_ * R_armor2gimbal;
   armor.ypr_in_gimbal = tools::eulers(R_armor2gimbal, 2, 1, 0);
   armor.ypr_in_world = tools::eulers(R_armor2world, 2, 1, 0);
@@ -190,9 +181,9 @@ double Solver::oupost_reprojection_error(Armor armor, const double & pitch)
   // get R_armor2camera t_armor2camera
   const Eigen::Vector3d & t_armor2world = xyz_in_world;
   Eigen::Matrix3d _R_armor2camera =
-    R_camera2pitchlink_.transpose() * R_gimbal2world_.transpose() * _R_armor2world;
+    R_camera2gimbal_.transpose() * R_gimbal2world_.transpose() * _R_armor2world;
   Eigen::Vector3d t_armor2camera =
-    R_camera2pitchlink_.transpose() * (R_gimbal2world_.transpose() * t_armor2world - t_pitchlink2gimbal_ - t_camera2pitchlink_); // 重要改动
+    R_camera2gimbal_.transpose() * (R_gimbal2world_.transpose() * t_armor2world - t_camera2gimbal_);
 
   // get rvec tvec
   cv::Vec3d _rvec;
@@ -282,9 +273,8 @@ double Solver::armor_reprojection_error(
 // 世界坐标到像素坐标的转换
 std::vector<cv::Point2f> Solver::world2pixel(const std::vector<cv::Point3f> & worldPoints)
 {
-  Eigen::Matrix3d R_world2camera = R_camera2pitchlink_.transpose() * R_gimbal2world_.transpose();
-  // t_camera2world = R_gimbal2world_ * (t_camera2pitchlink_ + t_pitchlink2gimbal)
-  Eigen::Vector3d t_world2camera = - R_gimbal2world_ * (t_camera2pitchlink_ + t_pitchlink2gimbal_);
+  Eigen::Matrix3d R_world2camera = R_camera2gimbal_.transpose() * R_gimbal2world_.transpose();
+  Eigen::Vector3d t_world2camera = -R_camera2gimbal_.transpose() * t_camera2gimbal_;
 
   cv::Mat rvec;
   cv::Mat tvec;

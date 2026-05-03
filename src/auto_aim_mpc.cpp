@@ -2,7 +2,6 @@
 
 #include <atomic>
 #include <chrono>
-#include <deque>
 #include <nlohmann/json.hpp>
 #include <opencv2/opencv.hpp>
 #include <thread>
@@ -15,29 +14,29 @@
 #include "tasks/auto_aim/yolo.hpp"
 #include "tools/exiter.hpp"
 #include "tools/img_tools.hpp"
+#include "tools/logger.hpp"
 #include "tools/math_tools.hpp"
 #include "tools/plotter.hpp"
 #include "tools/thread_safe_queue.hpp"
-#include "tools/yaml.hpp"
 #include "tools/recorder.hpp"
+
 
 using namespace std::chrono_literals;
 
 const std::string keys =
   "{help h usage ? |                        | 输出命令行参数说明}"
-  "{f              | true                   | 是否开火}"
   "{rec            | true                  | 是否录制数据}"
-  "{@config-path   | configs/hero.yaml      | 位置参数，yaml配置文件路径 }";
+  "{@config-path   | configs/sentry.yaml | 位置参数，yaml配置文件路径 }";
 
 int main(int argc, char * argv[])
 {
   tools::Exiter exiter;
-  // tools::Plotter plotter;
+  tools::Plotter plotter;
   tools::Recorder recorder;
+
 
   cv::CommandLineParser cli(argc, argv, keys);
   auto config_path = cli.get<std::string>(0);
-  auto fire = cli.get<bool>("f");
   auto record = cli.get<bool>("rec");
   if (cli.has("help") || config_path.empty()) {
     cli.printMessage();
@@ -52,15 +51,6 @@ int main(int argc, char * argv[])
   auto_aim::Tracker tracker(config_path, solver);
   auto_aim::Planner planner(config_path);
 
-  auto yaml = tools::load(config_path);
-  auto R_gimbal2imubody_data = tools::read<std::vector<double>>(yaml, "R_gimbal2imubody");
-  Eigen::Matrix<double, 3, 3, Eigen::RowMajor> R_gimbal2imubody(R_gimbal2imubody_data.data());
-  auto t_pitchlink2gimbal_data = tools::read<std::vector<double>>(yaml, "t_pitchlink2gimbal");
-  Eigen::Vector3d t_pitchlink2gimbal(t_pitchlink2gimbal_data.data());
-  t_pitchlink2gimbal /= 1000.0; // mm to m
-
-  auto fire_duty_window = tools::read<size_t>(yaml, "fire_duty_window", 500);
-
   tools::ThreadSafeQueue<std::optional<auto_aim::Target>, true> target_queue(1);
   target_queue.push(std::nullopt);
 
@@ -68,49 +58,85 @@ int main(int argc, char * argv[])
   auto plan_thread = std::thread([&]() {
     auto t0 = std::chrono::steady_clock::now();
     uint16_t last_bullet_count = 0;
-    
-    std::deque<bool> fire_history;
-    const size_t history_max_size = fire_duty_window;
 
     while (!quit) {
       auto target = target_queue.front();
       auto gs = gimbal.state();
-      auto plan = planner.plan(target, gs.bullet_speed, gs.yaw, gs.pitch);
-      // auto plan = planner.plan(target, gs.bullet_speed);
+      auto plan = planner.plan(target, gs.bullet_speed);
 
       gimbal.send(
-        plan.control, plan.fire && fire,
-        plan.yaw, plan.yaw_vel, plan.yaw_acc,
-        plan.pitch, plan.pitch_vel, plan.pitch_acc);
+        plan.control, plan.fire, plan.v_yaw, plan.yaw_vel, plan.yaw_acc, plan.v_pitch, plan.pitch_vel,
+        plan.pitch_acc);
 
       auto fired = gs.bullet_count > last_bullet_count;
       last_bullet_count = gs.bullet_count;
-      
-      std::this_thread::sleep_for(1ms);
+
+      nlohmann::json data;
+      data["t"] = tools::delta_time(std::chrono::steady_clock::now(), t0);
+
+      data["gimbal_yaw"] = gs.yaw;
+      data["gimbal_yaw_vel"] = gs.yaw_vel;
+      data["gimbal_pitch"] = gs.pitch;
+      data["gimbal_pitch_vel"] = gs.pitch_vel;
+
+      data["target_yaw"] = plan.target_yaw;
+      data["target_pitch"] = plan.target_pitch;
+
+      data["plan_yaw"] = plan.yaw;
+      data["plan_yaw_vel"] = plan.yaw_vel;
+      data["plan_yaw_acc"] = plan.yaw_acc;
+
+      data["plan_pitch"] = plan.pitch;
+      data["plan_pitch_vel"] = plan.pitch_vel;
+      data["plan_pitch_acc"] = plan.pitch_acc;
+
+      data["fire"] = plan.fire ? 1 : 0;
+      data["fired"] = fired ? 1 : 0;
+
+      if (target.has_value()) {
+        data["target_x"] = target->ekf_x()[0];   //x
+        data["target_vx"] = target->ekf_x()[1];   //vx
+        data["target_y"] = target->ekf_x()[2];   //y
+        data["target_vy"] = target->ekf_x()[3];   //vy
+        data["target_z"] = target->ekf_x()[4];   //z
+        data["target_vz"] = target->ekf_x()[5];  //vz
+      }
+
+      if (target.has_value()) {
+        data["w"] = target->ekf_x()[7];
+        data["r"] = target->ekf_x()[8];
+        data["l"] = target->ekf_x()[9];
+      } else {
+        data["w"] = 0.0;
+        data["r"] = 0.0;
+        data["l"] = 0.0;
+      }
+
+      plotter.plot(data);
+
+      std::this_thread::sleep_for(10ms);
     }
   });
 
   cv::Mat img;
   std::chrono::steady_clock::time_point t;
-  auto last_fps_t = std::chrono::steady_clock::now();
+  auto last_time = std::chrono::steady_clock::now();
   int frame_count = 0;
 
   while (!exiter.exit()) {
     camera.read(img, t);
-    auto now = std::chrono::steady_clock::now();
     frame_count++;
-    if (std::chrono::duration_cast<std::chrono::seconds>(now - last_fps_t).count() >= 10) {
-      double fps = frame_count / std::chrono::duration<double>(now - last_fps_t).count();
-      tools::logger()->info("FPS: {:.2f}", fps);
+    auto now = std::chrono::steady_clock::now();
+    if (std::chrono::duration<double>(now - last_time).count() >= 1.0) {
+      double fps = frame_count / std::chrono::duration<double>(now - last_time).count();
+      // fmt::print("FPS: {:.2f}\n", fps);
       frame_count = 0;
-      last_fps_t = now;
+      last_time = now;
     }
-    
+
     auto q = gimbal.q(t);
-    auto gs = gimbal.state();
-    if (record) {
-      recorder.record(img, q, t);
-    }
+
+    recorder.record(img, q, t);
 
     solver.set_R_gimbal2world(q);
     auto armors = yolo.detect(img);
@@ -120,6 +146,25 @@ int main(int argc, char * argv[])
     else
       target_queue.push(std::nullopt);
 
+    if (!targets.empty()) {
+      auto target = targets.front();
+
+      // 当前帧target更新后
+      std::vector<Eigen::Vector4d> armor_xyza_list = target.armor_xyza_list();
+      for (const Eigen::Vector4d & xyza : armor_xyza_list) {
+        auto image_points =
+          solver.reproject_armor(xyza.head(3), xyza[3], target.armor_type, target.name);
+        tools::draw_points(img, image_points, {0, 255, 0});
+      }
+
+      Eigen::Vector4d aim_xyza = planner.debug_xyza;
+      auto image_points =
+        solver.reproject_armor(aim_xyza.head(3), aim_xyza[3], target.armor_type, target.name);
+      tools::draw_points(img, image_points, {0, 0, 255});
+    }
+
+    cv::resize(img, img, {}, 0.5, 0.5);  // 显示时缩小图片尺寸
+    // cv::imshow("reprojection", img);
     auto key = cv::waitKey(1);
     if (key == 'q') break;
   }

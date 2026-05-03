@@ -23,7 +23,7 @@ using namespace std::chrono_literals;
 
 const std::string keys =
   "{help h usage ? |                        | 输出命令行参数说明}"
-  "{@config-path   | configs/hero.yaml | 位置参数，yaml配置文件路径 }";
+  "{@config-path   | configs/sentry.yaml | 位置参数，yaml配置文件路径 }";
 
 int main(int argc, char * argv[])
 {
@@ -78,10 +78,7 @@ int main(int argc, char * argv[])
       
       cv::putText(img, "LOCKED (Press 'r' to reset)", {50, 50}, cv::FONT_HERSHEY_SIMPLEX, 1, {0, 0, 255}, 2);
     }
-    Eigen::Vector3d zyx = tools::eulers(q, 2, 1, 0) * 57.3;  // degree
-    tools::draw_text(img, fmt::format("Z {:.2f}", zyx[0]), {40, 40}, {0, 0, 255});
-    tools::draw_text(img, fmt::format("Y {:.2f}", zyx[1]), {40, 80}, {0, 0, 255});
-    tools::draw_text(img, fmt::format("X {:.2f}", zyx[2]), {40, 120}, {0, 0, 255});
+
     cv::resize(img, img, {}, 0.5, 0.5);
     cv::imshow("reprojection", img);
     auto key = cv::waitKey(1);

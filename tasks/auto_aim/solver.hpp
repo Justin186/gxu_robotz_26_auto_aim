@@ -31,9 +31,8 @@ private:
   cv::Mat camera_matrix_;
   cv::Mat distort_coeffs_;
   Eigen::Matrix3d R_gimbal2imubody_;
-  Eigen::Matrix3d R_camera2pitchlink_;
-  Eigen::Vector3d t_camera2pitchlink_;
-  Eigen::Vector3d t_pitchlink2gimbal_;
+  Eigen::Matrix3d R_camera2gimbal_;
+  Eigen::Vector3d t_camera2gimbal_;
   Eigen::Matrix3d R_gimbal2world_;
 
   void optimize_yaw(Armor & armor) const;

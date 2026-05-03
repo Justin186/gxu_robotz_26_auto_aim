@@ -237,7 +237,7 @@ void YOLOV5::draw_detections(
   const cv::Mat & img, const std::list<Armor> & armors, int frame_count, cv::Mat * out_debug_img) const
 {
   auto detection = img.clone();
-  tools::draw_text(detection, fmt::format("[{}]", frame_count), {10, 30}, {255, 255, 255});
+  tools::draw_text(detection, fmt::format("[{}]", frame_count), {10, 30}, {255, 0, 0});
   for (const auto & armor : armors) {
     auto info = fmt::format(
       "{:.2f} {} {} {}", armor.confidence, COLORS[armor.color], ARMOR_NAMES[armor.name],

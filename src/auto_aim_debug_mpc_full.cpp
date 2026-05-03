@@ -72,9 +72,6 @@ int main(int argc, char * argv[])
   auto yaml = tools::load(config_path);
   auto R_gimbal2imubody_data = tools::read<std::vector<double>>(yaml, "R_gimbal2imubody");
   Eigen::Matrix<double, 3, 3, Eigen::RowMajor> R_gimbal2imubody(R_gimbal2imubody_data.data());
-  auto t_pitchlink2gimbal_data = tools::read<std::vector<double>>(yaml, "t_pitchlink2gimbal");
-  Eigen::Vector3d t_pitchlink2gimbal(t_pitchlink2gimbal_data.data());
-  t_pitchlink2gimbal /= 1000.0; // mm to m
 
   auto fire_duty_window = tools::read<size_t>(yaml, "fire_duty_window", 500);
 
@@ -107,6 +104,10 @@ int main(int argc, char * argv[])
     
     std::deque<bool> fire_history;
     const size_t history_max_size = fire_duty_window;
+    
+    // 用于降低 Rerun 的发送频率 (200Hz -> 50Hz)
+    size_t rerun_counter = 0;
+    const size_t rerun_interval = 4;
 
     while (!quit) {
       auto target = target_queue.front();
@@ -116,26 +117,28 @@ int main(int argc, char * argv[])
 
       gimbal.send(
         plan.control, plan.fire && fire,
-        plan.yaw, plan.yaw_vel, plan.yaw_acc,
-        plan.pitch, plan.pitch_vel, plan.pitch_acc);
+        plan.v_yaw, plan.yaw_vel, plan.yaw_acc,
+        plan.v_pitch, plan.pitch_vel, plan.pitch_acc);
 
       auto fired = gs.bullet_count > last_bullet_count;
       last_bullet_count = gs.bullet_count;
 
       // 实时记录一下yaw和pitch的角度，让它们在Rerun上产生时间序列图表，类似PlotJuggler
       auto current_time = std::chrono::steady_clock::now();
+      
+      bool do_rerun = rerun && (rerun_counter % rerun_interval == 0);
+
       // rec.set_time_duration_secs("plots_time", tools::delta_time(current_time, t0));
       
       auto q_gimbal = gimbal.q(current_time); // 必须使用当前时间去获取四元数
       Eigen::Matrix3d R_imubody2world = q_gimbal.toRotationMatrix();
       
       Eigen::Matrix3d R_gimbal2world = R_imubody2world * R_gimbal2imubody;
-      Eigen::Vector3d t_gimbal2world = R_gimbal2world * (-t_pitchlink2gimbal);
       
       // 以云台中心作为原点，绘制云台当前坐标系。利用 TransformAxes3D 能够画出红绿蓝(XYZ)三个箭头的坐标轴
-      if (rerun) rec->log("world/gimbal", 
+      if (do_rerun) rec->log("world/gimbal", 
         rerun::Transform3D(
-          rerun::Vec3D{(float)t_gimbal2world.x(), (float)t_gimbal2world.y(), (float)t_gimbal2world.z()},
+          rerun::Vec3D{0.0f, 0.0f, 0.0f}, // 云台坐标系原点在世界坐标系中的位置（我们这里假设云台安装在机器人正中心，所以就是全局原点）
           rerun::Mat3x3({ // Rerun的Mat3x3为【列主序】(Column-Major)！必须修成这样，否则矩阵就是转置的，会导致所有旋转颠倒。
             (float)R_gimbal2world(0,0), (float)R_gimbal2world(1,0), (float)R_gimbal2world(2,0),
             (float)R_gimbal2world(0,1), (float)R_gimbal2world(1,1), (float)R_gimbal2world(2,1),
@@ -147,15 +150,13 @@ int main(int argc, char * argv[])
       
       // 我们从已经修正好的真实的 IMU 旋转矩阵里，提取出云台当前的真实世界前方(X轴)，并强行拍平在水平面上。
       Eigen::Vector3d forward_world = R_gimbal2world.col(0); 
-      forward_world.z() = 0.0; // 强制砍掉所有的 Z 轴数值，让它在全局地图里绝对处于绝对水平！
       if (forward_world.norm() > 1e-6) forward_world.normalize();
       else forward_world = Eigen::Vector3d(1.0, 0.0, 0.0);
 
       // 为了把这根线绑定在 gimbal 的子层级下（使得线段起点跟随云台），我们需要将世界纯水平指向反向变换回 gimbal 局部系中
       Eigen::Vector3d local_dir = R_gimbal2world.transpose() * forward_world;
       
-      // 用户要求在全局（世界坐标系）下降 0.27m。我们需要将世界系下的向下向量 (0, 0, -0.27) 也反向变换到 gimbal 局部系里，作为线段的起点偏移
-      Eigen::Vector3d world_offset(0.0, 0.0, -0.28);
+      Eigen::Vector3d world_offset(0.0, 0.0, 0.0);
       Eigen::Vector3d local_offset = R_gimbal2world.transpose() * world_offset;
 
       std::vector<rerun::components::LineStrip3D> strips;
@@ -177,7 +178,7 @@ int main(int argc, char * argv[])
       fire_duty /= fire_history.size();
 
       // 因为 Rerun 自动对子层应用正向旋转，这正好抵消了我们刚刚乘的逆向转置矩阵（且R_gimbal矩阵已被正确修复），现在肯定完全水平了！
-      if (rerun) { 
+      if (do_rerun) { 
         rec->log("world/gimbal/yaw_line",
           rerun::LineStrips3D(strips).with_colors({{255, 165, 0}}) // 橙色直线
         );
@@ -279,7 +280,7 @@ int main(int argc, char * argv[])
             {(float)target->ekf_x()[1], (float)target->ekf_x()[3], (float)target->ekf_x()[5]}
         };
         
-        if (rerun) {
+        if (do_rerun) {
           rec->log("world/target/armors", rerun::Clear::FLAT);
           rec->log("world/target/armors_direction", rerun::Clear::FLAT);
           rec->log("world/target/aim_point", rerun::Clear::FLAT);
@@ -294,14 +295,15 @@ int main(int argc, char * argv[])
           
           rec->log("world/target/vehicle_center", rerun::Points3D(vehicle_center).with_radii({0.03f}).with_colors({{0, 255, 255}}));
           rec->log("world/target/vehicle_velocity", rerun::Arrows3D::from_vectors(vehicle_velocity).with_origins(vehicle_center).with_colors({{0, 255, 255}}));
+
+          rec->log("scalar/target/w", rerun::Scalars(target->ekf_x()[7])); // 记录目标的旋转角速度w
+          rec->log("scalar/target/z", rerun::Scalars(target->ekf_x()[4]));
+          rec->log("scalar/target/vz", rerun::Scalars(target->ekf_x()[5]));
         }
           
-        if (rerun) rec->log("scalar/target/w", rerun::Scalars(target->ekf_x()[7])); // 记录目标的旋转角速度w
-        if (rerun) rec->log("scalar/target/z", rerun::Scalars(target->ekf_x()[4]));
-        if (rerun) rec->log("scalar/target/vz", rerun::Scalars(target->ekf_x()[5]));
       } else {
         // 丢失目标时清空绘制，防止屏幕上留着鬼影
-        if (rerun) {
+        if (do_rerun) {
           rec->log("world/target/armors", rerun::Clear::FLAT);
           rec->log("world/target/armors_direction", rerun::Clear::FLAT);
           rec->log("world/target/armors_rect", rerun::Clear::FLAT);
@@ -314,7 +316,8 @@ int main(int argc, char * argv[])
       }
       // =========================
 
-      std::this_thread::sleep_for(1ms);
+      rerun_counter++;
+      std::this_thread::sleep_for(5ms);
     }
   });
 
