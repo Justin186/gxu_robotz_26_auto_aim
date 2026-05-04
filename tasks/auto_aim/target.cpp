@@ -255,7 +255,7 @@ void Target::update_ypda(const Armor & armor, int id)
   auto delta_angle = tools::limit_rad(armor.ypr_in_world[0] - center_yaw); // 装甲板朝向与车身朝向的夹角
   // 算出观测噪声协方差矩阵R的对角线元素
   Eigen::VectorXd R_dig{
-      {8e-3,  // 固定yaw噪声
+      {4e-3,  // 固定yaw噪声
       4e-2,  // 固定pitch噪声
       log(std::abs(delta_angle) + 1) + 1,  // 自适应距离噪声：当装甲板不在正对时（delta_angle大），距离估计不准，增大噪声
       log(std::abs(armor.ypd_in_world[2]) + 1) / 200 + 9e-2}};  // 自适应角度噪声：距离越远，角度估计越不准
