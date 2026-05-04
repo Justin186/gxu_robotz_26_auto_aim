@@ -57,12 +57,15 @@ int main(int argc, char * argv[])
 
     solver.set_R_gimbal2world(q);
     
-    if (!fixed_target.has_value()) {
+    static bool is_fixed = false;
+
+    if (!is_fixed) {
         auto armors = yolo.detect(img);
         auto targets = tracker.track(armors, t);
         if (!targets.empty()) {
             fixed_target = targets.front();
-            tools::logger()->info("Target locked! ID: {}", fixed_target->last_id);
+        } else {
+            fixed_target = std::nullopt;
         }
     }
 
@@ -73,10 +76,14 @@ int main(int argc, char * argv[])
       for (const Eigen::Vector4d & xyza : armor_xyza_list) {
         auto image_points =
           solver.reproject_armor(xyza.head(3), xyza[3], target.armor_type, target.name);
-        tools::draw_points(img, image_points, {0, 255, 0});
+        tools::draw_points(img, image_points, is_fixed ? cv::Scalar{0, 255, 0} : cv::Scalar{255, 0, 0});
       }
       
-      cv::putText(img, "LOCKED (Press 'r' to reset)", {50, 50}, cv::FONT_HERSHEY_SIMPLEX, 1, {0, 0, 255}, 2);
+      if (is_fixed) {
+        cv::putText(img, "LOCKED (Press 'r' to reset)", {50, 50}, cv::FONT_HERSHEY_SIMPLEX, 1, {0, 0, 255}, 2);
+      } else {
+        cv::putText(img, "OBSERVING (Press 'f' to lock)", {50, 50}, cv::FONT_HERSHEY_SIMPLEX, 1, {0, 255, 255}, 2);
+      }
     }
 
     cv::resize(img, img, {}, 0.5, 0.5);
@@ -84,8 +91,16 @@ int main(int argc, char * argv[])
     auto key = cv::waitKey(1);
     if (key == 'q') break;
     if (key == 'r') {
-        fixed_target = std::nullopt;
-        tools::logger()->info("Target reset.");
+        is_fixed = false;
+        tools::logger()->info("Target reset, observing.");
+    }
+    if (key == 'f') {
+        if (fixed_target) {
+            is_fixed = true;
+            tools::logger()->info("Target locked! ID: {}", fixed_target->last_id);
+        } else {
+            tools::logger()->warn("No target to lock!");
+        }
     }
   }
 
