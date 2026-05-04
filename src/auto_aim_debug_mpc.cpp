@@ -81,9 +81,9 @@ int main(int argc, char * argv[])
     std::deque<bool> fire_history;
     const size_t history_max_size = fire_duty_window;
     
-    // 用于降低 Rerun 的发送频率 (1000Hz -> 50Hz)
+    // 用于降低 Rerun 的发送频率 (500Hz -> 100Hz)
     size_t rerun_counter = 0;
-    const size_t rerun_interval = 20;
+    const size_t rerun_interval = 5;
 
     while (!quit) {
       auto target = target_queue.front();
@@ -167,7 +167,7 @@ int main(int argc, char * argv[])
         rec->log("yaw/plan_yaw", rerun::Scalars(plan.yaw));
         rec->log("yaw/plan_yaw_offset", rerun::Scalars(plan.v_yaw));
         rec->log("yaw/target_yaw", rerun::Scalars(plan.target_yaw));
-        rec->log("yaw/gimbal_yaw", rerun::Scalars(gs.yaw / 57.3));
+        rec->log("yaw/gimbal_yaw", rerun::Scalars(gs.yaw));
         rec->log("yaw/gimbal_yaw_vel", rerun::Scalars(gs.yaw_vel));
         rec->log("yaw/plan_yaw_vel", rerun::Scalars(plan.yaw_vel));
         rec->log("yaw/plan_yaw_acc", rerun::Scalars(plan.yaw_acc));
@@ -176,7 +176,7 @@ int main(int argc, char * argv[])
         rec->log("pitch/plan_pitch", rerun::Scalars(plan.pitch));
         rec->log("pitch/plan_pitch_offset", rerun::Scalars(plan.v_pitch));
         rec->log("pitch/target_pitch", rerun::Scalars(plan.target_pitch));
-        rec->log("pitch/gimbal_pitch", rerun::Scalars(gs.pitch / 57.3));
+        rec->log("pitch/gimbal_pitch", rerun::Scalars(gs.pitch));
         rec->log("pitch/plan_pitch_vel", rerun::Scalars(plan.pitch_vel));
         rec->log("pitch/plan_pitch_acc", rerun::Scalars(plan.pitch_acc));
 
@@ -300,7 +300,7 @@ int main(int argc, char * argv[])
       // =========================
       
       rerun_counter++;
-      std::this_thread::sleep_for(1ms);
+      std::this_thread::sleep_for(2ms);
     }
   });
 
@@ -343,7 +343,7 @@ int main(int argc, char * argv[])
       }
 
       tools::draw_text(img, fmt::format("FPS: {:.2f}", fps), {10, 30});
-      cv::resize(img, img, {}, 1, 1);  // 显示时缩小图片尺寸
+      cv::resize(img, img, {}, 0.5, 0.5);  // 显示时缩小图片尺寸
       cv::imshow("reprojection", img);
     }
     if (rerun) rec->log("scalar/fps", rerun::Scalars((float)fps));
