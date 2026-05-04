@@ -73,6 +73,7 @@ add_executable(calibrate_handeye calibration/calibrate_handeye.cpp)
 add_executable(calibrate_handeye_chessboard calibration/calibrate_handeye_chessboard.cpp)
 add_executable(calibrate_robotworld_handeye calibration/calibrate_robotworld_handeye.cpp)
 add_executable(calibrate_dh_handeye_chessboard calibration/calibrate_dh_handeye_chessboard.cpp)
+add_executable(ypr_to_rotation_matrix calibration/ypr_to_rotation_matrix.cpp)
 add_executable(split_video calibration/split_video.cpp)
 
 target_link_libraries(capture ${OpenCV_LIBS} fmt::fmt tools io)
@@ -84,6 +85,7 @@ target_link_libraries(calibrate_handeye_chessboard ${OpenCV_LIBS} fmt::fmt yaml-
 target_link_libraries(calibrate_robotworld_handeye ${OpenCV_LIBS} fmt::fmt yaml-cpp tools)
 target_link_libraries(split_video ${OpenCV_LIBS} fmt::fmt tools)
 target_link_libraries(calibrate_dh_handeye_chessboard ${OpenCV_LIBS} fmt::fmt yaml-cpp tools)
+target_link_libraries(ypr_to_rotation_matrix ${OpenCV_LIBS} fmt::fmt tools)
 
 ##################tests##################
 add_executable(auto_aim_test tests/auto_aim_test.cpp)

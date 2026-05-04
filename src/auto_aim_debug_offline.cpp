@@ -137,12 +137,11 @@ int main(int argc, char * argv[])
       );
       
       Eigen::Vector3d forward_world = R_gimbal2world.col(0); 
-      forward_world.z() = 0.0; 
       if (forward_world.norm() > 1e-6) forward_world.normalize();
       else forward_world = Eigen::Vector3d(1.0, 0.0, 0.0);
 
       Eigen::Vector3d local_dir = R_gimbal2world.transpose() * forward_world;
-      Eigen::Vector3d world_offset(0.0, 0.0, -0.28);
+      Eigen::Vector3d world_offset(0.0, 0.0, 0.0);
       Eigen::Vector3d local_offset = R_gimbal2world.transpose() * world_offset;
 
       std::vector<rerun::components::LineStrip3D> strips;
@@ -285,6 +284,7 @@ int main(int argc, char * argv[])
         if (rerun) rec->log("scalar/target/w", rerun::Scalars(target->ekf_x()[7])); 
         if (rerun) rec->log("scalar/target/z", rerun::Scalars(target->ekf_x()[4]));
         if (rerun) rec->log("scalar/target/vz", rerun::Scalars(target->ekf_x()[5]));
+        if (rerun) rec->log("scalar/target/r", rerun::Scalars(target->ekf_x()[8]));
       } else {
         if (rerun) {
           rec->log("world/target/armors", rerun::Clear::FLAT);

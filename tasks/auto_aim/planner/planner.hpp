@@ -62,6 +62,7 @@ private:
   void setup_pitch_solver(const std::string & config_path);
 
   Eigen::Matrix<double, 2, 1> aim(const Target & target, double bullet_speed, int & id_state);
+  Eigen::Matrix<double, 2, 1> aim_center(const Target & target, double bullet_speed);
   Trajectory get_trajectory(Target & target, double yaw0, double bullet_speed);
 };
 

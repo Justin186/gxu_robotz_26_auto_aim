@@ -232,15 +232,18 @@ void Target::update_ypda(const Armor & armor, int id)
         return avgs[a] < avgs[b];
       });
 
-      // 实地高度理论值：1.114 (低)，1.216 (中)，1.318 (高)
-      // 则相对于 1.216，三者偏移为 -0.102, 0, 0.102
-      outpost_z_offset_[sorted_ids[0]] = -0.102;
+      // 核心问题：物理绝对高度差的确是约 10.2cm，但由于相机仰角透视、PnP算法对15度倾斜装甲板的尺度漂移特性，
+      // 视觉解算出的“观测Z落差”会被拉伸/压缩，往往不是 0.102。如果强行写入物理极值 0.102，会导致观测与模型对抗（上下拽）。
+      // 解决方案：信任视觉的相对关系，直接使用视觉长时间平均收敛出来的统计高度差，令观测与模型做到真正的自洽。
+      outpost_z_offset_[sorted_ids[0]] = avgs[sorted_ids[0]] - avgs[sorted_ids[1]]; // 通常可能解算出来是 -0.12 ~ -0.15 等
       outpost_z_offset_[sorted_ids[1]] = 0.0;
-      outpost_z_offset_[sorted_ids[2]] = 0.102;
+      outpost_z_offset_[sorted_ids[2]] = avgs[sorted_ids[2]] - avgs[sorted_ids[1]]; // 通常可能解算出来是 0.12 ~ 0.15 等
 
       outpost_z_resolved_ = true;
-      tools::logger()->info("[Target] Outpost Z sorted! id[{}]=-0.102, id[{}]={:.3f}, id[{}]={:.3f}",
-                            sorted_ids[0], sorted_ids[1], 0.0, sorted_ids[2], 0.102);
+      tools::logger()->info("[Target] Outpost Z sorted! id[{}]={:.3f}, id[{}]={:.3f}, id[{}]={:.3f}",
+                            sorted_ids[0], outpost_z_offset_[sorted_ids[0]], 
+                            sorted_ids[1], outpost_z_offset_[sorted_ids[1]], 
+                            sorted_ids[2], outpost_z_offset_[sorted_ids[2]]);
     }
   }
 

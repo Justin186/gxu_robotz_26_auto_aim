@@ -54,9 +54,23 @@ Plan Planner::plan(Target target, double bullet_speed, double current_yaw, doubl
   Trajectory traj;
   double current_armor_yaw;
   try {
-    yaw0 = aim(target, bullet_speed, tracking_id_)(0); // 这里会传入并更新物理帧的 tracking_id_
-    current_armor_yaw = debug_xyza[3];
-    Eigen::Vector4d final_aim_xyza = debug_xyza; // 记录真正的击打点，防止被下方的循环覆盖
+    // 计算当前装甲板实际朝向（不改变 tracking_id_），用于判断装甲是否转到车身前方
+    auto center_yaw_now = std::atan2(target.ekf_x()[2], target.ekf_x()[0]);
+    auto target_armors_now = target.armor_xyza_list();
+    double min_delta = 1e10;
+    current_armor_yaw = center_yaw_now; // fallback
+    for (size_t i = 0; i < target_armors_now.size(); ++i) {
+      auto &xyza = target_armors_now[i];
+      auto delta = std::abs(tools::limit_rad(xyza[3] - center_yaw_now));
+      if (delta < min_delta) {
+        min_delta = delta;
+        current_armor_yaw = xyza[3];
+      }
+    }
+
+    // 以车身中心为瞄准点，云台保持不随装甲板切换而移动
+    yaw0 = aim_center(target, bullet_speed)(0);
+    Eigen::Vector4d final_aim_xyza = debug_xyza; // 记录真正的击打点（此处为车身中心）
     traj = get_trajectory(target, yaw0, bullet_speed);
     debug_xyza = final_aim_xyza; // 恢复真正的击打点供外部红框绘制
   } catch (const std::exception & e) {
@@ -98,19 +112,16 @@ Plan Planner::plan(Target target, double bullet_speed, double current_yaw, doubl
   plan.v_yaw = tools::limit_rad(plan.yaw + yaw_offset_);
   plan.v_pitch = plan.pitch + pitch_offset_;
 
-  auto shoot_offset_ = 1;
   auto center_yaw = std::atan2(target.ekf_x()[2], target.ekf_x()[0]);
   auto delta_angle = std::abs(tools::limit_rad(current_armor_yaw - center_yaw));
 
-  double real_yaw_error = tools::limit_rad(std::abs(current_yaw - plan.target_yaw));
-  double real_pitch_error = current_pitch - plan.target_pitch;
+  auto shoot_offset_ = 1;
+  auto traj_error = std::hypot(
+    traj(0, HALF_HORIZON + shoot_offset_) - yaw_solver_->work->x(0, HALF_HORIZON + shoot_offset_),
+    traj(2, HALF_HORIZON + shoot_offset_) -
+      pitch_solver_->work->x(0, HALF_HORIZON + shoot_offset_));
 
-  plan.fire =
-    target.maneuver_ticks > 0 ? false :
-    std::hypot(
-      traj(0, HALF_HORIZON + shoot_offset_) - yaw_solver_->work->x(0, HALF_HORIZON + shoot_offset_),
-      traj(2, HALF_HORIZON + shoot_offset_) -
-        pitch_solver_->work->x(0, HALF_HORIZON + shoot_offset_)) < fire_thresh_ &&
+  plan.fire = target.maneuver_ticks > 0 ? false : traj_error < fire_thresh_ &&
     delta_angle < max_armor_angle_;
 
   return plan;
@@ -223,20 +234,55 @@ Eigen::Matrix<double, 2, 1> Planner::aim(const Target & target, double bullet_sp
   return {ypd_gimbal[0], ypd_gimbal[1]};
 }
 
+Eigen::Matrix<double, 2, 1> Planner::aim_center(const Target & target, double bullet_speed)
+{
+  // 以目标车身中心为瞄准点，不改变装甲板跟踪ID
+  Eigen::Vector3d center_xyz;
+  auto armors = target.armor_xyza_list();
+
+  // 获取中心平面坐标（ekf_x 中 0/2 为 x/y）
+  double cx = target.ekf_x()[0];
+  double cy = target.ekf_x()[2];
+  double cz = 0.0;
+
+  if (!armors.empty()) {
+    // 使用装甲板的平均高度作为中心高度参考
+    double sumz = 0.0;
+    for (auto &a : armors) sumz += a[2];
+    cz = sumz / armors.size();
+  }
+
+  center_xyz << cx, cy, cz;
+  debug_xyza = Eigen::Vector4d(cx, cy, cz, std::atan2(cy, cx));
+
+  auto azim = std::atan2(center_xyz.y(), center_xyz.x());
+  auto dist = center_xyz.head<2>().norm();
+  auto bullet_traj = tools::Trajectory(bullet_speed, dist, center_xyz.z());
+  if (bullet_traj.unsolvable) throw std::runtime_error("Unsolvable bullet trajectory!");
+
+  double yaw_world = tools::limit_rad(azim);
+  double pitch_world = -bullet_traj.pitch;
+
+  Eigen::Vector3d v_world = tools::ypd2xyz({yaw_world, -pitch_world, 1.0});
+  Eigen::Vector3d v_gimbal = R_gimbal2imubody_.transpose() * v_world;
+  Eigen::Vector3d ypd_gimbal = tools::xyz2ypd(v_gimbal);
+
+  return {ypd_gimbal[0], ypd_gimbal[1]};
+}
+
 Trajectory Planner::get_trajectory(Target & target, double yaw0, double bullet_speed)
 {
   Trajectory traj;
-  int sim_id = tracking_id_; // 取当前真实帧跟踪的装甲板作为预测起点，并允许在预测中自然换面
-
+  // 针对“瞄准车身中心”模式，预测过程中使用车身中心作为瞄准点，不随装甲板切换
   target.predict(-DT * (HALF_HORIZON + 1));
-  auto yaw_pitch_last = aim(target, bullet_speed, sim_id);
+  auto yaw_pitch_last = aim_center(target, bullet_speed);
 
   target.predict(DT);  // [0] = -HALF_HORIZON * DT -> [HHALF_HORIZON] = 0
-  auto yaw_pitch = aim(target, bullet_speed, sim_id);
+  auto yaw_pitch = aim_center(target, bullet_speed);
 
   for (int i = 0; i < HORIZON; i++) {
     target.predict(DT);
-    auto yaw_pitch_next = aim(target, bullet_speed, sim_id); // sim_id 可能在未来某帧自动切换换板
+    auto yaw_pitch_next = aim_center(target, bullet_speed);
 
     auto yaw_vel = tools::limit_rad(yaw_pitch_next(0) - yaw_pitch_last(0)) / (2 * DT);
     auto pitch_vel = (yaw_pitch_next(1) - yaw_pitch_last(1)) / (2 * DT);
