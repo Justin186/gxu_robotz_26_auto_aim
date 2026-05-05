@@ -139,9 +139,6 @@ public:
 
   void send(io::VisionToGimbal VisionToGimbal);
 
-  //新增扫描相关
-  void scan(float yaw, float pitch);
-
 private:
   std::thread thread_;
   std::atomic<bool> quit_ = false;
@@ -162,12 +159,6 @@ private:
   bool read(uint8_t * buffer, size_t size);
   void read_thread();
   void reconnect();
-  //新增扫描相关参数
-  float max_scan_pitch_bottom_;
-  float max_scan_pitch_top_;
-  float scan_yaw_vel_;
-  float scan_base_pitch_vel_;
-  float scan_ex_vel_;
 
 protected:
   serial::Serial serial_;
