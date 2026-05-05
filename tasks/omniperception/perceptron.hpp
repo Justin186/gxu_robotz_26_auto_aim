@@ -31,8 +31,6 @@ struct ScanState
   double start_angle = 0.0;
   double scan_cmd_angle = 0.0;
   double scan_t = 0.0;
-  int scan_direction = -1;
-  int direction_changes = 0;
   bool use_omni_scan = false;
 };
 

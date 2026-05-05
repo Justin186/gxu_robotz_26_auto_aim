@@ -35,34 +35,22 @@ ScanResult omni_scan(double dt, ScanState & state)
 
 ScanResult short_lost_scan(double start_yaw_deg, double dt, ScanState & state)
 {
-  double delta_angle = 60.0; // yaw速度v
-  double amplitude = 15.0; // pitch振幅，单位degree
-  double period = 0.75; // pitch周期
+  double yaw_amplitude = 15.0; // yaw振幅，单位degree
+  double yaw_period = 1.0; // yaw周期计算: 4*15 / 60 = 1秒 一个完整周期
+  double pitch_amplitude = 15.0; // pitch振幅，单位degree
+  double pitch_period = 0.75; // pitch周期
 
-  state.scan_cmd_angle += state.scan_direction * delta_angle * dt;
+  state.scan_t += dt;
 
-  if (state.scan_cmd_angle <= start_yaw_deg - 15.0) {
-    state.scan_cmd_angle = start_yaw_deg - 15.0;
-    state.scan_direction = 1;
-    state.direction_changes++;
-  } else if (state.scan_cmd_angle >= start_yaw_deg + 15.0) {
-    state.scan_cmd_angle = start_yaw_deg + 15.0;
-    state.scan_direction = -1;
-    state.direction_changes++;
-  }
-
-  if (state.direction_changes >= 4) {
+  if (state.scan_t >= 4.0) {
     state.use_omni_scan = true;
   }
 
-  double yaw = tools::limit_rad(state.scan_cmd_angle / 57.3);
-  double pitch =
-    tools::limit_rad(amplitude * std::sin(2 * M_PI * state.scan_t / period) / 57.3 + 0.1);
+  double yaw_deg = start_yaw_deg - yaw_amplitude * std::sin(2 * M_PI * state.scan_t / yaw_period);
+  double yaw = tools::limit_rad(yaw_deg / 57.3);
 
-  state.scan_t += dt;
-  if (state.scan_t >= period) {
-    state.scan_t -= period;
-  }
+  double pitch =
+    tools::limit_rad(pitch_amplitude * std::sin(2 * M_PI * state.scan_t / pitch_period) / 57.3 + 0.1);
 
   return {yaw, pitch};
 }
@@ -73,8 +61,6 @@ ScanResult scan(double current_yaw, double dt, bool first_scan, ScanState & stat
     state.start_angle = current_yaw * 57.3;
     state.scan_cmd_angle = state.start_angle;
     state.scan_t = 0.0;
-    state.scan_direction = -1;
-    state.direction_changes = 0;
     state.use_omni_scan = false;
   }
 
