@@ -6,8 +6,6 @@
 #include <opencv2/opencv.hpp>
 #include <thread>
 
-#include "tools/thread_safe_queue.hpp"
-
 namespace io
 {
 class USBCamera
@@ -17,18 +15,18 @@ public:
   ~USBCamera();
   cv::Mat read();
   void read(cv::Mat & img, std::chrono::steady_clock::time_point & timestamp);
+  bool try_read(cv::Mat & img, std::chrono::steady_clock::time_point & timestamp);
+  void clear_buffer();
   std::string device_name;
 
 private:
-  struct CameraData
-  {
-    cv::Mat img;
-    std::chrono::steady_clock::time_point timestamp;
-  };
-
   std::mutex cap_mutex_;
+  std::mutex latest_mutex_;
   cv::VideoCapture cap_;
   cv::Mat img_;
+  cv::Mat latest_img_;
+  std::chrono::steady_clock::time_point latest_timestamp_;
+  bool has_latest_ = false;
   std::string open_name_;
   int usb_exposure_, usb_frame_rate_, sharpness_;
   int open_count_;
@@ -37,7 +35,6 @@ private:
   bool quit_, ok_;
   std::thread capture_thread_;
   std::thread daemon_thread_;
-  tools::ThreadSafeQueue<CameraData> queue_;
 
   void try_open();
   void open();

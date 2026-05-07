@@ -148,6 +148,7 @@ private:
   float scan_ex_vel_;
 
 protected:
+  mutable std::mutex serial_mutex_;
   serial::Serial serial_;
 };
 

@@ -10,7 +10,7 @@ using namespace std::chrono_literals;
 namespace io
 {
 USBCamera::USBCamera(const std::string & open_name, const std::string & config_path)
-: open_name_(open_name), quit_(false), ok_(false), queue_(1), open_count_(0)
+: open_name_(open_name), quit_(false), ok_(false), open_count_(0)
 {
   auto yaml = tools::load(config_path);
   image_width_ = tools::read<double>(yaml, "image_width");
@@ -83,11 +83,29 @@ cv::Mat USBCamera::read()
 
 void USBCamera::read(cv::Mat & img, std::chrono::steady_clock::time_point & timestamp)
 {
-  CameraData data;
-  queue_.pop(data);
+  while (!try_read(img, timestamp) && !quit_) {
+    std::this_thread::sleep_for(1ms);
+  }
+}
 
-  img = data.img;
-  timestamp = data.timestamp;
+bool USBCamera::try_read(cv::Mat & img, std::chrono::steady_clock::time_point & timestamp)
+{
+  std::lock_guard<std::mutex> lock(latest_mutex_);
+  if (!has_latest_) {
+    return false;
+  }
+
+  img = latest_img_.clone();
+  timestamp = latest_timestamp_;
+  has_latest_ = false;
+  return true;
+}
+
+void USBCamera::clear_buffer()
+{
+  std::lock_guard<std::mutex> lock(latest_mutex_);
+  latest_img_.release();
+  has_latest_ = false;
 }
 
 void USBCamera::open()
@@ -147,7 +165,12 @@ void USBCamera::open()
       }
 
       auto timestamp = std::chrono::steady_clock::now();
-      queue_.push({img, timestamp});
+      {
+        std::lock_guard<std::mutex> lock(latest_mutex_);
+        latest_img_ = img;
+        latest_timestamp_ = timestamp;
+        has_latest_ = true;
+      }
     }
     ok_ = false;
   }};

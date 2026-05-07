@@ -1,5 +1,6 @@
 #include "subscribe2nav.hpp"
 
+#include <cstring>
 #include <sstream>
 #include <vector>
 
@@ -14,6 +15,10 @@ Subscribe2Nav::Subscribe2Nav()
   cmd_vel_subscription_ = this->create_subscription<geometry_msgs::msg::Twist>(
     "/cmd_vel", 10,
     std::bind(&Subscribe2Nav::cmd_vel_callback, this, std::placeholders::_1));
+
+  image_subscription_ = this->create_subscription<sensor_msgs::msg::Image>(
+    "/odin1/image", 10,
+    std::bind(&Subscribe2Nav::image_callback, this, std::placeholders::_1));
 
   RCLCPP_INFO(this->get_logger(), "nav_subscriber node initialized.");
 }
@@ -43,6 +48,31 @@ void Subscribe2Nav::cmd_vel_callback(const geometry_msgs::msg::Twist::SharedPtr 
   }
 }
 
+void Subscribe2Nav::image_callback(const sensor_msgs::msg::Image::ConstSharedPtr msg)
+{
+  std::lock_guard<std::mutex> lock(img_mutex_);
+  if (msg->encoding != "bgr8") {
+    RCLCPP_ERROR(this->get_logger(), "Unsupported image encoding: %s", msg->encoding.c_str());
+    return;
+  }
+
+  if (msg->data.empty()) return;
+
+  cv::Mat img(static_cast<int>(msg->height), static_cast<int>(msg->width), CV_8UC3);
+  const auto row_bytes = static_cast<size_t>(msg->width) * 3;
+  for (size_t row = 0; row < msg->height; ++row) {
+    std::memcpy(
+      img.ptr(static_cast<int>(row)),
+      msg->data.data() + row * msg->step,
+      row_bytes);
+  }
+
+  latest_img_ = img;
+  auto stamp = msg->header.stamp;
+  latest_stamp_ = std::chrono::steady_clock::time_point(
+    std::chrono::seconds(stamp.sec) + std::chrono::nanoseconds(stamp.nanosec));
+}
+
 void Subscribe2Nav::start()
 {
   RCLCPP_INFO(this->get_logger(), "nav_subscriber node Starting to spin...");
@@ -56,6 +86,23 @@ std::optional<geometry_msgs::msg::Twist> Subscribe2Nav::subscribe_cmd_vel()
   }
 
   return cmd_vel_queue_.pop();
+}
+
+bool Subscribe2Nav::get_image(cv::Mat & img, std::chrono::steady_clock::time_point & timestamp)
+{
+  std::lock_guard<std::mutex> lock(img_mutex_);
+  if (latest_img_.empty()) return false;
+
+  img = latest_img_.clone();
+  timestamp = latest_stamp_;
+  latest_img_.release();
+  return true;
+}
+
+void Subscribe2Nav::clear_image()
+{
+  std::lock_guard<std::mutex> lock(img_mutex_);
+  latest_img_.release();
 }
 
 }  // namespace io

@@ -1,6 +1,7 @@
 #ifndef IO__GIMBALNODE_HPP
 #define IO__GIMBALNODE_HPP
 #include "io/gimbal/gimbal.hpp"
+#include <opencv2/opencv.hpp>
 #include <geometry_msgs/msg/twist.hpp>
 #include <mutex>
 #include <memory>
@@ -22,7 +23,8 @@ public:
     void send_cmd_vel(const geometry_msgs::msg::Twist::SharedPtr msg);
     void send_cmd_vel_zero(const geometry_msgs::msg::Twist::SharedPtr msg);
     void send_cmd_vel_debug(const geometry_msgs::msg::Twist::SharedPtr msg);
-    void send(io::VisionToGimbal VisionToGimbal);
+    bool get_image(cv::Mat & img, std::chrono::steady_clock::time_point & timestamp);
+    void clear_image();
 
     static bool is_move;
 
@@ -39,9 +41,4 @@ private:
 };
 }   // namespace io
 #endif  // IO__GIMBALNODE_HPP
-
-
-
-
-
 

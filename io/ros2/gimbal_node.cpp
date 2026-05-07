@@ -145,8 +145,16 @@ void GimbalNode::send_cmd_vel_debug(const geometry_msgs::msg::Twist::SharedPtr m
     }
 }
 
-void GimbalNode::send(io::VisionToGimbal VisionToGimbal) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    Gimbal::send(VisionToGimbal);
+bool GimbalNode::get_image(cv::Mat & img, std::chrono::steady_clock::time_point & timestamp)
+{
+    if (!ros2_) return false;
+    return ros2_->get_image(img, timestamp);
+}
+
+void GimbalNode::clear_image()
+{
+    if (ros2_) {
+        ros2_->clear_image();
+    }
 }
 };

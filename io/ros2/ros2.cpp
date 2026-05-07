@@ -34,4 +34,14 @@ std::optional<geometry_msgs::msg::Twist> ROS2::subscribe_cmd_vel()
   return subscribe2nav_->subscribe_cmd_vel();
 }
 
+bool ROS2::get_image(cv::Mat & img, std::chrono::steady_clock::time_point & timestamp)
+{
+  return subscribe2nav_->get_image(img, timestamp);
+}
+
+void ROS2::clear_image()
+{
+  subscribe2nav_->clear_image();
+}
+
 }  // namespace io

@@ -143,6 +143,7 @@ if(ament_cmake_FOUND AND rclcpp_FOUND AND std_msgs_FOUND AND rosidl_typesupport_
     # add_executable(sentry_bp src/sentry_bp.cpp)
     # add_executable(sentry_debug src/sentry_debug.cpp)
     # add_executable(sentry_multithread src/sentry_multithread.cpp)
+    add_executable(auto_aim_sentry_multithread src/auto_aim_sentry_multithread.cpp)
     add_executable(publish_test tests/publish_test.cpp)
     add_executable(subscribe_test tests/subscribe_test.cpp)
     add_executable(topic_loop_test tests/topic_loop_test.cpp)
@@ -152,13 +153,14 @@ if(ament_cmake_FOUND AND rclcpp_FOUND AND std_msgs_FOUND AND rosidl_typesupport_
     # target_link_libraries(sentry_bp ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim omniperception tools io)
     # target_link_libraries(sentry_debug ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim omniperception tools io)
     # target_link_libraries(sentry_multithread ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim omniperception tools io)
+    target_link_libraries(auto_aim_sentry_multithread ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim auto_buff omniperception tools io)
     target_link_libraries(publish_test ${OpenCV_LIBS} fmt::fmt tools io auto_aim)
     target_link_libraries(subscribe_test ${OpenCV_LIBS} fmt::fmt tools io)
     target_link_libraries(topic_loop_test ${OpenCV_LIBS} fmt::fmt tools io)
     target_link_libraries(nav2gimbal_test ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim tools io)
 
     # 强制设置 RPATH，确保运行时能找到 sp_msgs 库（尤其是对于 dlopen 加载的 typesupport 库）
-    foreach(tgt publish_test subscribe_test topic_loop_test nav2gimbal_test auto_aim_scan_debug_mpc standard standard_mpc auto_aim_sentry auto_aim_nav_debug mt_auto_aim_debug)
+    foreach(tgt publish_test subscribe_test topic_loop_test nav2gimbal_test auto_aim_scan_debug_mpc standard standard_mpc auto_aim_sentry auto_aim_sentry_multithread auto_aim_nav_debug mt_auto_aim_debug)
         target_link_options(${tgt} PRIVATE "-Wl,-rpath,${CMAKE_SOURCE_DIR}/sp_msgs/lib")
         target_link_options(${tgt} PRIVATE "-Wl,--disable-new-dtags")
     endforeach()
