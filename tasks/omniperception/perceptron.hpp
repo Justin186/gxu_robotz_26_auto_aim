@@ -39,7 +39,7 @@ struct ScanState
   double start_angle = 0.0;
   double scan_cmd_angle = 0.0;
   double scan_t = 0.0;
-  bool use_omni_scan = false;
+  bool use_omni_scan = true;
 };
 
 class Perceptron
@@ -66,8 +66,7 @@ private:
   LeftImageClearer left_clearer_;
   io::USBCamera * right_cam_;
 
-  std::shared_ptr<auto_aim::YOLO> yolo_left_;
-  std::shared_ptr<auto_aim::YOLO> yolo_right_;
+  std::shared_ptr<auto_aim::YOLO> yolo_side_;
 
   auto_aim::Color enemy_color_;
   int mode_ = 1;

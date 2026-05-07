@@ -47,10 +47,16 @@ YOLO11::YOLO11(const std::string & config_path, bool debug)
     .convert_color(ov::preprocess::ColorFormat::RGB)
     .scale(255.0);
 
-  // TODO: ov::hint::performance_mode(ov::hint::PerformanceMode::LATENCY)
   model = ppp.build();
   compiled_model_ = core_.compile_model(
-    model, device_, ov::hint::performance_mode(ov::hint::PerformanceMode::LATENCY));
+    model, device_,
+    ov::hint::performance_mode(ov::hint::PerformanceMode::THROUGHPUT),
+    ov::inference_num_threads(std::thread::hardware_concurrency()),
+    ov::num_streams(ov::streams::AUTO),
+    ov::hint::enable_cpu_pinning(true),
+    ov::hint::enable_hyper_threading(true),
+    ov::hint::scheduling_core_type(ov::hint::SchedulingCoreType::ANY_CORE));
+  infer_request_ = compiled_model_.create_infer_request();
 }
 
 std::list<Armor> YOLO11::detect(const cv::Mat & raw_img, int frame_count)
@@ -87,12 +93,11 @@ std::list<Armor> YOLO11::detect(const cv::Mat & raw_img, int frame_count)
   ov::Tensor input_tensor(ov::element::u8, {1, 640, 640, 3}, input.data);
 
   /// infer
-  auto infer_request = compiled_model_.create_infer_request();
-  infer_request.set_input_tensor(input_tensor);
-  infer_request.infer();
+  infer_request_.set_input_tensor(input_tensor);
+  infer_request_.infer();
 
   // postprocess
-  auto output_tensor = infer_request.get_output_tensor();
+  auto output_tensor = infer_request_.get_output_tensor();
   auto output_shape = output_tensor.get_shape();
   cv::Mat output(output_shape[1], output_shape[2], CV_32F, output_tensor.data());
 

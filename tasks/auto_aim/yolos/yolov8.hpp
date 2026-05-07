@@ -2,6 +2,7 @@
 #define AUTO_AIM__YOLOV8_HPP
 
 #include <list>
+#include <thread>
 #include <opencv2/opencv.hpp>
 #include <openvino/openvino.hpp>
 #include <string>
@@ -40,6 +41,7 @@ private:
 
   ov::Core core_;
   ov::CompiledModel compiled_model_;
+  ov::InferRequest infer_request_;
 
   cv::Rect roi_;
   cv::Point2f offset_;

@@ -3,6 +3,7 @@
 #include <cmath>
 #include <opencv2/core/types.hpp>
 #include <unordered_map>
+#include <fmt/core.h>
 
 #include <yaml-cpp/yaml.h>
 
@@ -53,8 +54,7 @@ Perceptron::Perceptron(
   new_fov_h_ = yaml["new_fov_h"].as<double>();
   new_fov_v_ = yaml["new_fov_v"].as<double>();
 
-  yolo_left_ = std::make_shared<auto_aim::YOLO>(config_path, false);
-  yolo_right_ = std::make_shared<auto_aim::YOLO>(config_path, false);
+  yolo_side_ = std::make_shared<auto_aim::YOLO>(config_path, false);
 }
 
 void Perceptron::clear_side_buffers()
@@ -73,7 +73,7 @@ bool Perceptron::detect_left(DetectionResult & result)
   std::chrono::steady_clock::time_point ts;
   if (!left_reader_ || !left_reader_(img, ts) || img.empty()) return false;
 
-  auto armors = yolo_left_->detect(img);
+  auto armors = yolo_side_->detect(img);
   if (filter_armors(armors)) return false;
   set_priority(armors);//给所有识别到的装甲板设置优先级
   sort_armors(armors);//根据优先级和离中心距离排序
@@ -95,7 +95,7 @@ bool Perceptron::detect_right(DetectionResult & result)
   std::chrono::steady_clock::time_point ts;
   if (!right_cam_->try_read(img, ts) || img.empty()) return false;
 
-  auto armors = yolo_right_->detect(img);
+  auto armors = yolo_side_->detect(img);
   if (filter_armors(armors)) return false;
   set_priority(armors);
   sort_armors(armors);
@@ -111,9 +111,9 @@ bool Perceptron::detect_right(DetectionResult & result)
 
 ScanResult Perceptron::omni_scan(double dt, ScanState & state) const
 {
-  double delta_angle = 60.0;
+  double delta_angle = 100.0;
   double amplitude = 15.0;
-  double period = 1.0;
+  double period = 0.75;
 
   state.scan_cmd_angle += delta_angle * dt;
   double yaw = tools::limit_rad(state.scan_cmd_angle / 57.3);
@@ -130,8 +130,8 @@ ScanResult Perceptron::short_lost_scan(double start_yaw_deg, double dt, ScanStat
 {
   double yaw_amplitude = 15.0;
   double yaw_period = 1.0;
-  double pitch_amplitude = 15.0;
-  double pitch_period = 0.75;
+  double pitch_amplitude = 5.0;
+  double pitch_period = 1.0;
 
   state.scan_t += dt;
   if (state.scan_t >= 4.0) {
@@ -202,11 +202,15 @@ Eigen::Vector2d Perceptron::delta_angle(
   if (camera == "left") {
     angles[0] = 62 + (new_fov_h_ / 2) - armors.front().center_norm.x * new_fov_h_;
     angles[1] = armors.front().center_norm.y * new_fov_v_ - new_fov_v_ / 2;
+    fmt::print("left armor: {}, delta_yaw: {:.2f} deg, delta_pitch: {:.2f} deg\n", armors.front().name,
+                angles[0], angles[1]);
     return angles;
   }
 
   angles[0] = -62 + (new_fov_h_ / 2) - armors.front().center_norm.x * new_fov_h_;
   angles[1] = armors.front().center_norm.y * new_fov_v_ - new_fov_v_ / 2;
+  fmt::print("right armor: {}, delta_yaw: {:.2f} deg, delta_pitch: {:.2f} deg\n", armors.front().name,
+              angles[0], angles[1]);
   return angles;
 }
 

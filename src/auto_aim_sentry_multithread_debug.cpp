@@ -80,9 +80,6 @@ int main(int argc, char * argv[])
     std::optional<omniperception::DetectionResult> right_candidate;
     double switching_target_yaw = 0.0;
     double switching_target_pitch = 0.0;
-    auto last_side_detect_time = std::chrono::steady_clock::now();
-    constexpr auto side_detect_interval = 25ms;
-    bool detect_left_next = true;
 
     auto last_control_time = std::chrono::steady_clock::now();
 
@@ -111,30 +108,22 @@ int main(int argc, char * argv[])
         gimbal.set_aim_status(false);
 
         if (main_lost_count.load() >= 25 && omni_state == OmniState::scan) {
-          if (now - last_side_detect_time >= side_detect_interval) {
-            last_side_detect_time = now;
+          omniperception::DetectionResult left_result;
+          if (perceptron.detect_left(left_result)) {
+            left_seen_count++;
+            left_candidate = left_result;
+          } else {
+            left_seen_count = 0;
+            left_candidate.reset();
+          }
 
-            if (detect_left_next) {
-              omniperception::DetectionResult left_result;
-              if (perceptron.detect_left(left_result)) {
-                left_seen_count++;
-                left_candidate = left_result;
-              } else {
-                left_seen_count = 0;
-                left_candidate.reset();
-              }
-            } else {
-              omniperception::DetectionResult right_result;
-              if (perceptron.detect_right(right_result)) {
-                right_seen_count++;
-                right_candidate = right_result;
-              } else {
-                right_seen_count = 0;
-                right_candidate.reset();
-              }
-            }
-
-            detect_left_next = !detect_left_next;
+          omniperception::DetectionResult right_result;
+          if (perceptron.detect_right(right_result)) {
+            right_seen_count++;
+            right_candidate = right_result;
+          } else {
+            right_seen_count = 0;
+            right_candidate.reset();
           }
 
           std::optional<omniperception::DetectionResult> left_ready =
@@ -149,8 +138,6 @@ int main(int argc, char * argv[])
             omni_state = OmniState::switching;
             gimbal.send(
               true, false, switching_target_yaw, 0, 0, switching_target_pitch, 0, 0);
-            fmt::print("Switching to {} camera\n", best->source);
-
           } else {
             auto scan_result = perceptron.scan(gs.yaw, dt, scan_state);
             gimbal.send(true, false, scan_result.yaw, 0, 0, scan_result.pitch, 0, 0);
@@ -185,66 +172,25 @@ int main(int argc, char * argv[])
   std::chrono::steady_clock::time_point t;
   auto last_fps_time = std::chrono::steady_clock::now();
   int frame_count = 0;
-
-  double read_sum_ms = 0.0, read_max_ms = 0.0;
-  double q_sum_ms = 0.0, q_max_ms = 0.0;
-  double yolo_sum_ms = 0.0, yolo_max_ms = 0.0;
-  double track_sum_ms = 0.0, track_max_ms = 0.0;
+  double fps;
 
   while (!exiter.exit()) {
-    auto read_begin = std::chrono::steady_clock::now();
     camera.read(img, t);
-    auto read_end = std::chrono::steady_clock::now();
-    double read_ms = std::chrono::duration<double, std::milli>(read_end - read_begin).count();
-    read_sum_ms += read_ms;
-    if (read_ms > read_max_ms) read_max_ms = read_ms;
-
     frame_count++;
 
     auto now = std::chrono::steady_clock::now();
     if (std::chrono::duration<double>(now - last_fps_time).count() >= 1.0) {
-      double fps = frame_count / std::chrono::duration<double>(now - last_fps_time).count();
-      auto count = static_cast<double>(frame_count);
-      fmt::print(
-        "FPS: {:.2f} | read avg/max: {:.2f}/{:.2f} ms | q avg/max: {:.2f}/{:.2f} ms "
-        "| yolo avg/max: {:.2f}/{:.2f} ms | track avg/max: {:.2f}/{:.2f} ms\n",
-        fps, read_sum_ms / count, read_max_ms, q_sum_ms / count, q_max_ms, yolo_sum_ms / count,
-        yolo_max_ms, track_sum_ms / count, track_max_ms);
+      fps = frame_count / std::chrono::duration<double>(now - last_fps_time).count();
+      fmt::print("FPS: {:.2f}\n", fps);
       frame_count = 0;
       last_fps_time = now;
-      read_sum_ms = 0.0;
-      read_max_ms = 0.0;
-      q_sum_ms = 0.0;
-      q_max_ms = 0.0;
-      yolo_sum_ms = 0.0;
-      yolo_max_ms = 0.0;
-      track_sum_ms = 0.0;
-      track_max_ms = 0.0;
     }
 
-    auto q_begin = std::chrono::steady_clock::now();
     auto q = gimbal.q(t);
-    auto q_end = std::chrono::steady_clock::now();
-    double q_ms = std::chrono::duration<double, std::milli>(q_end - q_begin).count();
-    q_sum_ms += q_ms;
-    if (q_ms > q_max_ms) q_max_ms = q_ms;
-
     solver.set_R_gimbal2world(q);
 
-    auto yolo_begin = std::chrono::steady_clock::now();
     auto armors = yolo.detect(img);
-    auto yolo_end = std::chrono::steady_clock::now();
-    double yolo_ms = std::chrono::duration<double, std::milli>(yolo_end - yolo_begin).count();
-    yolo_sum_ms += yolo_ms;
-    if (yolo_ms > yolo_max_ms) yolo_max_ms = yolo_ms;
-
-    auto track_begin = std::chrono::steady_clock::now();
     auto targets = tracker.track(armors, t);
-    auto track_end = std::chrono::steady_clock::now();
-    double track_ms = std::chrono::duration<double, std::milli>(track_end - track_begin).count();
-    track_sum_ms += track_ms;
-    if (track_ms > track_max_ms) track_max_ms = track_ms;
-
     main_tracker_active = tracker_is_active(tracker.state());
     if (!targets.empty()) {
       main_lost_count = 0;
@@ -267,11 +213,13 @@ int main(int argc, char * argv[])
       main_lost_count++;
       target_queue.push(std::nullopt);
     }
-    //cv::resize(img, img, {}, 0.7, 0.7);  // 显示时缩小图片尺寸
-    //cv::imshow("reprojection", img);
+    tools::draw_text(img, fmt::format("FPS: {:.2f}", fps), {10, 30});
+    cv::resize(img, img, {}, 0.7, 0.7);  // 显示时缩小图片尺寸
+    cv::imshow("reprojection", img);
     auto key = cv::waitKey(1);
     if (key == 'q') break;
   }
+
 
   quit = true;
   if (plan_thread.joinable()) plan_thread.join();

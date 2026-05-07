@@ -2,22 +2,22 @@
 
 #include <atomic>
 #include <chrono>
-#include <nlohmann/json.hpp>
 #include <opencv2/opencv.hpp>
+#include <optional>
 #include <thread>
 
 #include "io/camera.hpp"
-#include "io/gimbal/gimbal.hpp"
+#include "io/ros2/gimbal_node.hpp"
+#include "io/usbcamera/usbcamera.hpp"
 #include "tasks/auto_aim/planner/planner.hpp"
 #include "tasks/auto_aim/solver.hpp"
 #include "tasks/auto_aim/tracker.hpp"
 #include "tasks/auto_aim/yolo.hpp"
+#include "tasks/omniperception/perceptron.hpp"
 #include "tools/exiter.hpp"
-#include "tools/img_tools.hpp"
-#include "tools/logger.hpp"
 #include "tools/math_tools.hpp"
-#include "tools/plotter.hpp"
 #include "tools/thread_safe_queue.hpp"
+#include "tools/img_tools.hpp"
 
 using namespace std::chrono_literals;
 
@@ -28,8 +28,8 @@ const std::string keys =
 int main(int argc, char * argv[])
 {
   tools::Exiter exiter;
-  tools::Plotter plotter;
 
+  // 1. 修复：必须先声明 cli 解析器
   cv::CommandLineParser cli(argc, argv, keys);
   auto config_path = cli.get<std::string>(0);
   if (cli.has("help") || config_path.empty()) {
@@ -37,10 +37,13 @@ int main(int argc, char * argv[])
     return 0;
   }
 
-  io::Gimbal gimbal(config_path);
+  io::GimbalNode gimbal(config_path);
   io::Camera camera(config_path);
+  io::USBCamera usb_cam_right("video0", config_path);//初始化usb摄像头
+  usb_cam_right.device_name = "right";
 
-  auto_aim::YOLO yolo(config_path, false);
+  // 第二个参数 false 关闭 YOLO 调试窗口
+  auto_aim::YOLO yolo(config_path, false); 
   auto_aim::Solver solver(config_path);
   auto_aim::Tracker tracker(config_path, solver);
   auto_aim::Planner planner(config_path);
@@ -50,86 +53,71 @@ int main(int argc, char * argv[])
 
   std::atomic<bool> quit = false;
   auto plan_thread = std::thread([&]() {
-    auto t0 = std::chrono::steady_clock::now();
-    uint16_t last_bullet_count = 0;
+    auto last_scan_time = std::chrono::steady_clock::now();
+    double scan_cmd_angle = 0.0;
+    double scan_t = 0.0;
+    bool first_scan = true;
 
     while (!quit) {
       auto target = target_queue.front();
       auto gs = gimbal.state();
-      auto plan = planner.plan(target, gs.bullet_speed);
+      auto current_time = std::chrono::steady_clock::now();
+      double dt = tools::delta_time(current_time, last_scan_time);
+      last_scan_time = current_time;
 
-      gimbal.send(
-        plan.control, plan.fire, plan.yaw, plan.yaw_vel, plan.yaw_acc, -plan.pitch, -plan.pitch_vel,
-        -plan.pitch_acc);
+      if (tracker.state() != "lost") { 
+        first_scan = true;
+        auto plan = planner.plan(target, gs.bullet_speed);
+        gimbal.set_aim_status(true);
 
-      auto fired = gs.bullet_count > last_bullet_count;
-      last_bullet_count = gs.bullet_count;
+        gimbal.send(
+          plan.control, plan.fire, 
+          plan.yaw, plan.yaw_vel, plan.yaw_acc, 
+          -plan.pitch, -plan.pitch_vel, -plan.pitch_acc);
 
-      nlohmann::json data;
-      data["t"] = tools::delta_time(std::chrono::steady_clock::now(), t0);
+        std::this_thread::sleep_for(10ms);
+      } 
+      else if (tracker.state() == "lost" && !io::GimbalNode::is_move)
+      { 
+        gimbal.set_aim_status(false);
+        
+        if (first_scan) {
+          scan_cmd_angle = gs.yaw * 57.3; // 以当前实际yaw为起点
+          first_scan = false;
+        }
 
-      data["gimbal_yaw"] = gs.yaw;
-      data["gimbal_yaw_vel"] = gs.yaw_vel;
-      data["gimbal_pitch"] = gs.pitch;
-      data["gimbal_pitch_vel"] = gs.pitch_vel;
+        double delta_angle = 120; // 哨兵扫描：yaw 每秒旋转度数
+        double amplitude = 15.0;   // 哨兵扫描：pitch 上下扫动幅度(度)
+        double period = 0.25;       // 哨兵扫描：pitch 扫动周期(秒)
 
-      data["target_yaw"] = plan.target_yaw;
-      data["target_pitch"] = plan.target_pitch;
+        scan_cmd_angle += delta_angle * dt;
+        double yaw = tools::limit_rad(scan_cmd_angle / 57.3);
+        double pitch = tools::limit_rad(amplitude * std::sin(2 * M_PI * scan_t / period) / 57.3 - 0.1);
+        
+        gimbal.send(true, false, yaw, 0, 0, pitch, 0, 0);
 
-      data["plan_yaw"] = plan.yaw;
-      data["plan_yaw_vel"] = plan.yaw_vel;
-      data["plan_yaw_acc"] = plan.yaw_acc;
+        scan_t += dt;
+        if (scan_t >= period) {
+            scan_t -= period;
+        }
 
-      data["plan_pitch"] = plan.pitch;
-      data["plan_pitch_vel"] = plan.pitch_vel;
-      data["plan_pitch_acc"] = plan.pitch_acc;
-
-      data["fire"] = plan.fire ? 1 : 0;
-      data["fired"] = fired ? 1 : 0;
-
-      if (target.has_value()) {
-        data["target_x"] = target->ekf_x()[0];   //x
-        data["target_vx"] = target->ekf_x()[1];   //vx
-        data["target_y"] = target->ekf_x()[2];   //y
-        data["target_vy"] = target->ekf_x()[3];   //vy
-        data["target_z"] = target->ekf_x()[4];   //z
-        data["target_vz"] = target->ekf_x()[5];  //vz
+        std::this_thread::sleep_for(10ms);
       }
-
-      if (target.has_value()) {
-        data["w"] = target->ekf_x()[7];
-        data["r"] = target->ekf_x()[8];
-        data["l"] = target->ekf_x()[9];
-      } else {
-        data["w"] = 0.0;
-        data["r"] = 0.0;
-        data["l"] = 0.0;
+      else {
+        // 增加一个 else 分支，防止既没目标又在移动时死循环空转占用 CPU
+        std::this_thread::sleep_for(10ms);
       }
-
-      plotter.plot(data);
-
-      std::this_thread::sleep_for(10ms);
     }
   });
 
   cv::Mat img;
   std::chrono::steady_clock::time_point t;
-  auto last_time = std::chrono::steady_clock::now();
-  int frame_count = 0;
 
   while (!exiter.exit()) {
-    camera.read(img, t);
-    frame_count++;
-    auto now = std::chrono::steady_clock::now();
-    if (std::chrono::duration<double>(now - last_time).count() >= 1.0) {
-      double fps = frame_count / std::chrono::duration<double>(now - last_time).count();
-      fmt::print("FPS: {:.2f}\n", fps);
-      frame_count = 0;
-      last_time = now;
-    }
-
+    camera.read(img, t); // 相机读取通常是阻塞的，控制了整体循环频率
     auto q = gimbal.q(t);
-
+    // 比赛进行中则开始录制
+    
     solver.set_R_gimbal2world(q);
     auto armors = yolo.detect(img);
     auto targets = tracker.track(armors, t);
