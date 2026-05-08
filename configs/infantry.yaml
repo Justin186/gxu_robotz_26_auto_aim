@@ -10,7 +10,7 @@ yolov8_model_path: assets/yolov8.xml
 yolov5_model_path: assets/0526.xml
 device: GPU
 min_confidence: 0.8
-use_traditional: true
+use_traditional: false
 
 #####-----ROI-----#####
 roi: 
@@ -95,7 +95,7 @@ camera_matrix: [2365.2292710685488, 0, 717.84874030069716, 0, 2365.2595057507042
 distort_coeffs: [-0.053032056252978271, 0.12304744809762919, -0.00083306525109508019, 0.00044012934474125322, 0]
 # 相机同理想情况的偏角: yaw0.56 pitch1.05 roll0.41 degree
 R_camera2gimbal: [0, 0, 1, -1, 0, 0, 0, -1, 0]
-t_camera2gimbal: [0.24, 0.06, 0]
+t_camera2gimbal: [0.10751, 0.06, 0.0815]
 
 #####-----planner-----#####
 fire_thresh: 0.001
