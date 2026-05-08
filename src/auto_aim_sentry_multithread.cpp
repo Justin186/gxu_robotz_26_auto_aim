@@ -1,5 +1,3 @@
-#include <fmt/core.h>
-
 #include <atomic>
 #include <chrono>
 #include <opencv2/opencv.hpp>
@@ -13,27 +11,13 @@
 #include "tasks/auto_aim/solver.hpp"
 #include "tasks/auto_aim/tracker.hpp"
 #include "tasks/auto_aim/yolo.hpp"
+#include "tasks/omniperception/decider.hpp"
 #include "tasks/omniperception/perceptron.hpp"
 #include "tools/exiter.hpp"
 #include "tools/math_tools.hpp"
 #include "tools/thread_safe_queue.hpp"
-#include "tools/img_tools.hpp"
 
 using namespace std::chrono_literals;
-
-namespace
-{
-enum class OmniState
-{
-  scan,
-  switching
-};
-
-bool tracker_is_active(const std::string & state)
-{
-  return state == "detecting" || state == "tracking" || state == "temp_lost";
-}
-}  // namespace
 
 const std::string keys =
   "{help h usage ? |                        | output help}"
@@ -52,128 +36,60 @@ int main(int argc, char * argv[])
 
   io::GimbalNode gimbal(config_path);
   io::Camera camera(config_path);
-  io::USBCamera usb_cam_right("video0", config_path);//初始化usb摄像头
+  io::USBCamera usb_cam_right("video0", config_path);
   usb_cam_right.device_name = "right";
 
   auto_aim::YOLO yolo(config_path, false);
   auto_aim::Solver solver(config_path);
   auto_aim::Tracker tracker(config_path, solver);
   auto_aim::Planner planner(config_path);
+  omniperception::Decider decider(config_path);
   omniperception::Perceptron perceptron(
-    [&](cv::Mat & img, std::chrono::steady_clock::time_point & ts) { return gimbal.get_image(img, ts); },
-    [&]() { gimbal.clear_image(); },
-    &usb_cam_right, config_path);//初始化全向感知模块，ros相机也在这里初始化
+    [&](cv::Mat & img, std::chrono::steady_clock::time_point & ts) {
+      return gimbal.get_image(img, ts);
+    },
+    [&]() { gimbal.clear_image(); }, &usb_cam_right, config_path);
 
   tools::ThreadSafeQueue<std::optional<auto_aim::Target>, true> target_queue(1);
   target_queue.push(std::nullopt);
 
   std::atomic<bool> quit = false;
-  std::atomic<bool> main_tracker_active = false;
-  std::atomic<int> main_lost_count = 0;
+  // 主线程只负责更新模式，控制线程按模式执行
+  std::atomic<omniperception::Decider::OmniMode> omni_mode{
+    omniperception::Decider::OmniMode::tracking};//原子变量
+  std::atomic<int> main_lost_count = 0;//原子变量，防止自瞄和
 
   auto plan_thread = std::thread([&]() {
-    OmniState omni_state = OmniState::scan;
-    omniperception::ScanState scan_state;
-    int left_seen_count = 0;
-    int right_seen_count = 0;
-    std::optional<omniperception::DetectionResult> left_candidate;
-    std::optional<omniperception::DetectionResult> right_candidate;
-    double switching_target_yaw = 0.0;
-    double switching_target_pitch = 0.0;
-    auto last_side_detect_time = std::chrono::steady_clock::now();
-    constexpr auto side_detect_interval = 25ms;
-    bool detect_left_next = true;
-
     auto last_control_time = std::chrono::steady_clock::now();
 
     while (!quit) {
       auto target = target_queue.front();
       auto gs = gimbal.state();
       auto now = std::chrono::steady_clock::now();
-      double dt = tools::delta_time(now, last_control_time);
+      const double dt = tools::delta_time(now, last_control_time);
       last_control_time = now;
 
-      if (main_tracker_active.load()) {
-        omni_state = OmniState::scan;
-        left_seen_count = 0;
-        right_seen_count = 0;
-        left_candidate.reset();
-        right_candidate.reset();
-        scan_state = {};
-        perceptron.clear_side_buffers();
+      decider.set_mode(omni_mode.load());
+
+      // 每轮先把主线程更新的模式同步给全向决策器
+      // tracking 模式下，只走主相机自瞄闭环
+      if (decider.mode() == omniperception::Decider::OmniMode::tracking) {
+        decider.reset();//侧向感知所以计数清零，设置模式为tracking
+        perceptron.clear_side_buffers();//清空缓存
 
         auto plan = planner.plan(target, gs.bullet_speed, gs.yaw, gs.pitch);
-        gimbal.set_aim_status(true);
+        gimbal.set_aim_status(true);//gimbal.aim_detect_enemy_=true
         gimbal.send(
-          plan.control, plan.fire, plan.yaw, plan.yaw_vel, plan.yaw_acc, -plan.pitch, -plan.pitch_vel,
-          -plan.pitch_acc);
+          plan.control, plan.fire, plan.yaw, plan.yaw_vel, plan.yaw_acc, -plan.pitch,
+          -plan.pitch_vel, -plan.pitch_acc);
       } else {
+        // scan / switching 模式统一交给全向决策器处理
         gimbal.set_aim_status(false);
 
-        if (main_lost_count.load() >= 25 && omni_state == OmniState::scan) {
-          if (now - last_side_detect_time >= side_detect_interval) {
-            last_side_detect_time = now;
-
-            if (detect_left_next) {
-              omniperception::DetectionResult left_result;
-              if (perceptron.detect_left(left_result)) {
-                left_seen_count++;
-                left_candidate = left_result;
-              } else {
-                left_seen_count = 0;
-                left_candidate.reset();
-              }
-            } else {
-              omniperception::DetectionResult right_result;
-              if (perceptron.detect_right(right_result)) {
-                right_seen_count++;
-                right_candidate = right_result;
-              } else {
-                right_seen_count = 0;
-                right_candidate.reset();
-              }
-            }
-
-            detect_left_next = !detect_left_next;
-          }
-
-          std::optional<omniperception::DetectionResult> left_ready =
-            left_seen_count >= 5 ? left_candidate : std::nullopt;
-          std::optional<omniperception::DetectionResult> right_ready =
-            right_seen_count >= 5 ? right_candidate : std::nullopt;
-
-          auto best = perceptron.choose_switch_candidate(left_ready, right_ready);
-          if (best.has_value()) {
-            switching_target_yaw = tools::limit_rad(gs.yaw + best->delta_yaw);
-            switching_target_pitch = tools::limit_rad(gs.pitch + best->delta_pitch);
-            omni_state = OmniState::switching;
-            gimbal.send(
-              true, false, switching_target_yaw, 0, 0, switching_target_pitch, 0, 0);
-            fmt::print("Switching to {} camera\n", best->source);
-
-          } else {
-            auto scan_result = perceptron.scan(gs.yaw, dt, scan_state);
-            gimbal.send(true, false, scan_result.yaw, 0, 0, scan_result.pitch, 0, 0);
-          }
-        } else if (omni_state == OmniState::switching) {
-          constexpr double yaw_thresh = 3.0 / 57.3;
-          constexpr double pitch_thresh = 3.0 / 57.3;
-
-          if (std::abs(tools::limit_rad(gs.yaw - switching_target_yaw)) < yaw_thresh &&
-              std::abs(gs.pitch - switching_target_pitch) < pitch_thresh) {
-            omni_state = OmniState::scan;
-            left_seen_count = 0;
-            right_seen_count = 0;
-            left_candidate.reset();
-            right_candidate.reset();
-            scan_state = {};
-          }
-        } else {
-          left_seen_count = 0;
-          right_seen_count = 0;
-          left_candidate.reset();
-          right_candidate.reset();
-          scan_state = {};
+        //综合非自瞄状态的全向决策并且返回控制角度。
+        auto command = decider.decide(gs.yaw, gs.pitch, dt, perceptron);
+        if (command.control) {
+          gimbal.send(true, command.shoot, command.yaw, 0, 0, command.pitch, 0, 0);
         }
       }
 
@@ -182,95 +98,31 @@ int main(int argc, char * argv[])
   });
 
   cv::Mat img;
-  std::chrono::steady_clock::time_point t;
-  auto last_fps_time = std::chrono::steady_clock::now();
-  int frame_count = 0;
-
-  double read_sum_ms = 0.0, read_max_ms = 0.0;
-  double q_sum_ms = 0.0, q_max_ms = 0.0;
-  double yolo_sum_ms = 0.0, yolo_max_ms = 0.0;
-  double track_sum_ms = 0.0, track_max_ms = 0.0;
+  std::chrono::steady_clock::time_point timestamp;
 
   while (!exiter.exit()) {
-    auto read_begin = std::chrono::steady_clock::now();
-    camera.read(img, t);
-    auto read_end = std::chrono::steady_clock::now();
-    double read_ms = std::chrono::duration<double, std::milli>(read_end - read_begin).count();
-    read_sum_ms += read_ms;
-    if (read_ms > read_max_ms) read_max_ms = read_ms;
+    camera.read(img, timestamp);
 
-    frame_count++;
-
-    auto now = std::chrono::steady_clock::now();
-    if (std::chrono::duration<double>(now - last_fps_time).count() >= 1.0) {
-      double fps = frame_count / std::chrono::duration<double>(now - last_fps_time).count();
-      auto count = static_cast<double>(frame_count);
-      fmt::print(
-        "FPS: {:.2f} | read avg/max: {:.2f}/{:.2f} ms | q avg/max: {:.2f}/{:.2f} ms "
-        "| yolo avg/max: {:.2f}/{:.2f} ms | track avg/max: {:.2f}/{:.2f} ms\n",
-        fps, read_sum_ms / count, read_max_ms, q_sum_ms / count, q_max_ms, yolo_sum_ms / count,
-        yolo_max_ms, track_sum_ms / count, track_max_ms);
-      frame_count = 0;
-      last_fps_time = now;
-      read_sum_ms = 0.0;
-      read_max_ms = 0.0;
-      q_sum_ms = 0.0;
-      q_max_ms = 0.0;
-      yolo_sum_ms = 0.0;
-      yolo_max_ms = 0.0;
-      track_sum_ms = 0.0;
-      track_max_ms = 0.0;
-    }
-
-    auto q_begin = std::chrono::steady_clock::now();
-    auto q = gimbal.q(t);
-    auto q_end = std::chrono::steady_clock::now();
-    double q_ms = std::chrono::duration<double, std::milli>(q_end - q_begin).count();
-    q_sum_ms += q_ms;
-    if (q_ms > q_max_ms) q_max_ms = q_ms;
-
+    auto q = gimbal.q(timestamp);
     solver.set_R_gimbal2world(q);
 
-    auto yolo_begin = std::chrono::steady_clock::now();
     auto armors = yolo.detect(img);
-    auto yolo_end = std::chrono::steady_clock::now();
-    double yolo_ms = std::chrono::duration<double, std::milli>(yolo_end - yolo_begin).count();
-    yolo_sum_ms += yolo_ms;
-    if (yolo_ms > yolo_max_ms) yolo_max_ms = yolo_ms;
+    auto targets = tracker.track(armors, timestamp);
 
-    auto track_begin = std::chrono::steady_clock::now();
-    auto targets = tracker.track(armors, t);
-    auto track_end = std::chrono::steady_clock::now();
-    double track_ms = std::chrono::duration<double, std::milli>(track_end - track_begin).count();
-    track_sum_ms += track_ms;
-    if (track_ms > track_max_ms) track_max_ms = track_ms;
-
-    main_tracker_active = tracker_is_active(tracker.state());
     if (!targets.empty()) {
+      // 主相机一旦重新拿到目标，就立刻回到 tracking 模式
+      omni_mode = omniperception::Decider::OmniMode::tracking;
       main_lost_count = 0;
       target_queue.push(targets.front());
-      auto target = targets.front();
-
-      // 当前帧target更新后
-      std::vector<Eigen::Vector4d> armor_xyza_list = target.armor_xyza_list();
-      for (const Eigen::Vector4d & xyza : armor_xyza_list) {
-        auto image_points =
-          solver.reproject_armor(xyza.head(3), xyza[3], target.armor_type, target.name);
-        tools::draw_points(img, image_points, {0, 255, 0});
-      }
-
-      Eigen::Vector4d aim_xyza = planner.debug_xyza;
-      auto image_points =
-        solver.reproject_armor(aim_xyza.head(3), aim_xyza[3], target.armor_type, target.name);
-      tools::draw_points(img, image_points, {0, 0, 255});
     } else {
       main_lost_count++;
+      // 主相机连续丢失足够多帧后，才切到 scan 让全向接管
+      if (main_lost_count.load() >= 25 &&
+          omni_mode.load() == omniperception::Decider::OmniMode::tracking) {
+        omni_mode = omniperception::Decider::OmniMode::scan;
+      }
       target_queue.push(std::nullopt);
     }
-    //cv::resize(img, img, {}, 0.7, 0.7);  // 显示时缩小图片尺寸
-    //cv::imshow("reprojection", img);
-    auto key = cv::waitKey(1);
-    if (key == 'q') break;
   }
 
   quit = true;

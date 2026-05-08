@@ -1,8 +1,10 @@
 #include "decider.hpp"
 
+#include "perceptron.hpp"
+
 #include <yaml-cpp/yaml.h>
 
-#include <filesystem>
+#include <cmath>
 #include <opencv2/opencv.hpp>
 
 #include "tools/logger.hpp"
@@ -10,104 +12,244 @@
 
 namespace omniperception
 {
-Decider::Decider(const std::string & config_path) : detector_(config_path), count_(0)
+Decider::Decider(const std::string & config_path)
 {
+  // 这里只读取全向决策真正会用到的配置
   auto yaml = YAML::LoadFile(config_path);
   img_width_ = yaml["image_width"].as<double>();
   img_height_ = yaml["image_height"].as<double>();
-  fov_h_ = yaml["fov_h"].as<double>();
-  fov_v_ = yaml["fov_v"].as<double>();
   new_fov_h_ = yaml["new_fov_h"].as<double>();
   new_fov_v_ = yaml["new_fov_v"].as<double>();
   enemy_color_ =
     (yaml["enemy_color"].as<std::string>() == "red") ? auto_aim::Color::red : auto_aim::Color::blue;
-  mode_ = yaml["mode"].as<double>();
+  priority_mode_ = yaml["mode"].as<int>();
+  reset();
 }
 
+void Decider::reset_runtime_state()
+{
+  // 切回 tracking / scan 时，清掉扫描和侧向确认的中间状态
+  // 左右计数归零，候选结果清空，甩头角度的归零，swithing状态超时计时器归零
+  scan_state_ = {};
+  left_seen_count_ = 0;
+  right_seen_count_ = 0;
+  left_candidate_.reset();
+  right_candidate_.reset();
+  switching_target_yaw_ = 0.0;
+  switching_target_pitch_ = 0.0;
+  switching_start_time_ = std::chrono::steady_clock::now();
+  last_side_detect_time_ = switching_start_time_;
+  detect_left_next_ = true;//先从ros相机检测，防止usb延迟大导致
+}
+
+void Decider::reset()
+{
+  reset_runtime_state();
+  mode_ = OmniMode::tracking;
+}
+
+void Decider::set_mode(OmniMode mode)
+{
+  if (mode_ == mode) {
+    return;
+  }
+
+  // tracking / scan 都意味着重新开始一轮状态机
+  if (mode == OmniMode::tracking || mode == OmniMode::scan) {
+    reset_runtime_state();
+  }
+  mode_ = mode;
+}
+
+Decider::OmniMode Decider::mode() const
+{
+  return mode_;
+}
+
+//全向感知实现，集成侧向感知的所有决策逻辑，返回switching和scan的转向角度
 io::Command Decider::decide(
-  auto_aim::YOLO & yolo, const Eigen::Vector3d & gimbal_pos, io::USBCamera & usbcam1,
-  io::USBCamera & usbcam2, io::Camera & back_camera)
+  double current_yaw, double current_pitch, double dt, Perceptron & perceptron)
 {
-  Eigen::Vector2d delta_angle;
-  io::USBCamera * cams[] = {&usbcam1, &usbcam2};
+  auto now = std::chrono::steady_clock::now();
 
-  cv::Mat usb_img;
-  std::chrono::steady_clock::time_point timestamp;
-  if (count_ < 0 || count_ > 2) {
-    throw std::runtime_error("count_ out of valid range [0,2]");
-  }
-  if (count_ == 2) {
-    back_camera.read(usb_img, timestamp);
-  } else {
-    cams[count_]->read(usb_img, timestamp);
-  }
-  auto armors = yolo.detect(usb_img);
-  auto empty = armor_filter(armors);
-
-  if (!empty) {
-    if (count_ == 2) {
-      delta_angle = this->delta_angle(armors, "back");
-    } else {
-      delta_angle = this->delta_angle(armors, cams[count_]->device_name);
-    }
-
-    tools::logger()->debug(
-      "[{} camera] delta yaw:{:.2f},target pitch:{:.2f},armor number:{},armor name:{}",
-      (count_ == 2 ? "back" : cams[count_]->device_name), delta_angle[0], delta_angle[1],
-      armors.size(), auto_aim::ARMOR_NAMES[armors.front().name]);
-
-    count_ = (count_ + 1) % 3;
-
-    return io::Command{
-      true, false, tools::limit_rad(gimbal_pos[0] + delta_angle[0] / 57.3),
-      tools::limit_rad(delta_angle[1] / 57.3)};
-  }
-
-  count_ = (count_ + 1) % 3;
-  // 如果没有找到目标，返回默认命令
-  return io::Command{false, false, 0, 0};
-}
-
-io::Command Decider::decide(
-  auto_aim::YOLO & yolo, const Eigen::Vector3d & gimbal_pos, io::Camera & back_cammera)
-{
-  cv::Mat img;
-  std::chrono::steady_clock::time_point timestamp;
-  back_cammera.read(img, timestamp);
-  auto armors = yolo.detect(img);
-  auto empty = armor_filter(armors);
-
-  if (!empty) {
-    auto delta_angle = this->delta_angle(armors, "back");
-    tools::logger()->debug(
-      "[back camera] delta yaw:{:.2f},target pitch:{:.2f},armor number:{},armor name:{}",
-      delta_angle[0], delta_angle[1], armors.size(), auto_aim::ARMOR_NAMES[armors.front().name]);
-
-    return io::Command{
-      true, false, tools::limit_rad(gimbal_pos[0] + delta_angle[0] / 57.3),
-      tools::limit_rad(delta_angle[1] / 57.3)};
-  }
-
-  return io::Command{false, false, 0, 0};
-}
-
-io::Command Decider::decide(const std::vector<DetectionResult> & detection_queue)
-{
-  if (detection_queue.empty()) {
+  // tracking 模式完全交给主相机闭环，全向层不发命令
+  if (mode_ == OmniMode::tracking) {
     return io::Command{false, false, 0, 0};
   }
 
-  DetectionResult dr = detection_queue.front();
-  if (dr.armors.empty()) return io::Command{false, false, 0, 0};
-  tools::logger()->info(
-    "omniperceptron find {},delta yaw is {:.4f}", auto_aim::ARMOR_NAMES[dr.armors.front().name],
-    dr.delta_yaw * 57.3);
+  // switching 模式只判断是否转到位或超时，不再扫描和侧向识别
+  if (mode_ == OmniMode::switching) {
+    constexpr double yaw_thresh = 3.0 / 57.3;//切换目标角和当前角的差值小于这个阈值就认为转到位了
+    constexpr double pitch_thresh = 3.0 / 57.3;
 
-  return io::Command{true, false, dr.delta_yaw, dr.delta_pitch};
-};
+    //判断是否pitch和yaw都到位
+    const bool reached_target =
+      std::abs(tools::limit_rad(current_yaw - switching_target_yaw_)) < yaw_thresh &&
+      std::abs(current_pitch - switching_target_pitch_) < pitch_thresh;
+
+    if (reached_target) {
+      set_mode(OmniMode::scan);//由于第一次进scan后会进入特化扫描，所以不怕因为直接scan而丢失目标
+      return io::Command{false, false, 0, 0};
+    } else if (now - switching_start_time_ >= switching_timeout_) {
+      tools::logger()->info("Switching timeout, back to scan");//超时检测
+      set_mode(OmniMode::scan);
+      return io::Command{false, false, 0, 0};
+    }
+
+    // switching 期间持续发送同一个目标角，保证云台真正转到位
+    return io::Command{true, false, switching_target_yaw_, switching_target_pitch_};
+  }
+
+  // scan 模式下，按固定间隔轮询左右侧相机
+  if (now - last_side_detect_time_ >= side_detect_interval_) {
+    last_side_detect_time_ = now;
+
+    DetectionResult result;
+    //用于交替检测
+    const auto status = detect_left_next_ ? perceptron.detect_left(result)
+                                          : perceptron.detect_right(result);
+    int & seen_count = detect_left_next_ ? left_seen_count_ : right_seen_count_;
+    //更新最优选项
+    std::optional<DetectionResult> & candidate =
+      detect_left_next_ ? left_candidate_ : right_candidate_;
+    
+    //DetectStatus三状态，有图无图有目标
+    // 没有新帧时，不动计数；否则高频轮询会把低帧率相机误清零
+    if (status == DetectStatus::no_frame) {
+    //相机有图，并且armors有目标，计加计数+1
+    } else if (status == DetectStatus::detected && process_detection(result)) {
+      seen_count++;
+      candidate = std::move(result);
+    } else {
+      // 只要拿到了新帧，但新帧里没有有效目标，就认为确认链路中断
+      seen_count = 0;
+      candidate.reset();
+    }
+
+    detect_left_next_ = !detect_left_next_;
+  }
+
+  // 左右侧分别累计确认帧数，满足阈值后才允许进入 switching
+  auto left_ready = left_seen_count_ >= confirm_count_ ? left_candidate_ : std::nullopt;
+  auto right_ready = right_seen_count_ >= confirm_count_ ? right_candidate_ : std::nullopt;
+  auto best = choose_switch_candidate(left_ready, right_ready);
+  if (best.has_value()) {
+    switching_target_yaw_ = tools::limit_rad(current_yaw + best->delta_yaw);
+    switching_target_pitch_ = tools::limit_rad(current_pitch + best->delta_pitch);
+    switching_start_time_ = now;
+    mode_ = OmniMode::switching;
+
+    tools::logger()->info("Switching to {} camera", best->source);
+    return io::Command{true, false, switching_target_yaw_, switching_target_pitch_};
+  }
+
+  auto scan_result = scan(current_yaw, dt);
+  return io::Command{true, false, scan_result.yaw, scan_result.pitch};
+}
+
+//scan下，对侧向进行是否有目标的判断，有就先排序后给出转向角度
+bool Decider::process_detection(DetectionResult & result) const
+{
+  // Perceptron 只负责给原始检测，这里再做过滤、优先级和角度换算
+  if (armor_filter(result.armors)) return false;
+
+  set_priority(result.armors);  //给每一个目标设置优先级
+  sort_armors(result.armors);   //依照先优先级，后图像中心距离排序
+
+  const auto angles = delta_angle(result.armors, result.source);
+  result.delta_yaw = angles[0] / 57.3;
+  result.delta_pitch = angles[1] / 57.3;
+  return true;
+}
+
+void Decider::sort_armors(std::list<auto_aim::Armor> & armors) const
+{
+  // 先看优先级，同优先级时选更靠近图像中心的目标
+  const cv::Point2f img_center(img_width_ * 0.5f, img_height_ * 0.5f);
+  armors.sort([&img_center](const auto_aim::Armor & a, const auto_aim::Armor & b) {
+    if (a.priority != b.priority) {
+      return a.priority < b.priority;
+    }
+
+    const auto distance_a = cv::norm(a.center - img_center);
+    const auto distance_b = cv::norm(b.center - img_center);
+    return distance_a < distance_b;
+  });
+}
+
+std::optional<DetectionResult> Decider::choose_switch_candidate(
+  const std::optional<DetectionResult> & left_candidate,
+  const std::optional<DetectionResult> & right_candidate) const
+{
+  // 左右都有候选时：先比优先级，再比回头角绝对值
+  if (!left_candidate.has_value()) return right_candidate;
+  if (!right_candidate.has_value()) return left_candidate;
+
+  const auto left_priority = left_candidate->armors.front().priority;
+  const auto right_priority = right_candidate->armors.front().priority;
+  if (left_priority != right_priority) {
+    return left_priority < right_priority ? left_candidate : right_candidate;
+  }
+
+  return std::abs(left_candidate->delta_yaw) < std::abs(right_candidate->delta_yaw) ? left_candidate
+                                                                                     : right_candidate;
+}
+
+Decider::ScanResult Decider::omni_scan(double dt)
+{
+  constexpr double delta_angle = 100.0;
+  constexpr double amplitude = 15.0;
+  constexpr double period = 0.75;
+
+  scan_state_.scan_cmd_angle += delta_angle * dt;
+  const double yaw = tools::limit_rad(scan_state_.scan_cmd_angle / 57.3);
+  const double pitch =
+    tools::limit_rad(amplitude * std::sin(2 * M_PI * scan_state_.scan_t / period) / 57.3 - 0.15);
+
+  scan_state_.scan_t += dt;
+  if (scan_state_.scan_t >= period) scan_state_.scan_t -= period;
+
+  return {yaw, pitch};
+}
+
+Decider::ScanResult Decider::short_lost_scan(double start_yaw_deg, double dt)
+{
+  constexpr double yaw_amplitude = 20.0;
+  constexpr double yaw_period = 1.0;
+  constexpr double pitch_amplitude = 1.0;
+  constexpr double pitch_period = 0.2;
+
+  scan_state_.scan_t += dt;
+  if (scan_state_.scan_t >= 4.0) {
+    scan_state_.use_omni_scan = true;
+  }
+
+  const double yaw_deg =
+    start_yaw_deg - yaw_amplitude * std::sin(2 * M_PI * scan_state_.scan_t / yaw_period);
+  const double yaw = tools::limit_rad(yaw_deg / 57.3);
+  const double pitch = tools::limit_rad(
+    pitch_amplitude * std::sin(2 * M_PI * scan_state_.scan_t / pitch_period) / 57.3 + 0.1);
+
+  return {yaw, pitch};
+}
+
+Decider::ScanResult Decider::scan(double current_yaw, double dt)
+{
+  // 进入 scan 后，先做一段小范围特化扫描，再切到全向大扫描
+  if (scan_state_.scan_t == 0.0 && scan_state_.scan_cmd_angle == 0.0) {
+    scan_state_.start_angle = current_yaw * 57.3;
+    scan_state_.scan_cmd_angle = scan_state_.start_angle;
+    scan_state_.use_omni_scan = false;
+  }
+
+  if (scan_state_.use_omni_scan) {
+    return omni_scan(dt);
+  }
+  return short_lost_scan(scan_state_.start_angle, dt);
+}
 
 Eigen::Vector2d Decider::delta_angle(
-  const std::list<auto_aim::Armor> & armors, const std::string & camera)
+  const std::list<auto_aim::Armor> & armors, const std::string & camera) const
 {
   Eigen::Vector2d delta_angle;
   if (camera == "left") {
@@ -116,129 +258,31 @@ Eigen::Vector2d Decider::delta_angle(
     return delta_angle;
   }
 
-  else if (camera == "right") {
-    delta_angle[0] = -62 + (new_fov_h_ / 2) - armors.front().center_norm.x * new_fov_h_;
-    delta_angle[1] = armors.front().center_norm.y * new_fov_v_ - new_fov_v_ / 2;
-    return delta_angle;
-  }
-
-  else {
-    delta_angle[0] = 170 + (54.2 / 2) - armors.front().center_norm.x * 54.2;
-    delta_angle[1] = armors.front().center_norm.y * 44.5 - 44.5 / 2;
-    return delta_angle;
-  }
+  delta_angle[0] = -62 + (new_fov_h_ / 2) - armors.front().center_norm.x * new_fov_h_;
+  delta_angle[1] = armors.front().center_norm.y * new_fov_v_ - new_fov_v_ / 2;
+  return delta_angle;
 }
 
-bool Decider::armor_filter(std::list<auto_aim::Armor> & armors)
+bool Decider::armor_filter(std::list<auto_aim::Armor> & armors) const
 {
   if (armors.empty()) return true;
-  // 过滤非敌方装甲板
+
+  // 这里只保留当前敌方、非工程、非前哨站、非无敌目标
   armors.remove_if([&](const auto_aim::Armor & a) { return a.color != enemy_color_; });
-
-  // 25赛季没有5号装甲板
   armors.remove_if([&](const auto_aim::Armor & a) { return a.name == auto_aim::ArmorName::five; });
-  // 不打工程
-  // armors.remove_if([&](const auto_aim::Armor & a) { return a.name == auto_aim::ArmorName::two; });
-  // 不打前哨站
-  armors.remove_if(
-    [&](const auto_aim::Armor & a) { return a.name == auto_aim::ArmorName::outpost; });
-
-  // 过滤掉刚复活无敌的装甲板
-  armors.remove_if([&](const auto_aim::Armor & a) {
-    return std::find(invincible_armor_.begin(), invincible_armor_.end(), a.name) !=
-           invincible_armor_.end();
-  });
+  armors.remove_if([&](const auto_aim::Armor & a) { return a.name == auto_aim::ArmorName::outpost; });
 
   return armors.empty();
 }
 
-void Decider::set_priority(std::list<auto_aim::Armor> & armors)
+void Decider::set_priority(std::list<auto_aim::Armor> & armors) const
 {
   if (armors.empty()) return;
 
-  const PriorityMap & priority_map = (mode_ == MODE_ONE) ? mode1 : mode2;
-
-  if (!armors.empty()) {
-    for (auto & armor : armors) {
-      armor.priority = priority_map.at(armor.name);
-    }
+  const PriorityMap & priority_map = (priority_mode_ == MODE_ONE) ? mode1 : mode2;
+  for (auto & armor : armors) {
+    armor.priority = priority_map.at(armor.name);
   }
-}
-
-void Decider::sort(std::vector<DetectionResult> & detection_queue)
-{
-  if (detection_queue.empty()) return;
-
-  // 对每个 DetectionResult 调用 armor_filter 和 set_priority
-  for (auto & dr : detection_queue) {
-    armor_filter(dr.armors);
-    set_priority(dr.armors);
-
-    // 对每个 DetectionResult 中的 armors 进行排序
-    dr.armors.sort(
-      [](const auto_aim::Armor & a, const auto_aim::Armor & b) { return a.priority < b.priority; });
-  }
-
-  // 根据优先级对 DetectionResult 进行排序
-  std::sort(
-    detection_queue.begin(), detection_queue.end(),
-    [](const DetectionResult & a, const DetectionResult & b) {
-      return a.armors.front().priority < b.armors.front().priority;
-    });
-}
-
-Eigen::Vector4d Decider::get_target_info(
-  const std::list<auto_aim::Armor> & armors, const std::list<auto_aim::Target> & targets)
-{
-  if (armors.empty() || targets.empty()) return Eigen::Vector4d::Zero();
-
-  auto target = targets.front();
-
-  for (const auto & armor : armors) {
-    if (armor.name == target.name) {
-      return Eigen::Vector4d{
-        armor.xyz_in_gimbal[0], armor.xyz_in_gimbal[1], 1,
-        static_cast<double>(armor.name) + 1};  //避免歧义+1(详见通信协议)
-    }
-  }
-
-  return Eigen::Vector4d::Zero();
-}
-
-void Decider::get_invincible_armor(const std::vector<int8_t> & invincible_enemy_ids)
-{
-  invincible_armor_.clear();
-
-  if (invincible_enemy_ids.empty()) return;
-
-  for (const auto & id : invincible_enemy_ids) {
-    tools::logger()->info("invincible armor id: {}", id);
-    invincible_armor_.push_back(auto_aim::ArmorName(id - 1));
-  }
-}
-
-void Decider::get_auto_aim_target(
-  std::list<auto_aim::Armor> & armors, const std::vector<int8_t> & auto_aim_target)
-{
-  if (auto_aim_target.empty()) return;
-
-  std::vector<auto_aim::ArmorName> auto_aim_targets;
-
-  for (const auto & target : auto_aim_target) {
-    if (target <= 0 || static_cast<size_t>(target) > auto_aim::ARMOR_NAMES.size()) {
-      tools::logger()->warn("Received invalid auto_aim target value: {}", int(target));
-      continue;
-    }
-    auto_aim_targets.push_back(static_cast<auto_aim::ArmorName>(target - 1));
-    tools::logger()->info("nav send auto_aim target is {}", auto_aim::ARMOR_NAMES[target - 1]);
-  }
-
-  if (auto_aim_targets.empty()) return;
-
-  armors.remove_if([&](const auto_aim::Armor & a) {
-    return std::find(auto_aim_targets.begin(), auto_aim_targets.end(), a.name) ==
-           auto_aim_targets.end();
-  });
 }
 
 }  // namespace omniperception

@@ -3,16 +3,10 @@
 
 #include <chrono>
 #include <functional>
-#include <list>
 #include <memory>
-#include <optional>
 #include <string>
-#include <vector>
-
-#include <Eigen/Dense>
 #include <opencv2/core/mat.hpp>
 
-#include "tasks/auto_aim/armor.hpp"
 #include "tasks/omniperception/detection.hpp"
 
 namespace io
@@ -27,24 +21,18 @@ class YOLO;
 
 namespace omniperception
 {
-
-struct ScanResult
+//无图，无目标，有目标
+enum class DetectStatus
 {
-  double yaw;
-  double pitch;
-};
-
-struct ScanState
-{
-  double start_angle = 0.0;
-  double scan_cmd_angle = 0.0;
-  double scan_t = 0.0;
-  bool use_omni_scan = true;
+  no_frame,
+  no_target,
+  detected
 };
 
 class Perceptron
 {
 public:
+  // 左侧相机复用 GimbalNode 暴露出来的 ROS 图像读取接口
   using LeftImageReader =
     std::function<bool(cv::Mat &, std::chrono::steady_clock::time_point &)>;
   using LeftImageClearer = std::function<void()>;
@@ -54,35 +42,20 @@ public:
     const std::string & config_path);
 
   void clear_side_buffers();
-  bool detect_left(DetectionResult & result);
-  bool detect_right(DetectionResult & result);
-  ScanResult scan(double current_yaw, double dt, ScanState & state) const;
-  std::optional<DetectionResult> choose_switch_candidate(
-    const std::optional<DetectionResult> & left_candidate,
-    const std::optional<DetectionResult> & right_candidate) const;
+  // Perceptron 只做侧向检测，过滤和决策统一留给 Decider
+  // no_frame: 这轮没有拿到新图
+  // no_target: 拿到了新图，但图里没有目标
+  // detected: 拿到了新图，并且有检测结果
+  DetectStatus detect_left(DetectionResult & result);
+  DetectStatus detect_right(DetectionResult & result);
 
 private:
   LeftImageReader left_reader_;
   LeftImageClearer left_clearer_;
   io::USBCamera * right_cam_;
 
+  // 左右侧共用一个 YOLO，避免额外复制模型和占用过多 CPU
   std::shared_ptr<auto_aim::YOLO> yolo_side_;
-
-  auto_aim::Color enemy_color_;
-  int mode_ = 1;
-  double img_width_ = 0.0;
-  double img_height_ = 0.0;
-  double new_fov_h_ = 0.0;
-  double new_fov_v_ = 0.0;
-
-  ScanResult omni_scan(double dt, ScanState & state) const;
-  ScanResult short_lost_scan(double start_yaw_deg, double dt, ScanState & state) const;
-
-  bool filter_armors(std::list<auto_aim::Armor> & armors) const;
-  void set_priority(std::list<auto_aim::Armor> & armors) const;
-  void sort_armors(std::list<auto_aim::Armor> & armors) const;
-  Eigen::Vector2d delta_angle(
-    const std::list<auto_aim::Armor> & armors, const std::string & camera) const;
 };
 
 }  // namespace omniperception

@@ -1,65 +1,97 @@
 #ifndef OMNIPERCEPTION__DECIDER_HPP
 #define OMNIPERCEPTION__DECIDER_HPP
 
-#include <Eigen/Dense>  // 必须在opencv2/core/eigen.hpp上面
-#include <iostream>
+#include <Eigen/Dense>
+#include <chrono>
 #include <list>
+#include <optional>
 #include <unordered_map>
 
 #include "detection.hpp"
-#include "io/camera.hpp"
 #include "io/command.hpp"
-#include "io/usbcamera/usbcamera.hpp"
 #include "tasks/auto_aim/armor.hpp"
-#include "tasks/auto_aim/target.hpp"
-#include "tasks/auto_aim/yolo.hpp"
 
 namespace omniperception
 {
+class Perceptron;
+
 class Decider
 {
 public:
+  // 全向感知高层模式：主相机跟踪、扫描搜敌、侧向切换
+  enum class OmniMode
+  {
+    tracking,
+    scan,
+    switching
+  };
+
   Decider(const std::string & config_path);
 
+  void reset();
+  void set_mode(OmniMode mode);
+  OmniMode mode() const;
+  // 在 scan / switching 模式下执行一次全向决策
   io::Command decide(
-    auto_aim::YOLO & yolo, const Eigen::Vector3d & gimbal_pos, io::USBCamera & usbcam1,
-    io::USBCamera & usbcam2, io::Camera & back_cammera);
-
-  io::Command decide(
-    auto_aim::YOLO & yolo, const Eigen::Vector3d & gimbal_pos, io::Camera & back_cammera);
-
-  io::Command decide(const std::vector<DetectionResult> & detection_queue);
+    double current_yaw, double current_pitch, double dt, Perceptron & perceptron);
 
   Eigen::Vector2d delta_angle(
-    const std::list<auto_aim::Armor> & armors, const std::string & camera);
+    const std::list<auto_aim::Armor> & armors, const std::string & camera) const;
 
-  bool armor_filter(std::list<auto_aim::Armor> & armors);
-
-  void set_priority(std::list<auto_aim::Armor> & armors);
-  //对队列中的每一个DetectionResult进行过滤，同时将DetectionResult排序
-  void sort(std::vector<DetectionResult> & detection_queue);
-
-  Eigen::Vector4d get_target_info(
-    const std::list<auto_aim::Armor> & armors, const std::list<auto_aim::Target> & targets);
-
-  void get_invincible_armor(const std::vector<int8_t> & invincible_enemy_ids);
-
-  void get_auto_aim_target(
-    std::list<auto_aim::Armor> & armors, const std::vector<int8_t> & auto_aim_target);
+  bool armor_filter(std::list<auto_aim::Armor> & armors) const;
+  void set_priority(std::list<auto_aim::Armor> & armors) const;
 
 private:
+  struct ScanResult
+  {
+    double yaw;
+    double pitch;
+  };
+
+  struct ScanState
+  {
+    // start_angle: 特化扫描起始 yaw
+    // scan_cmd_angle: 当前累计扫描角
+    // scan_t: 当前扫描相位时间
+    double start_angle = 0.0;
+    double scan_cmd_angle = 0.0;
+    double scan_t = 0.0;
+    bool use_omni_scan = false;
+  };
+
+  void reset_runtime_state();
+  bool process_detection(DetectionResult & result) const;
+  void sort_armors(std::list<auto_aim::Armor> & armors) const;
+  std::optional<DetectionResult> choose_switch_candidate(
+    const std::optional<DetectionResult> & left_candidate,
+    const std::optional<DetectionResult> & right_candidate) const;
+  ScanResult scan(double current_yaw, double dt);
+  ScanResult short_lost_scan(double start_yaw_deg, double dt);
+  ScanResult omni_scan(double dt);
+
   int img_width_;
   int img_height_;
-  double fov_h_, new_fov_h_;
-  double fov_v_, new_fov_v_;
-  int mode_;
-  int count_;
+  double new_fov_h_;
+  double new_fov_v_;
+  int priority_mode_;
 
   auto_aim::Color enemy_color_;
-  auto_aim::YOLO detector_;
-  std::vector<auto_aim::ArmorName> invincible_armor_;  //无敌状态机器人编号,英雄为1，哨兵为6
+  // 以下成员都属于全向扫描 / 切换状态机的运行时状态
+  OmniMode mode_ = OmniMode::tracking;
+  ScanState scan_state_;
+  int left_seen_count_ = 0;
+  int right_seen_count_ = 0;
+  std::optional<DetectionResult> left_candidate_;
+  std::optional<DetectionResult> right_candidate_;
+  double switching_target_yaw_ = 0.0;
+  double switching_target_pitch_ = 0.0;
+  std::chrono::steady_clock::time_point switching_start_time_;
+  std::chrono::steady_clock::time_point last_side_detect_time_;
+  bool detect_left_next_ = true;
+  std::chrono::milliseconds side_detect_interval_{25};
+  std::chrono::milliseconds switching_timeout_{1200};
+  int confirm_count_ = 5;
 
-  // 定义ArmorName到ArmorPriority的映射类型
   using PriorityMap = std::unordered_map<auto_aim::ArmorName, auto_aim::ArmorPriority>;
 
   const PriorityMap mode1 = {
