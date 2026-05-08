@@ -64,6 +64,7 @@ int main(int argc, char * argv[])
 
   auto plan_thread = std::thread([&]() {
     auto last_control_time = std::chrono::steady_clock::now();
+    auto last_mode = decider.mode();
 
     while (!quit) {
       auto target = target_queue.front();
@@ -72,28 +73,45 @@ int main(int argc, char * argv[])
       const double dt = tools::delta_time(now, last_control_time);
       last_control_time = now;
 
-      decider.set_mode(omni_mode.load());
+      const auto requested_mode = omni_mode.load();
+      auto current_mode = decider.mode();
 
-      // 每轮先把主线程更新的模式同步给全向决策器
-      // tracking 模式下，只走主相机自瞄闭环
-      if (decider.mode() == omniperception::Decider::OmniMode::tracking) {
-        decider.reset();
+      // 外层只负责请求 tracking / scan，不覆盖 Decider 内部产生的 switching
+      if (requested_mode == omniperception::Decider::OmniMode::tracking &&
+          current_mode != omniperception::Decider::OmniMode::tracking) {
+        decider.set_mode(omniperception::Decider::OmniMode::tracking);
+        current_mode = decider.mode();
+      } else if (
+        requested_mode == omniperception::Decider::OmniMode::scan &&
+        current_mode == omniperception::Decider::OmniMode::tracking) {
+        decider.set_mode(omniperception::Decider::OmniMode::scan);
+        current_mode = decider.mode();
+      }
+
+      // 只有真正切回 tracking 时才清理一次侧向缓存
+      if (current_mode == omniperception::Decider::OmniMode::tracking &&
+          last_mode != omniperception::Decider::OmniMode::tracking) {
         perceptron.clear_side_buffers();
+      }
 
+      if (current_mode == omniperception::Decider::OmniMode::tracking) {
         auto plan = planner.plan(target, gs.bullet_speed, gs.yaw, gs.pitch);
         gimbal.set_aim_status(true);
         gimbal.send(
           plan.control, plan.fire, plan.yaw, plan.yaw_vel, plan.yaw_acc, -plan.pitch,
           -plan.pitch_vel, -plan.pitch_acc);
       } else {
-        // scan / switching 模式统一交给全向决策器处理
         gimbal.set_aim_status(false);
 
         auto command = decider.decide(gs.yaw, gs.pitch, dt, perceptron);
         if (command.control) {
           gimbal.send(true, command.shoot, command.yaw, 0, 0, command.pitch, 0, 0);
         }
+        current_mode = decider.mode();
       }
+
+      omni_mode.store(current_mode);
+      last_mode = current_mode;
 
       std::this_thread::sleep_for(2ms);
     }

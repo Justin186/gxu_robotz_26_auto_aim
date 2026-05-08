@@ -29,7 +29,7 @@ Decider::Decider(const std::string & config_path)
 void Decider::reset_runtime_state()
 {
   // 切回 tracking / scan 时，清掉扫描和侧向确认的中间状态
-  // 左右计数归零，候选结果清空，甩头角度的归零，swithing状态超时计时器归零
+  // 左右计数归零，候选结果清空，甩头角度归零，switching 计时重新开始
   scan_state_ = {};
   left_seen_count_ = 0;
   right_seen_count_ = 0;
@@ -39,7 +39,7 @@ void Decider::reset_runtime_state()
   switching_target_pitch_ = 0.0;
   switching_start_time_ = std::chrono::steady_clock::now();
   last_side_detect_time_ = switching_start_time_;
-  detect_left_next_ = true;//先从ros相机检测，防止usb延迟大导致
+  detect_left_next_ = true;
 }
 
 void Decider::reset()
@@ -66,7 +66,7 @@ Decider::OmniMode Decider::mode() const
   return mode_;
 }
 
-//全向感知实现，集成侧向感知的所有决策逻辑，返回switching和scan的转向角度
+// 全向感知决策入口：tracking 不发命令，scan/switching 返回云台控制角
 io::Command Decider::decide(
   double current_yaw, double current_pitch, double dt, Perceptron & perceptron)
 {
@@ -79,19 +79,19 @@ io::Command Decider::decide(
 
   // switching 模式只判断是否转到位或超时，不再扫描和侧向识别
   if (mode_ == OmniMode::switching) {
-    constexpr double yaw_thresh = 3.0 / 57.3;//切换目标角和当前角的差值小于这个阈值就认为转到位了
+    constexpr double yaw_thresh = 3.0 / 57.3;
     constexpr double pitch_thresh = 3.0 / 57.3;
 
-    //判断是否pitch和yaw都到位
     const bool reached_target =
       std::abs(tools::limit_rad(current_yaw - switching_target_yaw_)) < yaw_thresh &&
       std::abs(current_pitch - switching_target_pitch_) < pitch_thresh;
 
     if (reached_target) {
-      set_mode(OmniMode::scan);//由于第一次进scan后会进入特化扫描，所以不怕因为直接scan而丢失目标
+      // 转到位后直接回 scan，先从特化扫描开始继续搜敌
+      set_mode(OmniMode::scan);
       return io::Command{false, false, 0, 0};
     } else if (now - switching_start_time_ >= switching_timeout_) {
-      tools::logger()->info("Switching timeout, back to scan");//超时检测
+      tools::logger()->info("Switching timeout, back to scan");
       set_mode(OmniMode::scan);
       return io::Command{false, false, 0, 0};
     }
@@ -105,18 +105,13 @@ io::Command Decider::decide(
     last_side_detect_time_ = now;
 
     DetectionResult result;
-    //用于交替检测
     const auto status = detect_left_next_ ? perceptron.detect_left(result)
                                           : perceptron.detect_right(result);
     int & seen_count = detect_left_next_ ? left_seen_count_ : right_seen_count_;
-    //更新最优选项
     std::optional<DetectionResult> & candidate =
       detect_left_next_ ? left_candidate_ : right_candidate_;
-    
-    //DetectStatus三状态，有图无图有目标
-    // 没有新帧时，不动计数；否则高频轮询会把低帧率相机误清零
+
     if (status == DetectStatus::no_frame) {
-    //相机有图，并且armors有目标，计加计数+1
     } else if (status == DetectStatus::detected && process_detection(result)) {
       seen_count++;
       candidate = std::move(result);
@@ -147,14 +142,13 @@ io::Command Decider::decide(
   return io::Command{true, false, scan_result.yaw, scan_result.pitch};
 }
 
-//scan下，对侧向进行是否有目标的判断，有就先排序后给出转向角度
 bool Decider::process_detection(DetectionResult & result) const
 {
   // Perceptron 只负责给原始检测，这里再做过滤、优先级和角度换算
   if (armor_filter(result.armors)) return false;
 
-  set_priority(result.armors);  //给每一个目标设置优先级
-  sort_armors(result.armors);   //依照先优先级，后图像中心距离排序
+  set_priority(result.armors);
+  sort_armors(result.armors);
 
   const auto angles = delta_angle(result.armors, result.source);
   result.delta_yaw = angles[0] / 57.3;
@@ -198,13 +192,13 @@ std::optional<DetectionResult> Decider::choose_switch_candidate(
 Decider::ScanResult Decider::omni_scan(double dt)
 {
   constexpr double delta_angle = 100.0;
-  constexpr double amplitude = 15.0;
-  constexpr double period = 0.75;
+  constexpr double amplitude = 20.0;
+  constexpr double period = 0.5;
 
   scan_state_.scan_cmd_angle += delta_angle * dt;
   const double yaw = tools::limit_rad(scan_state_.scan_cmd_angle / 57.3);
   const double pitch =
-    tools::limit_rad(amplitude * std::sin(2 * M_PI * scan_state_.scan_t / period) / 57.3 - 0.15);
+    tools::limit_rad(amplitude * std::sin(2 * M_PI * scan_state_.scan_t / period) / 57.3 + 0.05);
 
   scan_state_.scan_t += dt;
   if (scan_state_.scan_t >= period) scan_state_.scan_t -= period;
@@ -215,12 +209,12 @@ Decider::ScanResult Decider::omni_scan(double dt)
 Decider::ScanResult Decider::short_lost_scan(double start_yaw_deg, double dt)
 {
   constexpr double yaw_amplitude = 20.0;
-  constexpr double yaw_period = 1.0;
-  constexpr double pitch_amplitude = 1.0;
+  constexpr double yaw_period = 0.75;
+  constexpr double pitch_amplitude = 0.0;
   constexpr double pitch_period = 0.2;
 
   scan_state_.scan_t += dt;
-  if (scan_state_.scan_t >= 4.0) {
+  if (scan_state_.scan_t >= 3.0) {
     scan_state_.use_omni_scan = true;
   }
 
@@ -228,7 +222,7 @@ Decider::ScanResult Decider::short_lost_scan(double start_yaw_deg, double dt)
     start_yaw_deg - yaw_amplitude * std::sin(2 * M_PI * scan_state_.scan_t / yaw_period);
   const double yaw = tools::limit_rad(yaw_deg / 57.3);
   const double pitch = tools::limit_rad(
-    pitch_amplitude * std::sin(2 * M_PI * scan_state_.scan_t / pitch_period) / 57.3 + 0.1);
+    pitch_amplitude * std::sin(2 * M_PI * scan_state_.scan_t / pitch_period) / 57.3 - 0.03);
 
   return {yaw, pitch};
 }
