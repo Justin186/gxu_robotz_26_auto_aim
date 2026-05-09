@@ -110,6 +110,7 @@ struct NavState
   uint16_t stage_remain_time;          // 当前阶段剩余时间
   uint16_t outpost_Hp;                 // 前哨站血量
   uint16_t base_Hp;                    // 基地血量
+  uint32_t enemy_outpost_status;       // 敌方前哨站状态
   float    pos_x;                      // 位置 x (米)
   float    pos_y;                      // 位置 y (米)
 };

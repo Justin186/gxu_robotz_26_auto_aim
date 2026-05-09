@@ -272,6 +272,7 @@ void Gimbal::read_thread()
       current_nav_state_.stage_remain_time         = rx_nav_data_.stage_remain_time;
       current_nav_state_.outpost_Hp                = rx_nav_data_.outpost_Hp;
       current_nav_state_.base_Hp                   = rx_nav_data_.base_Hp;
+      current_nav_state_.enemy_outpost_status      = 0;
       current_nav_state_.pos_x                     = rx_nav_data_.pos_x;
       current_nav_state_.pos_y                     = rx_nav_data_.pos_y;
     } else {

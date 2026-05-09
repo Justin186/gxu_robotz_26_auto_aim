@@ -6,7 +6,9 @@
 
 #include <opencv2/opencv.hpp>
 #include <optional>
-#include <sp_msgs/msg/rmul.hpp>
+#include <sp_msgs/msg/rmuc_game_status.hpp>
+#include <sp_msgs/msg/rmuc_robot_buff.hpp>
+#include <sp_msgs/msg/rmuc_robot_status.hpp>
 
 namespace io
 {
@@ -19,8 +21,9 @@ public:
 
   void publish(const Eigen::Vector4d & target_pos);
   void publish(const float & yaw);
-  void publish_robot_status(const sp_msgs::msg::RMUL & msg);
-  void publish_game_status(const sp_msgs::msg::RMUL & msg);
+  void publish_robot_status(const sp_msgs::msg::RMUCRobotStatus & msg);
+  void publish_game_status(const sp_msgs::msg::RMUCGameStatus & msg);
+  void publish_robot_buff(const sp_msgs::msg::RMUCRobotBuff & msg);
 
   std::optional<geometry_msgs::msg::Twist> subscribe_cmd_vel();
   bool get_image(cv::Mat & img, std::chrono::steady_clock::time_point & timestamp);
@@ -29,8 +32,9 @@ public:
 private:
   std::shared_ptr<Publish2Nav> publish2nav_;
   std::shared_ptr<rclcpp::Node> node_;
-  rclcpp::Publisher<sp_msgs::msg::RMUL>::SharedPtr robot_status_publisher_;
-  rclcpp::Publisher<sp_msgs::msg::RMUL>::SharedPtr game_status_publisher_;
+  rclcpp::Publisher<sp_msgs::msg::RMUCRobotStatus>::SharedPtr robot_status_publisher_;
+  rclcpp::Publisher<sp_msgs::msg::RMUCGameStatus>::SharedPtr game_status_publisher_;
+  rclcpp::Publisher<sp_msgs::msg::RMUCRobotBuff>::SharedPtr robot_buff_publisher_;
   std::shared_ptr<Subscribe2Nav> subscribe2nav_;
 
   std::unique_ptr<std::thread> publish_spin_thread_;

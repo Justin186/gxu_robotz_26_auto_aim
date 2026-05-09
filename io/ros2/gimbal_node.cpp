@@ -2,7 +2,6 @@
 #include "tools/crc.hpp"
 #include "tools/logger.hpp"
 #include "io/ros2/ros2.hpp"
-#include "sp_msgs/msg/rmul.hpp"
 
 namespace io
 {
@@ -28,8 +27,6 @@ GimbalNode::~GimbalNode()
 
 void GimbalNode::thread_loop()
 {
-  double limit = 0.5;
-
   auto Out_cmd_time = std::chrono::steady_clock::now();
 
   const auto timeout_Handle = std::chrono::milliseconds(300); 
@@ -51,21 +48,28 @@ void GimbalNode::thread_loop()
     }
     ros2_->publish(this->yaw());
 
-    // 发布 RMUL 消息到 /robot_status 和 /game_status
-    auto state = this->state();
-    sp_msgs::msg::RMUL robot_status_msg;
-    robot_status_msg.header.stamp = rclcpp::Clock().now();
-    robot_status_msg.header.frame_id = "map";
-    // 从父类获取自瞄状态
-    bool is_enemy = this->is_detect_enemy(); 
-    robot_status_msg.stop_gimbal_scan = is_enemy; // 检测到敌人则停止扫描
-    robot_status_msg.current_hp = state.current_hp;
-    robot_status_msg.game_progress = state.game_progress;
-    robot_status_msg.is_detect_enemy = is_enemy; 
+    const auto nav_state = this->nav_state();
+    const bool is_enemy = this->is_detect_enemy();
 
-    // 调用 publish
+    sp_msgs::msg::RMUCGameStatus game_status_msg;
+    game_status_msg.game_progress = nav_state.game_progress;
+    game_status_msg.stage_remain_time = nav_state.stage_remain_time;
+
+    sp_msgs::msg::RMUCRobotStatus robot_status_msg;
+    robot_status_msg.current_hp = nav_state.current_hp;
+    robot_status_msg.shooter_heat = nav_state.shooter_17mm_barrel_heat;
+    robot_status_msg.ammo_allow = nav_state.projectile_allowance_17mm;
+    robot_status_msg.outpost_hp = nav_state.outpost_Hp;
+    robot_status_msg.base_hp = nav_state.base_Hp;
+    robot_status_msg.enemy_outpost_status = nav_state.enemy_outpost_status;
+    robot_status_msg.is_detect_enemy = is_enemy;
+
+    sp_msgs::msg::RMUCRobotBuff robot_buff_msg;
+    robot_buff_msg.vulnerability_pct = nav_state.vulnerability_buff;
+
     ros2_->publish_robot_status(robot_status_msg);
-    ros2_->publish_game_status(robot_status_msg);
+    ros2_->publish_game_status(game_status_msg);
+    ros2_->publish_robot_buff(robot_buff_msg);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
