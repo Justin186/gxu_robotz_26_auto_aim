@@ -1,0 +1,32 @@
+// generated from rosidl_adapter/resource/msg.idl.em
+// with input from sp_msgs/RMUCEnemyTracks.msg
+// generated code does not contain a copyright notice
+
+#include "std_msgs/msg/Header.idl"
+
+module sp_msgs {
+  module msg {
+    @verbatim (language="comment", text=
+      "=============================================================================" "\n"
+      "RMUCEnemyTracks.msg — 雷达敌方目标跟踪" "\n"
+      "=============================================================================" "\n"
+      "话题: /radar/enemy_tracks    频率: 10-30 Hz" "\n"
+      "来源: 雷达站通信节点" "\n"
+      "订阅: SubRadarTracks → 写入黑板 {radar_tracks}" "\n"
+      "引用: ParseSentryBlackboard, SelectBestTarget" "\n"
+      "=============================================================================")
+    struct RMUCEnemyTracks {
+      std_msgs::msg::Header header;
+
+      @verbatim (language="comment", text=
+        "敌方位置 x (meter, map 坐标系)")
+      @unit (value="4B×N")
+      sequence<float> enemy_x;
+
+      @verbatim (language="comment", text=
+        "敌方位置 y (meter, map 坐标系)")
+      @unit (value="4B×N")
+      sequence<float> enemy_y;
+    };
+  };
+};

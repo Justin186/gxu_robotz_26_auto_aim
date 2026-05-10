@@ -155,7 +155,7 @@ int main(int argc, char * argv[])
         );
         rec->log("yaw/plan_yaw", rerun::Scalars(plan.yaw));
         rec->log("yaw/target_yaw", rerun::Scalars(plan.target_yaw));
-        rec->log("yaw/gimbal_yaw", rerun::Scalars(gs.yaw / 57.3));
+        rec->log("yaw/gimbal_yaw", rerun::Scalars(gs.yaw));
         rec->log("yaw/gimbal_yaw_vel", rerun::Scalars(gs.yaw_vel));
         rec->log("yaw/plan_yaw_vel", rerun::Scalars(plan.yaw_vel));
         rec->log("yaw/plan_yaw_acc", rerun::Scalars(plan.yaw_acc));
@@ -163,13 +163,14 @@ int main(int argc, char * argv[])
 
         rec->log("pitch/plan_pitch", rerun::Scalars(plan.pitch));
         rec->log("pitch/target_pitch", rerun::Scalars(plan.target_pitch));
-        rec->log("pitch/gimbal_pitch", rerun::Scalars(-gs.pitch / 57.3));
+        rec->log("pitch/gimbal_pitch", rerun::Scalars(-gs.pitch));
         rec->log("pitch/plan_pitch_vel", rerun::Scalars(plan.pitch_vel));
         rec->log("pitch/plan_pitch_acc", rerun::Scalars(plan.pitch_acc));
 
         rec->log("fire/fired", rerun::Scalars(fired ? 1.0f : 0.0f));
         rec->log("fire/plan_fire", rerun::Scalars(plan.fire ? 1.0f : 0.0f));
         rec->log("fire/duty_cycle", rerun::Scalars(fire_duty));
+        rec->log("bullet_speed", rerun::Scalars(gs.bullet_speed));
       }
 
       // 记录目标位置 (如果有)

@@ -1,0 +1,57 @@
+// generated from rosidl_adapter/resource/msg.idl.em
+// with input from sp_msgs/RMUCRobotStatus.msg
+// generated code does not contain a copyright notice
+
+#include "std_msgs/msg/Header.idl"
+
+module sp_msgs {
+  module msg {
+    @verbatim (language="comment", text=
+      "=============================================================================" "\n"
+      "RMUCRobotStatus.msg — 机器人综合状态 (0x0201/0x0202/0x0003/0x0101/0x0105)" "\n"
+      "=============================================================================" "\n"
+      "话题: /robot_status          频率: 10 Hz" "\n"
+      "来源: 电控/裁判系统串口解析节点" "\n"
+      "订阅: RmucSubRobotStatus → 写入黑板 {robot_status}" "\n"
+      "引用: ParseSentryBlackboard, IsDead, IsHPBelow, DetectRespawnAndSetRecovery," "\n"
+      "      WaitAndHeal, DecideRespawnCmd" "\n"
+      "=============================================================================")
+    struct RMUCRobotStatus {
+      std_msgs::msg::Header header;
+
+      @verbatim (language="comment", text=
+        "── 血量与射击热量 ──" "\n"
+        "[2B] 当前血量")
+      @unit (value="2B")
+      uint16 current_hp;
+
+      @verbatim (language="comment", text=
+        "当前枪口热量")
+      @unit (value="2B")
+      uint16 shooter_heat;
+
+      @verbatim (language="comment", text=
+        "── 弹丸与允许发弹量 ──" "\n"
+        "[2B] 剩余允许发弹量")
+      @unit (value="2B")
+      uint16 ammo_allow;
+
+      @verbatim (language="comment", text=
+        "── 己方建筑血量 (原 0x0003 /team_hp，现并入 robot_status) ──" "\n"
+        "[2B] offset 12: 前哨站血量 (0=被击毁)")
+      @unit (value="2B")
+      uint16 outpost_hp;
+
+      @verbatim (language="comment", text=
+        "offset 14: 基地血量")
+      @unit (value="2B")
+      uint16 base_hp;
+
+      @verbatim (language="comment", text=
+        "── 视觉检测 ──" "\n"
+        "[1B] 是否检测到敌人")
+      @unit (value="1B")
+      boolean is_detect_enemy;
+    };
+  };
+};

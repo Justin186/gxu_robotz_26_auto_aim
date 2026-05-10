@@ -1,0 +1,39 @@
+// generated from rosidl_adapter/resource/msg.idl.em
+// with input from sp_msgs/RMUCRobotPosition.msg
+// generated code does not contain a copyright notice
+
+#include "std_msgs/msg/Header.idl"
+
+module sp_msgs {
+  module msg {
+    @verbatim (language="comment", text=
+      "=============================================================================" "\n"
+      "RMUCRobotPosition.msg — 机器人位姿与导航到达判定 (0x0203 / 定位系统)" "\n"
+      "=============================================================================" "\n"
+      "话题: /robot_position        频率: 50 Hz" "\n"
+      "来源: 定位系统 (LiDAR SLAM)" "\n"
+      "订阅: 导航发我 -> RmucSubRobotPosition → 写入黑板 {pose.x} / {pose.y} / {is_at_nav_goal}" "\n"
+      "引用: SelectBestTarget, SelectObjective, SelectNearestDispelCard," "\n"
+      "      SelectNearestResupplyStation, SelectSafeRetreatGoal, IsAtGoal," "\n"
+      "      IsAtNavGoal, WaypointPatrol, MoveAround" "\n"
+      "=============================================================================")
+    struct RMUCRobotPosition {
+      std_msgs::msg::Header header;
+
+      @verbatim (language="comment", text=
+        "位置 x (meter, map 坐标系)")
+      @unit (value="4B")
+      float pose_x;
+
+      @verbatim (language="comment", text=
+        "位置 y (meter, map 坐标系)")
+      @unit (value="4B")
+      float pose_y;
+
+      @verbatim (language="comment", text=
+        "float32 pose_yaw             # 航向角 (radian, map 坐标系)" "\n"
+        "Nav2 当前无活动目标或最新目标已结束")
+      boolean is_at_nav_goal;
+    };
+  };
+};

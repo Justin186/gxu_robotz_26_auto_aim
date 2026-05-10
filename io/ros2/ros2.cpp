@@ -36,6 +36,11 @@ std::optional<geometry_msgs::msg::Twist> ROS2::subscribe_cmd_vel()
   return subscribe2nav_->subscribe_cmd_vel();
 }
 
+uint8_t ROS2::get_sentry_cmd_posture()
+{
+  return subscribe2nav_->get_sentry_cmd_posture();
+}
+
 bool ROS2::get_image(cv::Mat & img, std::chrono::steady_clock::time_point & timestamp)
 {
   return subscribe2nav_->get_image(img, timestamp);

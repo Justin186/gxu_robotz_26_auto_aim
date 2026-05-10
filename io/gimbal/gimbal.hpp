@@ -55,6 +55,7 @@ struct __attribute__((packed)) NavToGimbal
     float angular_x;
     float angular_y;
     float angular_z;
+    uint8_t move_mode;
     uint16_t crc16;
 };
 

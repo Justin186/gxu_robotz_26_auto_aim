@@ -1,0 +1,28 @@
+// generated from rosidl_adapter/resource/msg.idl.em
+// with input from sp_msgs/RMUCRobotBuff.msg
+// generated code does not contain a copyright notice
+
+#include "std_msgs/msg/Header.idl"
+
+module sp_msgs {
+  module msg {
+    @verbatim (language="comment", text=
+      "=============================================================================" "\n"
+      "RMUCRobotBuff.msg — 机器人实时增益 (裁判系统 0x0204)" "\n"
+      "=============================================================================" "\n"
+      "话题: /robot_buff               频率: 10 Hz" "\n"
+      "来源: 电控/裁判系统串口解析节点" "\n"
+      "订阅: RmucSubRobotBuff → 写入黑板 {robot_buff}" "\n"
+      "引用: IsVulnerable → 易伤时切换防御姿态" "\n"
+      "=============================================================================")
+    struct RMUCRobotBuff {
+      std_msgs::msg::Header header;
+
+      @verbatim (language="comment", text=
+        "── 增益值 ──" "\n"
+        "[1B] offset 4: 负防御增益/易伤% (值为30表示-30%防御)")
+      @unit (value="1B")
+      uint8 vulnerability_pct;
+    };
+  };
+};

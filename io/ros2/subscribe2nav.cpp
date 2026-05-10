@@ -20,6 +20,10 @@ Subscribe2Nav::Subscribe2Nav()
     "/odin1/image", 10,
     std::bind(&Subscribe2Nav::image_callback, this, std::placeholders::_1));
 
+  sentry_cmd_subscription_ = this->create_subscription<sp_msgs::msg::RMUCSentryCmd>(
+    "/sentry_cmd", 10,
+    std::bind(&Subscribe2Nav::sentry_cmd_callback, this, std::placeholders::_1));
+
   RCLCPP_INFO(this->get_logger(), "nav_subscriber node initialized.");
 }
 
@@ -103,6 +107,12 @@ void Subscribe2Nav::clear_image()
 {
   std::lock_guard<std::mutex> lock(img_mutex_);
   latest_img_.release();
+}
+
+void Subscribe2Nav::sentry_cmd_callback(const sp_msgs::msg::RMUCSentryCmd::SharedPtr msg)
+{
+  current_posture_.store(msg->cmd_posture);
+  RCLCPP_INFO(this->get_logger(), "Received sentry cmd_posture: %d", msg->cmd_posture);
 }
 
 }  // namespace io

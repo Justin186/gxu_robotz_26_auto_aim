@@ -1,0 +1,26 @@
+// generated from rosidl_adapter/resource/msg.idl.em
+// with input from sp_msgs/RMUCNavControlCmd.msg
+// generated code does not contain a copyright notice
+
+#include "std_msgs/msg/Header.idl"
+
+module sp_msgs {
+  module msg {
+    @verbatim (language="comment", text=
+      "=============================================================================" "\n"
+      "RMUCNavControlCmd.msg — 导航控制命令" "\n"
+      "=============================================================================" "\n"
+      "话题: /nav_control_cmd       频率: 按需" "\n"
+      "方向: BT → 电控" "\n"
+      "发布: RmucNavControlCmd (RespawnRecovery 子树)" "\n"
+      "=============================================================================")
+    struct RMUCNavControlCmd {
+      std_msgs::msg::Header header;
+
+      @verbatim (language="comment", text=
+        "导航控制指令: 0=无操作 1=开始导航 2=终止导航 3=原地不动")
+      @unit (value="4B")
+      int32 cmd_type;
+    };
+  };
+};

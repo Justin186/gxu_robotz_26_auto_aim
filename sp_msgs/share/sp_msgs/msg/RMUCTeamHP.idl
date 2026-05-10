@@ -1,0 +1,33 @@
+// generated from rosidl_adapter/resource/msg.idl.em
+// with input from sp_msgs/RMUCTeamHP.msg
+// generated code does not contain a copyright notice
+
+#include "std_msgs/msg/Header.idl"
+
+module sp_msgs {
+  module msg {
+    @verbatim (language="comment", text=
+      "=============================================================================" "\n"
+      "RMUCTeamHP.msg — 己方各机器人与建筑血量 (裁判系统 0x0003)" "\n"
+      "=============================================================================" "\n"
+      "话题: /team_hp                  频率: 1 Hz" "\n"
+      "来源: 电控/裁判系统串口解析节点" "\n"
+      "订阅: RmucSubTeamHP → 写入黑板" "\n"
+      "引用: ParseSentryBlackboard → 前哨站存活判断, 态势感知" "\n"
+      "=============================================================================")
+    struct RMUCTeamHP {
+      std_msgs::msg::Header header;
+
+      @verbatim (language="comment", text=
+        "── 己方建筑  ──" "\n"
+        "[2B] offset 12: 前哨站血量 (0=被击毁)")
+      @unit (value="2B")
+      uint16 outpost_hp;
+
+      @verbatim (language="comment", text=
+        "offset 14: 基地血量")
+      @unit (value="2B")
+      uint16 base_hp;
+    };
+  };
+};

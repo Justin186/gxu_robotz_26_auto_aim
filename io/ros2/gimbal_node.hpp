@@ -3,6 +3,8 @@
 #include "io/gimbal/gimbal.hpp"
 #include <opencv2/opencv.hpp>
 #include <geometry_msgs/msg/twist.hpp>
+#include <sp_msgs/msg/rmuc_game_status.hpp>
+#include <sp_msgs/msg/rmuc_robot_status.hpp>
 #include <mutex>
 #include <memory>
 #include <thread>
@@ -20,8 +22,8 @@ public:
     ~GimbalNode();
     using Gimbal::send;
     
-    void send_cmd_vel(const geometry_msgs::msg::Twist::SharedPtr msg);
-    void send_cmd_vel_zero(const geometry_msgs::msg::Twist::SharedPtr msg);
+    void send_cmd_vel(const geometry_msgs::msg::Twist::SharedPtr msg, uint8_t cmd_posture);
+    void send_cmd_vel_zero(const geometry_msgs::msg::Twist::SharedPtr msg, uint8_t cmd_posture);
     void send_cmd_vel_debug(const geometry_msgs::msg::Twist::SharedPtr msg);
     bool get_image(cv::Mat & img, std::chrono::steady_clock::time_point & timestamp);
     void clear_image();

@@ -7,8 +7,9 @@
 #include <opencv2/opencv.hpp>
 #include <optional>
 #include <sp_msgs/msg/rmuc_game_status.hpp>
-#include <sp_msgs/msg/rmuc_robot_buff.hpp>
 #include <sp_msgs/msg/rmuc_robot_status.hpp>
+#include <sp_msgs/msg/rmuc_robot_buff.hpp>
+#include <sp_msgs/msg/rmuc_sentry_cmd.hpp>
 
 namespace io
 {
@@ -26,6 +27,7 @@ public:
   void publish_robot_buff(const sp_msgs::msg::RMUCRobotBuff & msg);
 
   std::optional<geometry_msgs::msg::Twist> subscribe_cmd_vel();
+  uint8_t get_sentry_cmd_posture();
   bool get_image(cv::Mat & img, std::chrono::steady_clock::time_point & timestamp);
   void clear_image();
 

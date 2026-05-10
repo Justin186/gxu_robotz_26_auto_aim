@@ -59,7 +59,7 @@ target_link_libraries(standard_mpc ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim aut
 target_link_libraries(auto_aim_debug_mpc ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim auto_buff tools io rerun_sdk)
 target_link_libraries(auto_aim_mpc ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim auto_buff tools io)
 target_link_libraries(auto_aim_debug_solver ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim auto_buff tools io)
-target_link_libraries(auto_aim_scan_debug_mpc ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim auto_buff tools io)
+target_link_libraries(auto_aim_scan_debug_mpc ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim auto_buff tools io rerun_sdk)
 target_link_libraries(auto_aim_sentry ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim auto_buff tools io )
 target_link_libraries(auto_aim_nav_debug ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim auto_buff tools io)
 target_link_libraries(mt_auto_aim_debug ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim auto_buff tools io)
@@ -129,7 +129,9 @@ target_link_libraries(dm_test ${OpenCV_LIBS} fmt::fmt yaml-cpp tools io)
 target_link_libraries(minimum_vision_system ${OpenCV_LIBS} fmt::fmt yaml-cpp tools io auto_aim)
 
 add_executable(gimbal_test tests/gimbal_test.cpp)
+add_executable(gimbal_scan_test tests/gimbal_scan_test.cpp)
 target_link_libraries(gimbal_test ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim tools io)
+target_link_libraries(gimbal_scan_test ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim tools io rerun_sdk)
 
 add_executable(xrobot_imu_test tests/xrobot_imu_test.cpp)
 target_link_libraries(xrobot_imu_test ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim tools io)
@@ -144,6 +146,7 @@ target_link_libraries(planner_test_offline ${OpenCV_LIBS} fmt::fmt yaml-cpp auto
 if(ament_cmake_FOUND AND rclcpp_FOUND AND std_msgs_FOUND AND rosidl_typesupport_cpp_FOUND AND sp_msgs_FOUND)
     add_executable(auto_aim_sentry_multithread src/auto_aim_sentry_multithread.cpp)
     add_executable(auto_aim_sentry_multithread_new src/auto_aim_sentry_multithread_new.cpp)
+    add_executable(auto_aim_sentry_multithread_debug src/auto_aim_sentry_multithread_debug.cpp)
     add_executable(publish_test tests/publish_test.cpp)
     add_executable(subscribe_test tests/subscribe_test.cpp)
     add_executable(topic_loop_test tests/topic_loop_test.cpp)
@@ -151,13 +154,14 @@ if(ament_cmake_FOUND AND rclcpp_FOUND AND std_msgs_FOUND AND rosidl_typesupport_
 
     target_link_libraries(auto_aim_sentry_multithread ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim auto_buff omniperception tools io)
     target_link_libraries(auto_aim_sentry_multithread_new ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim auto_buff omniperception tools io)
+    target_link_libraries(auto_aim_sentry_multithread_debug ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim auto_buff omniperception tools io rerun_sdk)
     target_link_libraries(publish_test ${OpenCV_LIBS} fmt::fmt tools io auto_aim)
     target_link_libraries(subscribe_test ${OpenCV_LIBS} fmt::fmt tools io)
     target_link_libraries(topic_loop_test ${OpenCV_LIBS} fmt::fmt tools io)
     target_link_libraries(nav2gimbal_test ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim tools io)
 
     # 强制设置 RPATH，确保运行时能找到 sp_msgs 库（尤其是对于 dlopen 加载的 typesupport 库）
-    foreach(tgt publish_test subscribe_test topic_loop_test nav2gimbal_test auto_aim_scan_debug_mpc standard standard_mpc auto_aim_sentry auto_aim_sentry_multithread auto_aim_sentry_multithread_new auto_aim_nav_debug mt_auto_aim_debug)
+    foreach(tgt publish_test subscribe_test topic_loop_test nav2gimbal_test auto_aim_scan_debug_mpc standard standard_mpc auto_aim_sentry auto_aim_sentry_multithread auto_aim_sentry_multithread_new auto_aim_sentry_multithread_debug auto_aim_nav_debug mt_auto_aim_debug)
         target_link_options(${tgt} PRIVATE "-Wl,-rpath,${CMAKE_SOURCE_DIR}/sp_msgs/lib")
         target_link_options(${tgt} PRIVATE "-Wl,--disable-new-dtags")
     endforeach()

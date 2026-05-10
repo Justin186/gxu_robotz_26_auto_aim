@@ -1,2 +1,12 @@
 from sp_msgs.msg._float32_stamped import Float32Stamped  # noqa: F401
+from sp_msgs.msg._rmuc_enemy_tracks import RMUCEnemyTracks  # noqa: F401
+from sp_msgs.msg._rmuc_game_status import RMUCGameStatus  # noqa: F401
+from sp_msgs.msg._rmuc_nav_control_cmd import RMUCNavControlCmd  # noqa: F401
+from sp_msgs.msg._rmuc_robot_buff import RMUCRobotBuff  # noqa: F401
+from sp_msgs.msg._rmuc_robot_control import RMUCRobotControl  # noqa: F401
+from sp_msgs.msg._rmuc_robot_position import RMUCRobotPosition  # noqa: F401
+from sp_msgs.msg._rmuc_robot_status import RMUCRobotStatus  # noqa: F401
+from sp_msgs.msg._rmuc_sentry_cmd import RMUCSentryCmd  # noqa: F401
+from sp_msgs.msg._rmuc_sentry_decision_status import RMUCSentryDecisionStatus  # noqa: F401
+from sp_msgs.msg._rmuc_team_hp import RMUCTeamHP  # noqa: F401
 from sp_msgs.msg._rmul import RMUL  # noqa: F401

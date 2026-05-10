@@ -1,0 +1,34 @@
+// generated from rosidl_adapter/resource/msg.idl.em
+// with input from sp_msgs/RMUCGameStatus.msg
+// generated code does not contain a copyright notice
+
+#include "std_msgs/msg/Header.idl"
+
+module sp_msgs {
+  module msg {
+    @verbatim (language="comment", text=
+      "=============================================================================" "\n"
+      "RMUCGameStatus.msg — 比赛状态 (裁判系统 0x0001)" "\n"
+      "=============================================================================" "\n"
+      "话题: /game_status          频率: 1 Hz" "\n"
+      "来源: 电控/裁判系统串口解析节点" "\n"
+      "订阅: RmucSubGameStatus → 写入黑板 {game_status}" "\n"
+      "引用: IsGameTime, ParseSentryBlackboard" "\n"
+      "=============================================================================")
+    struct RMUCGameStatus {
+      std_msgs::msg::Header header;
+
+      @verbatim (language="comment", text=
+        "比赛阶段" "\n"
+        "  0=未开始  1=准备阶段  2=自检阶段" "\n"
+        "  3=5秒倒计时  4=比赛进行中  5=结算中")
+      @unit (value="1B")
+      uint8 game_progress;
+
+      @verbatim (language="comment", text=
+        "当前阶段剩余时间 (秒)")
+      @unit (value="2B")
+      uint16 stage_remain_time;
+    };
+  };
+};

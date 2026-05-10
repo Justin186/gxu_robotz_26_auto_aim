@@ -252,7 +252,7 @@ Eigen::Vector2d Decider::delta_angle(
     return delta_angle;
   }
 
-  delta_angle[0] = -62 + (new_fov_h_ / 2) - armors.front().center_norm.x * new_fov_h_;
+  delta_angle[0] = -100 + (new_fov_h_ / 2) - armors.front().center_norm.x * new_fov_h_;
   delta_angle[1] = armors.front().center_norm.y * new_fov_v_ - new_fov_v_ / 2;
   return delta_angle;
 }

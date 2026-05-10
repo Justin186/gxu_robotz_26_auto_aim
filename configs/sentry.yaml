@@ -35,7 +35,7 @@ usb_gain: 10 #0-96
 
 #####-----工业相机参数-----#####
 camera_name: "hikrobot"
-exposure_ms: 5
+exposure_ms: 2
 gain: 16.9
 vid_pid: "2bdf:0001"
 need_rotation: true
@@ -50,7 +50,7 @@ min_armor_ratio: 1
 max_armor_ratio: 5
 max_side_ratio: 1.5
 max_rectangular_error: 25 # degree
-min_confidence: 0.8
+min_confidence: 0.7
 
 #####-----cboard参数-----#####
 quaternion_canid: 0x01
@@ -60,19 +60,19 @@ can_interface: "can0"
 
 #####-----tracker参数-----#####
 min_detect_count: 5
-max_temp_lost_count: 125
-outpost_max_temp_lost_count: 175
+max_temp_lost_count: 25
+outpost_max_temp_lost_count: 75
 
 #####-----aimer参数-----#####
-yaw_offset: 0 # degree 1.2  +是左
-pitch_offset: 0.2  # degree 1.5 -是下 +是上
+yaw_offset: 0.3 # degree 1.2  +是左
+pitch_offset: 0.4  # degree 1.5 -是下 +是上
 comming_angle: 40           # 目标进入角 (单位: 度) —— 识别到装甲板从侧面转入正面的判定阈值
 leaving_angle: 20           # 目标离开角 (单位: 度) —— 识别到装甲板从正面转到侧向背面的消失判定阈值
 left_yaw_offset: 0 #-1        # 左侧偏航角补偿 —— 修正云台向左转动时的机械安装误差或相机轴心偏差
 right_yaw_offset: 0 #-0.6     # 右侧偏航角补偿 —— 修正云台向右转动时的机械安装误差
 decision_speed: 10          # 决策临界角速度 (单位: rad/s) —— 区分目标是“高速运动”还是“低速运动”的阈值
 high_speed_delay_time: 0.026 # 高速预瞄补偿时间 (单位: s) —— 目标高速移动时，补偿系统延迟（电控发弹+子弹飞行）所需的提前量
-low_speed_delay_time: 0.010  # 低速预瞄补偿时间 (单位: s) —— 目标低速或静止时，为了防止瞄准抖动而设置的较小补偿量
+low_speed_delay_time: 0.020  # 低速预瞄补偿时间 (单位: s) —— 目标低速或静止时，为了防止瞄准抖动而设置的较小补偿量
 max_armor_angle: 45 # degree
 
 defult_bullet_speed: 22

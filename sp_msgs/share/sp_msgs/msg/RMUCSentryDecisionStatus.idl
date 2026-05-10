@@ -1,0 +1,40 @@
+// generated from rosidl_adapter/resource/msg.idl.em
+// with input from sp_msgs/RMUCSentryDecisionStatus.msg
+// generated code does not contain a copyright notice
+
+#include "std_msgs/msg/Header.idl"
+
+module sp_msgs {
+  module msg {
+    @verbatim (language="comment", text=
+      "=============================================================================" "\n"
+      "RMUCSentryDecisionStatus.msg — 哨兵决策状态 (裁判系统 0x020D)" "\n"
+      "=============================================================================" "\n"
+      "话题: /sentry_decision_status   频率: 10 Hz" "\n"
+      "来源: 电控/裁判系统串口解析节点" "\n"
+      "订阅: ❌ 已停用 (RmucSubSentryDecisionStatus 插件已删除，裁判反馈未被 BT 消费)" "\n"
+      "引用: ❌ 无" "\n"
+      "=============================================================================")
+    struct RMUCSentryDecisionStatus {
+      std_msgs::msg::Header header;
+
+      @verbatim (language="comment", text=
+        "── 复活相关  ──" "\n"
+        "bool   can_free_respawn         # bit19: 是否可以确认免费复活 (1=可)" "\n"
+        "bool   can_instant_respawn      # [1B] bit20: 是否可以兑换立即复活 (1=可)" "\n"
+        "uint16 instant_respawn_cost     # [2B] bit21-30: 兑换立即复活需要的金币数" "\n"
+        "── 姿态反馈  ──" "\n"
+        "[1B] bit12-13: 当前姿态 (1=进攻 2=防御 3=移动)")
+      uint8 current_posture;
+
+      @verbatim (language="comment", text=
+        "── 远程兑换计数  ──" "\n"
+        "uint8  remote_ammo_count        # bit11-14: 成功远程兑换允许发弹量的次数" "\n"
+        "uint8  remote_heal_count        # bit15-18: 成功远程兑换血量的次数" "\n"
+        "── 允许发弹量兑换累计 ──" "\n"
+        "[2B] bit0-10: 除远程兑换外，累计成功兑换的允许发弹量")
+      @unit (value="2B")
+      uint16 exchanged_ammo_total;
+    };
+  };
+};

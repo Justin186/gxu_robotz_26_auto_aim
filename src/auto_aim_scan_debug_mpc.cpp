@@ -6,7 +6,7 @@
 #include <nlohmann/json.hpp>
 #include <opencv2/opencv.hpp>
 #include <thread>
-// #include <rerun.hpp>
+#include <rerun.hpp>
 
 #include "io/camera.hpp"
 #include "io/ros2/gimbal_node.hpp"
@@ -28,7 +28,7 @@ using namespace std::chrono_literals;
 const std::string keys =
   "{help h usage ? |                        | 输出命令行参数说明}"
   "{debug          | false                  | imshow是否可视化}"
-  "{ip             | 100.81.72.108          | Rerun 查看器的IP地址}"
+  "{ip             | 192.168.1.32           | Rerun 查看器的IP地址}"
   "{rec            | true                   | 是否启用录像功能}"
   "{@config-path   | configs/sentry.yaml    | 位置参数，yaml配置文件路径 }";
 
@@ -49,9 +49,9 @@ int main(int argc, char * argv[])
     return 0;
   }
 
-  // const auto rec = rerun::RecordingStream("gxu_auto_aim_debug");
-  // // 连接到调试机的 IP 地址
-  // rec.connect_grpc("rerun+http://" + rerun_ip + ":9876/proxy").exit_on_failure();
+  const auto rec = rerun::RecordingStream("gxu_auto_aim_debug");
+  // 连接到调试机的 IP 地址
+  rec.connect_grpc("rerun+http://" + rerun_ip + ":9876/proxy").exit_on_failure();
 
   io::GimbalNode gimbal(config_path);
   io::Camera camera(config_path);
@@ -92,19 +92,25 @@ int main(int argc, char * argv[])
       auto q_gimbal = gimbal.q(current_time); 
       Eigen::Matrix3d R_imubody2world = q_gimbal.toRotationMatrix();
       Eigen::Matrix3d R_gimbal2world = R_imubody2world * R_gimbal2imubody;
-      
+      rec.log("speed/bullet", rerun::Scalars(gs.bullet_speed));
+      rec.log("hp/current", rerun::Scalars(gs.current_hp));
+      nlohmann::json data;
+
+      data["bullet_speed"] = gs.bullet_speed;
+
+
       // 绘制云台坐标轴
-      // rec.log("world/gimbal", 
-      //   rerun::Transform3D(
-      //     rerun::Vec3D{0.0f, 0.0f, 0.0f},
-      //     rerun::Mat3x3({ 
-      //       (float)R_gimbal2world(0,0), (float)R_gimbal2world(1,0), (float)R_gimbal2world(2,0),
-      //       (float)R_gimbal2world(0,1), (float)R_gimbal2world(1,1), (float)R_gimbal2world(2,1),
-      //       (float)R_gimbal2world(0,2), (float)R_gimbal2world(1,2), (float)R_gimbal2world(2,2)
-      //     })
-      //   ),
-      //   rerun::TransformAxes3D(0.5) 
-      // );
+      rec.log("world/gimbal", 
+        rerun::Transform3D(
+          rerun::Vec3D{0.0f, 0.0f, 0.0f},
+          rerun::Mat3x3({ 
+            (float)R_gimbal2world(0,0), (float)R_gimbal2world(1,0), (float)R_gimbal2world(2,0),
+            (float)R_gimbal2world(0,1), (float)R_gimbal2world(1,1), (float)R_gimbal2world(2,1),
+            (float)R_gimbal2world(0,2), (float)R_gimbal2world(1,2), (float)R_gimbal2world(2,2)
+          })
+        ),
+        rerun::TransformAxes3D(0.5) 
+      );
       
       // 提取云台正前方，投影到水平面作为辅助线
       Eigen::Vector3d forward_world = R_gimbal2world.col(0); 
@@ -118,15 +124,15 @@ int main(int argc, char * argv[])
 
       
 
-      // std::vector<rerun::components::LineStrip3D> strips;
-      // strips.push_back(rerun::components::LineStrip3D({
-      //   {(float)local_offset.x(), (float)local_offset.y(), (float)local_offset.z()}, 
-      //   {(float)(local_offset.x() + 8.0 * local_dir.x()), 
-      //    (float)(local_offset.y() + 8.0 * local_dir.y()), 
-      //    (float)(local_offset.z() + 8.0 * local_dir.z())}
-      // }));
+      std::vector<rerun::components::LineStrip3D> strips;
+      strips.push_back(rerun::components::LineStrip3D({
+        {(float)local_offset.x(), (float)local_offset.y(), (float)local_offset.z()}, 
+        {(float)(local_offset.x() + 8.0 * local_dir.x()), 
+         (float)(local_offset.y() + 8.0 * local_dir.y()), 
+         (float)(local_offset.z() + 8.0 * local_dir.z())}
+      }));
 
-      // rec.log("world/gimbal/yaw_line", rerun::LineStrips3D(strips).with_colors({{255, 165, 0}}));
+      rec.log("world/gimbal/yaw_line", rerun::LineStrips3D(strips).with_colors({{255, 165, 0}}));
 
       if (target.has_value() && gs.game_progress == 4) {
         first_scan = true; // 发现目标后，下次扫描从新位置开始
@@ -142,7 +148,6 @@ int main(int argc, char * argv[])
         last_bullet_count = gs.bullet_count;
 
         // --- 2. 准备发给 Plotter 的 JSON 数据 ---
-        nlohmann::json data;
         data["t"] = tools::delta_time(current_time, t0);
 
         data["gimbal_yaw"] = gs.yaw / 57.3;
@@ -154,11 +159,11 @@ int main(int argc, char * argv[])
         data["target_yaw"] = plan.target_yaw;
         data["target_pitch"] = plan.target_pitch;
 
-        data["plan_yaw"] = plan.yaw;
+        data["plan_yaw"] = plan.yaw / 57.3;
         data["plan_yaw_vel"] = plan.yaw_vel;
         data["plan_yaw_acc"] = plan.yaw_acc;
 
-        data["plan_pitch"] = plan.pitch;
+        data["plan_pitch"] = plan.pitch / 57.3;
         data["plan_pitch_vel"] = plan.pitch_vel;
         data["plan_pitch_acc"] = plan.pitch_acc;
 
@@ -173,22 +178,23 @@ int main(int argc, char * argv[])
         plotter.plot(data);
 
         // --- 3. 发送给 Rerun 的标量曲线 ---
-        // rec.log("yaw/plan_yaw", rerun::Scalars(plan.yaw));
-        // rec.log("yaw/target_yaw", rerun::Scalars(plan.target_yaw));
-        // rec.log("yaw/gimbal_yaw", rerun::Scalars(gs.yaw));
-        // rec.log("yaw/gimbal_yaw_vel", rerun::Scalars(gs.yaw_vel));
-        // rec.log("yaw/plan_yaw_vel", rerun::Scalars(plan.yaw_vel));
-        // rec.log("yaw/plan_yaw_acc", rerun::Scalars(plan.yaw_acc));
+        rec.log("yaw/plan_yaw", rerun::Scalars(plan.yaw));
+        rec.log("yaw/target_yaw", rerun::Scalars(plan.target_yaw));
+        rec.log("yaw/gimbal_yaw", rerun::Scalars(gs.yaw));
+        rec.log("yaw/gimbal_yaw_vel", rerun::Scalars(gs.yaw_vel));
+        rec.log("yaw/plan_yaw_vel", rerun::Scalars(plan.yaw_vel));
+        rec.log("yaw/plan_yaw_acc", rerun::Scalars(plan.yaw_acc));
         
-        // rec.log("pitch/plan_pitch", rerun::Scalars(plan.pitch));
-        // rec.log("pitch/target_pitch", rerun::Scalars(plan.target_pitch));
-        // rec.log("pitch/gimbal_pitch", rerun::Scalars(gs.pitch));
-        // rec.log("pitch/plan_pitch_vel", rerun::Scalars(plan.pitch_vel));
-        // rec.log("pitch/plan_pitch_acc", rerun::Scalars(plan.pitch_acc));
+        rec.log("pitch/plan_pitch", rerun::Scalars(plan.pitch));
+        rec.log("pitch/target_pitch", rerun::Scalars(plan.target_pitch));
+        rec.log("pitch/gimbal_pitch", rerun::Scalars(gs.pitch));
+        rec.log("pitch/plan_pitch_vel", rerun::Scalars(plan.pitch_vel));
+        rec.log("pitch/plan_pitch_acc", rerun::Scalars(plan.pitch_acc));
 
-        // rec.log("scalar/target/z", rerun::Scalars(target->ekf_x()[4]));
-        // rec.log("scalar/target/vz", rerun::Scalars(target->ekf_x()[5]));
-        // rec.log("scalar/target/w", rerun::Scalars(target->ekf_x()[7]));
+        rec.log("scalar/target/z", rerun::Scalars(target->ekf_x()[4]));
+        rec.log("scalar/target/vz", rerun::Scalars(target->ekf_x()[5]));
+        rec.log("scalar/target/w", rerun::Scalars(target->ekf_x()[7]));
+
 
         // --- 4. 开火占空比计算 ---
         fire_history.push_back(plan.fire);
@@ -201,25 +207,25 @@ int main(int argc, char * argv[])
         }
         fire_duty /= fire_history.size();
 
-        // rec.log("fire/plan_fire", rerun::Scalars(plan.fire ? 1.0f : 0.0f));
-        // rec.log("fire/duty_cycle", rerun::Scalars(fire_duty));
+        rec.log("fire/plan_fire", rerun::Scalars(plan.fire ? 1.0f : 0.0f));
+        rec.log("fire/duty_cycle", rerun::Scalars(fire_duty));
 
         // --- 5. Rerun 3D 装甲板与预测点可视化 ---
-        // std::vector<rerun::Position3D> armor_points;
-        // for (const auto& xyza : target->armor_xyza_list()) {
-        //   armor_points.push_back({(float)xyza[0], (float)xyza[1], (float)xyza[2]});
-        // }
+        std::vector<rerun::Position3D> armor_points;
+        for (const auto& xyza : target->armor_xyza_list()) {
+          armor_points.push_back({(float)xyza[0], (float)xyza[1], (float)xyza[2]});
+        }
         
-        // Eigen::Vector4d aim_xyza = planner.debug_xyza;
-        // std::vector<rerun::Position3D> aim_points = {
-        //   {(float)aim_xyza[0], (float)aim_xyza[1], (float)aim_xyza[2]}
-        // };
+        Eigen::Vector4d aim_xyza = planner.debug_xyza;
+        std::vector<rerun::Position3D> aim_points = {
+          {(float)aim_xyza[0], (float)aim_xyza[1], (float)aim_xyza[2]}
+        };
         
-        // rec.log("world/target/armors", rerun::Points3D(armor_points)
-        //   .with_radii({0.05f}).with_colors({{0, 255, 0}})); 
+        rec.log("world/target/armors", rerun::Points3D(armor_points)
+          .with_radii({0.05f}).with_colors({{0, 255, 0}})); 
         
-        // rec.log("world/target/aim_point", rerun::Points3D(aim_points)
-        //   .with_radii({0.07f}).with_colors({{255, 0, 0}})); 
+        rec.log("world/target/aim_point", rerun::Points3D(aim_points)
+          .with_radii({0.07f}).with_colors({{255, 0, 0}})); 
 
         std::this_thread::sleep_for(10ms);
 
@@ -249,8 +255,8 @@ int main(int argc, char * argv[])
         
         // 发送给 Plotter
         nlohmann::json data;
-        data["gimbal_yaw"] = gs.yaw / 57.3;
-        data["gimbal_pitch"] = gs.pitch / 57.3;
+        data["gimbal_yaw"] = gs.yaw;
+        data["gimbal_pitch"] = gs.pitch;
         data["plan_yaw"] = yaw;
         data["plan_pitch"] = pitch;
         data["t"] = tools::delta_time(current_time, t0);
@@ -261,8 +267,8 @@ int main(int argc, char * argv[])
         plotter.plot(data);
 
         // 清空 Rerun 中的小球，防止屏幕留着鬼影
-        // rec.log("world/target/armors", rerun::Clear::FLAT);
-        // rec.log("world/target/aim_point", rerun::Clear::FLAT);
+        rec.log("world/target/armors", rerun::Clear::FLAT);
+        rec.log("world/target/aim_point", rerun::Clear::FLAT);
 
         std::this_thread::sleep_for(10ms);
       }
