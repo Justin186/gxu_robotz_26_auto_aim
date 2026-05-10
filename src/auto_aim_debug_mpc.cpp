@@ -172,8 +172,8 @@ int main(int argc, char * argv[])
         rec->log("pitch/plan_pitch_vel", rerun::Scalars(plan.pitch_vel));
         rec->log("pitch/plan_pitch_acc", rerun::Scalars(plan.pitch_acc));
 
-        // rec->log("fire/bullet_count", rerun::Scalars(gs.bullet_count));
-        // rec->log("fire/bullet_speed", rerun::Scalars(gs.bullet_speed));
+        rec->log("fire/bullet_count", rerun::Scalars(gs.bullet_count));
+        rec->log("fire/bullet_speed", rerun::Scalars(gs.bullet_speed));
         rec->log("fire/fired", rerun::Scalars(fired ? 1.0f : 0.0f));
         rec->log("fire/plan_fire", rerun::Scalars(plan.fire ? 1.0f : 0.0f));
         rec->log("fire/duty_cycle", rerun::Scalars(fire_duty));

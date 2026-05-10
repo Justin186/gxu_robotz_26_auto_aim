@@ -42,11 +42,11 @@ std::list<Target> Tracker::track(
   // 过滤掉非我方装甲板
   armors.remove_if([&](const auto_aim::Armor & a) { return a.color != enemy_color_; });
 
-  // 过滤掉距离大于7米的装甲板（超距离极大概率为误识别，且弹道解算无意义）
-  armors.remove_if([this](auto_aim::Armor & a) {
-    solver_.solve(a);
-    return a.ypd_in_world[2] > 7.0;
-  });
+  // // 过滤掉距离大于7米的装甲板（超距离极大概率为误识别，且弹道解算无意义）
+  // armors.remove_if([this](auto_aim::Armor & a) {
+  //   solver_.solve(a);
+  //   return a.ypd_in_world[2] > 7.0;
+  // });
 
   // 过滤前哨站顶部装甲板
   // armors.remove_if([this](const auto_aim::Armor & a) {
@@ -120,11 +120,11 @@ std::tuple<omniperception::DetectionResult, std::list<Target>> Tracker::track(
     state_ = "lost";
   }
 
-  // 过滤掉距离大于7米的装甲板（超距离极大概率为误识别，且弹道解算无意义）
-  armors.remove_if([this](auto_aim::Armor & a) {
-    solver_.solve(a);
-    return a.ypd_in_world[2] > 7.0;
-  });
+  // 过滤掉距离大于10米的装甲板（超距离极大概率为误识别，且弹道解算无意义）
+  // armors.remove_if([this](auto_aim::Armor & a) {
+  //   solver_.solve(a);
+  //   return a.ypd_in_world[2] > 10.0;
+  // });
 
   // 优先选择靠近图像中心的装甲板
   armors.sort([](const Armor & a, const Armor & b) {

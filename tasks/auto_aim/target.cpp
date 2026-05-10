@@ -218,27 +218,29 @@ void Target::update(const Armor & armor) // EKF中的第二大步：更新
 void Target::update_ypda(const Armor & armor, int id)
 {
   if (name == ArmorName::outpost && id >= 0 && id < 3) {
-    if (outpost_z_count_[id] < 50) {
-      outpost_z_count_[id]++;
-      double alpha = 1.0 / outpost_z_count_[id];
-      outpost_z_ema_[id] = (1 - alpha) * outpost_z_ema_[id] + alpha * armor.xyz_in_world[2];
-    } else {
-      outpost_z_ema_[id] = 0.98 * outpost_z_ema_[id] + 0.02 * armor.xyz_in_world[2];
+    outpost_z_history_[id].push_back(armor.xyz_in_world[2]);
+    if (outpost_z_history_[id].size() > 30) {
+      outpost_z_history_[id].pop_front();
     }
 
     // 判断三个id的装甲板是否都有足够(如10次)观测，以求稳定平均
-    if (outpost_z_count_[0] > 10 && outpost_z_count_[1] > 10 && outpost_z_count_[2] > 10) {
+    if (outpost_z_history_[0].size() > 10 && outpost_z_history_[1].size() > 10 && outpost_z_history_[2].size() > 10) {
+      double medians[3];
+      for (int i = 0; i < 3; i++) {
+        std::vector<double> hist(outpost_z_history_[i].begin(), outpost_z_history_[i].end());
+        std::nth_element(hist.begin(), hist.begin() + hist.size() / 2, hist.end());
+        medians[i] = hist[hist.size() / 2];
+      }
+
       int sorted_ids[3] = {0, 1, 2};
-      std::sort(sorted_ids, sorted_ids + 3, [this](int a, int b) {
-        return outpost_z_ema_[a] < outpost_z_ema_[b];
+      std::sort(sorted_ids, sorted_ids + 3, [&medians](int a, int b) {
+        return medians[a] < medians[b];
       });
 
-      // 核心问题：物理绝对高度差的确是约 10.2cm，但由于相机仰角透视、PnP算法对15度倾斜装甲板的尺度漂移特性，
-      // 视觉解算出的“观测Z落差”会被拉伸/压缩，往往不是 0.102。如果强行写入物理极值 0.102，会导致观测与模型对抗（上下拽）。
-      // 解决方案：信任视觉的相对关系，直接使用视觉长时间滑动平均收敛出来的统计高度差，令观测与模型做到真正的动态自洽。
-      outpost_z_offset_[sorted_ids[0]] = outpost_z_ema_[sorted_ids[0]] - outpost_z_ema_[sorted_ids[1]]; // 通常可能解算出来是 -0.12 ~ -0.15 等
+      // 信任视觉相对关系，使用滑动窗口中位数统计高度差，完全抛弃久远的错误数据，同时过滤突发毛刺。
+      outpost_z_offset_[sorted_ids[0]] = medians[sorted_ids[0]] - medians[sorted_ids[1]]; // 通常可能解算出来是 -0.12 ~ -0.15 等
       outpost_z_offset_[sorted_ids[1]] = 0.0;
-      outpost_z_offset_[sorted_ids[2]] = outpost_z_ema_[sorted_ids[2]] - outpost_z_ema_[sorted_ids[1]]; // 通常可能解算出来是 0.12 ~ 0.15 等
+      outpost_z_offset_[sorted_ids[2]] = medians[sorted_ids[2]] - medians[sorted_ids[1]]; // 通常可能解算出来是 0.12 ~ 0.15 等
 
       if (!outpost_z_resolved_) {
         outpost_z_resolved_ = true;

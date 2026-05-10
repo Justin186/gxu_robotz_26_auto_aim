@@ -24,9 +24,9 @@
 using namespace std::chrono_literals;
 
 const std::string keys =
-  "{help h usage ? |                        | 输出命令行参数说明}"
-  "{rec            | true                  | 是否录制数据}"
-  "{@config-path   | configs/sentry.yaml | 位置参数，yaml配置文件路径 }";
+  "{help h usage ? |                      | 输出命令行参数说明}"
+  "{rec            | true                 | 是否录制数据}"
+  "{@config-path   | configs/hero.yaml    | 位置参数，yaml配置文件路径 }";
 
 int main(int argc, char * argv[])
 {
