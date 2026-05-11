@@ -108,7 +108,7 @@ void Target::predict(double dt) // 感觉这两个重载函数完全可以写在
   // 之所以选择分段模型，是因为求Q矩阵只需简单矩阵乘法，但是连续的话需要积分，形式更复杂
   double v1, v2; // 根据目标不同设定不同方差基准，但这不是分段白噪声模型的分段的含义
   if (name == ArmorName::outpost) {
-    v1 = 10;   // 前哨站加速度方差
+    v1 = 0.1;   // 前哨站加速度方差
     v2 = 0.1;  // 前哨站角加速度方差
   } else {
     v1 = 100;  // 加速度方差
@@ -217,38 +217,30 @@ void Target::update(const Armor & armor) // EKF中的第二大步：更新
 
 void Target::update_ypda(const Armor & armor, int id)
 {
-  if (name == ArmorName::outpost && id >= 0 && id < 3) {
-    outpost_z_history_[id].push_back(armor.xyz_in_world[2]);
-    if (outpost_z_history_[id].size() > 30) {
-      outpost_z_history_[id].pop_front();
-    }
+  if (name == ArmorName::outpost && !outpost_z_resolved_ && id >= 0 && id < 3) {
+    outpost_z_sum_[id] += armor.xyz_in_world[2];
+    outpost_z_count_[id]++;
 
     // 判断三个id的装甲板是否都有足够(如10次)观测，以求稳定平均
-    if (outpost_z_history_[0].size() > 10 && outpost_z_history_[1].size() > 10 && outpost_z_history_[2].size() > 10) {
-      double medians[3];
-      for (int i = 0; i < 3; i++) {
-        std::vector<double> hist(outpost_z_history_[i].begin(), outpost_z_history_[i].end());
-        std::nth_element(hist.begin(), hist.begin() + hist.size() / 2, hist.end());
-        medians[i] = hist[hist.size() / 2];
-      }
-
+    if (outpost_z_count_[0] > 10 && outpost_z_count_[1] > 10 && outpost_z_count_[2] > 10) {
+      double avgs[3] = {outpost_z_sum_[0] / outpost_z_count_[0],
+                        outpost_z_sum_[1] / outpost_z_count_[1],
+                        outpost_z_sum_[2] / outpost_z_count_[2]};
+      
       int sorted_ids[3] = {0, 1, 2};
-      std::sort(sorted_ids, sorted_ids + 3, [&medians](int a, int b) {
-        return medians[a] < medians[b];
+      std::sort(sorted_ids, sorted_ids + 3, [&avgs](int a, int b) {
+        return avgs[a] < avgs[b];
       });
 
-      // 信任视觉相对关系，使用滑动窗口中位数统计高度差，完全抛弃久远的错误数据，同时过滤突发毛刺。
-      outpost_z_offset_[sorted_ids[0]] = medians[sorted_ids[0]] - medians[sorted_ids[1]]; // 通常可能解算出来是 -0.12 ~ -0.15 等
+      // 实地高度理论值：1.114 (低)，1.216 (中)，1.318 (高)
+      // 则相对于 1.216，三者偏移为 -0.102, 0, 0.102
+      outpost_z_offset_[sorted_ids[0]] = -0.102;
       outpost_z_offset_[sorted_ids[1]] = 0.0;
-      outpost_z_offset_[sorted_ids[2]] = medians[sorted_ids[2]] - medians[sorted_ids[1]]; // 通常可能解算出来是 0.12 ~ 0.15 等
+      outpost_z_offset_[sorted_ids[2]] = 0.102;
 
-      if (!outpost_z_resolved_) {
-        outpost_z_resolved_ = true;
-        tools::logger()->info("[Target] Outpost Z initial sorted! id[{}]={:.3f}, id[{}]={:.3f}, id[{}]={:.3f}",
-                              sorted_ids[0], outpost_z_offset_[sorted_ids[0]], 
-                              sorted_ids[1], outpost_z_offset_[sorted_ids[1]], 
-                              sorted_ids[2], outpost_z_offset_[sorted_ids[2]]);
-      }
+      outpost_z_resolved_ = true;
+      tools::logger()->info("[Target] Outpost Z sorted! id[{}]=-0.102, id[{}]={:.3f}, id[{}]={:.3f}",
+                            sorted_ids[0], sorted_ids[1], 0.0, sorted_ids[2], 0.102);
     }
   }
 

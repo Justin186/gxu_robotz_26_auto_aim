@@ -182,17 +182,24 @@ void Planner::setup_pitch_solver(const std::string & config_path)
 Eigen::Matrix<double, 2, 1> Planner::aim(const Target & target, double bullet_speed, int & id_state)
 {
   Eigen::Vector3d center_xyz;
-  center_xyz << target.ekf_x()[0], target.ekf_x()[2], target.ekf_x()[4]; // 始终瞄准目标中心
+  center_xyz << target.ekf_x()[0], target.ekf_x()[2], target.ekf_x()[4]; // 目标中心
   double yaw = 0;
   auto target_armors = target.armor_xyza_list();
   auto center_yaw = std::atan2(center_xyz.y(), center_xyz.x());
   auto min_delta_angle = 1e10;
   int best_id = -1;
 
+  bool is_spinning = std::abs(target.ekf_x()[7]) > 2.0;
+
   for (size_t i = 0; i < target_armors.size(); i++) {
     auto & xyza = target_armors[i];
     auto delta_angle = std::abs(tools::limit_rad(xyza[3] - center_yaw));
     
+    // 滞回机制：低速时赋予当前跟踪板子 0.08rad（约4.6°）的倾向性，防止目标抖动导致换板
+    if (!is_spinning && id_state == (int)i) {
+      delta_angle -= 0.08;
+    }
+
     if (delta_angle < min_delta_angle) {
       min_delta_angle = delta_angle;
       best_id = (int)i;
@@ -201,23 +208,31 @@ Eigen::Matrix<double, 2, 1> Planner::aim(const Target & target, double bullet_sp
   }
   id_state = best_id; // 反馈更新选择的装甲板ID，开火判断需要
 
-  Eigen::Vector3d aim_xyz = center_xyz;
-  if (best_id != -1) {
-    auto & best_xyza = target_armors[best_id];
-    // 计算该装甲板到中心的半径 (水平面上)
-    double radius = std::hypot(best_xyza[0] - center_xyz.x(), best_xyza[1] - center_xyz.y());
-    
-    // 计算正对枪管的位置：也就是从中心点朝向摄像头直线拉近 radius 的距离
-    // 使得准星落在车辆边缘（即装甲板转到视野正前方时的位置）
-    aim_xyz.x() = center_xyz.x() - radius * std::cos(center_yaw);
-    aim_xyz.y() = center_xyz.y() - radius * std::sin(center_yaw);
-    
-    // 保持高度，对应高低甲
-    aim_xyz.z() = best_xyza.z();
+  Eigen::Vector3d aim_xyz;
+  if (is_spinning) {
+    aim_xyz = center_xyz;
+    if (best_id != -1) {
+      auto & best_xyza = target_armors[best_id];
+      // 计算该装甲板到中心的半径 (水平面上)
+      double radius = std::hypot(best_xyza[0] - center_xyz.x(), best_xyza[1] - center_xyz.y());
+      
+      // 计算正对枪管的位置：从中心点朝向摄像头直线拉近 radius 的距离
+      aim_xyz.x() = center_xyz.x() - radius * std::cos(center_yaw);
+      aim_xyz.y() = center_xyz.y() - radius * std::sin(center_yaw);
+      aim_xyz.z() = best_xyza.z();
+    }
+    // 高速旋转：朝向固定为朝向相机（即 center_yaw），这样Rerun可视化中板子不会自转
+    debug_xyza = Eigen::Vector4d(aim_xyz.x(), aim_xyz.y(), aim_xyz.z(), center_yaw);
+  } else {
+    // 低速或平移：直接瞄准最好的那块装甲板的3D中心
+    if (best_id != -1) {
+      aim_xyz = target_armors[best_id].head<3>();
+    } else {
+      aim_xyz = center_xyz;
+    }
+    // 渲染框朝向跟随装甲板真实物理偏航角
+    debug_xyza = Eigen::Vector4d(aim_xyz.x(), aim_xyz.y(), aim_xyz.z(), yaw);
   }
-
-  // 朝向固定为朝向相机（即 center_yaw），这样Rerun可视化中板子不会自转
-  debug_xyza = Eigen::Vector4d(aim_xyz.x(), aim_xyz.y(), aim_xyz.z(), center_yaw);
 
   auto azim = std::atan2(aim_xyz.y(), aim_xyz.x());
   auto dist = aim_xyz.head<2>().norm();

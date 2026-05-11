@@ -58,7 +58,8 @@ private:
 
   // 前哨站特殊处理
   bool outpost_z_resolved_ = false;
-  std::deque<double> outpost_z_history_[3];
+  double outpost_z_sum_[3] = {0, 0, 0};
+  int outpost_z_count_[3] = {0, 0, 0};
   double outpost_z_offset_[3] = {0, 0, 0};
 
   bool is_switch_, is_converged_;
