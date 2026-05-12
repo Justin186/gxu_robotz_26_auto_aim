@@ -5,6 +5,8 @@
 #include "subscribe2nav.hpp"
 
 #include <opencv2/opencv.hpp>
+#include <chrono>
+#include <mutex>
 #include <optional>
 #include <sp_msgs/msg/rmuc_game_status.hpp>
 #include <sp_msgs/msg/rmuc_robot_status.hpp>
@@ -38,6 +40,8 @@ private:
   rclcpp::Publisher<sp_msgs::msg::RMUCGameStatus>::SharedPtr game_status_publisher_;
   rclcpp::Publisher<sp_msgs::msg::RMUCRobotBuff>::SharedPtr robot_buff_publisher_;
   std::shared_ptr<Subscribe2Nav> subscribe2nav_;
+  std::mutex robot_status_publish_mutex_;
+  std::chrono::steady_clock::time_point last_robot_status_publish_time_;
 
   std::unique_ptr<std::thread> publish_spin_thread_;
   std::unique_ptr<std::thread> subscribe_spin_thread_;

@@ -80,7 +80,7 @@ io::Command Decider::decide(
   // switching 模式只判断是否转到位或超时，不再扫描和侧向识别
   if (mode_ == OmniMode::switching) {
     constexpr double yaw_thresh = 3.0 / 57.3;
-    constexpr double pitch_thresh = 3.0 / 57.3;
+    constexpr double pitch_thresh = 1.0 / 57.3;
 
     const bool reached_target =
       std::abs(tools::limit_rad(current_yaw - switching_target_yaw_)) < yaw_thresh &&
@@ -89,6 +89,7 @@ io::Command Decider::decide(
     if (reached_target) {
       // 转到位后直接回 scan，先从特化扫描开始继续搜敌
       set_mode(OmniMode::scan);
+      tools::logger()->info("Reach switching target");
       return io::Command{false, false, 0, 0};
     } else if (now - switching_start_time_ >= switching_timeout_) {
       tools::logger()->info("Switching timeout, back to scan");
@@ -191,9 +192,9 @@ std::optional<DetectionResult> Decider::choose_switch_candidate(
 
 Decider::ScanResult Decider::omni_scan(double dt)
 {
-  constexpr double delta_angle = 100.0;
+  constexpr double delta_angle = 30.0;
   constexpr double amplitude = 20.0;
-  constexpr double period = 0.5;
+  constexpr double period = 0.8;
 
   scan_state_.scan_cmd_angle += delta_angle * dt;
   const double yaw = tools::limit_rad(scan_state_.scan_cmd_angle / 57.3);
@@ -252,7 +253,7 @@ Eigen::Vector2d Decider::delta_angle(
     return delta_angle;
   }
 
-  delta_angle[0] = -100 + (new_fov_h_ / 2) - armors.front().center_norm.x * new_fov_h_;
+  delta_angle[0] = -80 + (new_fov_h_ / 2) - armors.front().center_norm.x * new_fov_h_;
   delta_angle[1] = armors.front().center_norm.y * new_fov_v_ - new_fov_v_ / 2;
   return delta_angle;
 }

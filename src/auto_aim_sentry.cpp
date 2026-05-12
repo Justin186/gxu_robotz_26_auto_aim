@@ -92,8 +92,8 @@ int main(int argc, char * argv[])
         }
 
         double delta_angle = 120; // 哨兵扫描：yaw 每秒旋转度数
-        double amplitude = 15.0;   // 哨兵扫描：pitch 上下扫动幅度(度)
-        double period = 0.25;       // 哨兵扫描：pitch 扫动周期(秒)
+        double amplitude = 20.0;   // 哨兵扫描：pitch 上下扫动幅度(度)
+        double period = 0.6;       // 哨兵扫描：pitch 扫动周期(秒)
 
         scan_cmd_angle += delta_angle * dt;
         double yaw = tools::limit_rad(scan_cmd_angle / 57.3);
@@ -106,11 +106,11 @@ int main(int argc, char * argv[])
             scan_t -= period;
         }
 
-        std::this_thread::sleep_for(10ms);
+        std::this_thread::sleep_for(2ms);
       }
       else {
         // 增加一个 else 分支，防止既没目标又在移动时死循环空转占用 CPU
-        std::this_thread::sleep_for(10ms);
+        std::this_thread::sleep_for(2ms);
       }
     }
   });

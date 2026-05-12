@@ -120,9 +120,10 @@ void USBCamera::open()
   sharpness_ = cap_.get(cv::CAP_PROP_SHARPNESS);
   cap_.set(cv::CAP_PROP_FOURCC, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'));
   cap_.set(cv::CAP_PROP_FPS, usb_frame_rate_);
-  cap_.set(cv::CAP_PROP_AUTO_EXPOSURE, 1);
-  cap_.set(cv::CAP_PROP_GAMMA, usb_gamma_);
-  cap_.set(cv::CAP_PROP_GAIN, usb_gain_);
+  cap_.set(cv::CAP_PROP_AUTO_EXPOSURE, 0);// 关闭自动曝光
+  cap_.set(cv::CAP_PROP_EXPOSURE, usb_exposure_);// 曝光时间
+  cap_.set(cv::CAP_PROP_GAMMA, usb_gamma_);// gamma
+  cap_.set(cv::CAP_PROP_GAIN, usb_gain_);// 增益
 
   if (sharpness_ == 2) {
     device_name = "left";

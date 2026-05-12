@@ -112,7 +112,7 @@ void Subscribe2Nav::clear_image()
 void Subscribe2Nav::sentry_cmd_callback(const sp_msgs::msg::RMUCSentryCmd::SharedPtr msg)
 {
   current_posture_.store(msg->cmd_posture);
-  RCLCPP_INFO(this->get_logger(), "Received sentry cmd_posture: %d", msg->cmd_posture);
+  // RCLCPP_INFO(this->get_logger(), "Received sentry cmd_posture: %d", msg->cmd_posture);
 }
 
 }  // namespace io

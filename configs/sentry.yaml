@@ -29,9 +29,9 @@ fov_v: 56.7
 new_fov_h: 27 #67
 new_fov_v: 40.9
 usb_frame_rate: 30
-usb_exposure: 500 #1-80000______250
-usb_gamma: 160
-usb_gain: 10 #0-96
+usb_exposure: 250 #1-80000______250
+usb_gamma: 0.5
+usb_gain: 50 #0-96
 
 #####-----工业相机参数-----#####
 camera_name: "hikrobot"

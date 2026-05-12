@@ -62,6 +62,9 @@ int main(int argc, char * argv[])
   auto plan_thread = std::thread([&]() {
     auto last_control_time = std::chrono::steady_clock::now();
     auto last_mode = decider.mode();
+    std::optional<io::Command> last_scan_command;
+    double last_scan_yaw_vel = 0.0;
+    double last_scan_pitch_vel = 0.0;
 
     while (!quit) {
       auto target = target_queue.front();
@@ -92,6 +95,9 @@ int main(int argc, char * argv[])
       }
 
       if (current_mode == omniperception::Decider::OmniMode::tracking) {
+        last_scan_command.reset();
+        last_scan_yaw_vel = 0.0;
+        last_scan_pitch_vel = 0.0;
         auto plan = planner.plan(target, gs.bullet_speed, gs.yaw, gs.pitch);
         gimbal.set_aim_status(true);
         gimbal.send(
@@ -101,10 +107,40 @@ int main(int argc, char * argv[])
         gimbal.set_aim_status(false);
 
         auto command = decider.decide(gs.yaw, gs.pitch, dt, perceptron);
-        if (command.control) {
-          gimbal.send(true, command.shoot, command.yaw, 0, 0, command.pitch, 0, 0);
-        }
         current_mode = decider.mode();
+        if (command.control) {
+          double yaw_vel = 0.0;
+          double yaw_acc = 0.0;
+          double pitch_vel = 0.0;
+          double pitch_acc = 0.0;
+
+          if (
+            current_mode == omniperception::Decider::OmniMode::scan &&
+            last_scan_command.has_value() && dt > 1e-4) {
+            yaw_vel = tools::limit_rad(command.yaw - last_scan_command->yaw) / dt;
+            pitch_vel = (command.pitch - last_scan_command->pitch) / dt;
+            yaw_acc = (yaw_vel - last_scan_yaw_vel) / dt;
+            pitch_acc = (pitch_vel - last_scan_pitch_vel) / dt;
+          }
+
+          gimbal.send(
+            true, command.shoot, command.yaw, yaw_vel, yaw_acc, command.pitch, pitch_vel,
+            pitch_acc);
+
+          if (current_mode == omniperception::Decider::OmniMode::scan) {
+            last_scan_command = command;
+            last_scan_yaw_vel = yaw_vel;
+            last_scan_pitch_vel = pitch_vel;
+          } else {
+            last_scan_command.reset();
+            last_scan_yaw_vel = 0.0;
+            last_scan_pitch_vel = 0.0;
+          }
+        } else {
+          last_scan_command.reset();
+          last_scan_yaw_vel = 0.0;
+          last_scan_pitch_vel = 0.0;
+        }
       }
 
       omni_mode.store(current_mode);

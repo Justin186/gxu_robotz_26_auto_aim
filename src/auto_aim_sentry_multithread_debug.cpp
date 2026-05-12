@@ -18,6 +18,7 @@
 #include "tasks/omniperception/decider.hpp"
 #include "tasks/omniperception/perceptron.hpp"
 #include "tools/exiter.hpp"
+#include "tools/img_tools.hpp"
 #include "tools/logger.hpp"
 #include "tools/math_tools.hpp"
 #include "tools/thread_safe_queue.hpp"
@@ -47,6 +48,79 @@ void bind_thread_to_cpus(std::thread & thread, std::initializer_list<int> cpus, 
   (void)cpus;
   (void)name;
 #endif
+}
+
+cv::Mat make_debug_tile(const cv::Mat & src, const std::string & label, const cv::Size & size)
+{
+  cv::Mat tile(size, CV_8UC3, cv::Scalar(30, 30, 30));
+  cv::putText(
+    tile, label, cv::Point(20, 40), cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(0, 255, 255), 2,
+    cv::LINE_AA);
+
+  if (src.empty()) {
+    cv::putText(
+      tile, "No frame", cv::Point(20, 90), cv::FONT_HERSHEY_SIMPLEX, 0.9, cv::Scalar(0, 0, 255),
+      2, cv::LINE_AA);
+    return tile;
+  }
+
+  cv::Mat src_bgr;
+  if (src.channels() == 1) {
+    cv::cvtColor(src, src_bgr, cv::COLOR_GRAY2BGR);
+  } else {
+    src_bgr = src;
+  }
+
+  const double scale =
+    std::min(static_cast<double>(size.width) / src_bgr.cols, static_cast<double>(size.height) / src_bgr.rows);
+  const int resized_width = std::max(1, static_cast<int>(src_bgr.cols * scale));
+  const int resized_height = std::max(1, static_cast<int>(src_bgr.rows * scale));
+
+  cv::Mat resized;
+  cv::resize(src_bgr, resized, cv::Size(resized_width, resized_height));
+
+  const int offset_x = (size.width - resized_width) / 2;
+  const int offset_y = (size.height - resized_height) / 2;
+  resized.copyTo(tile(cv::Rect(offset_x, offset_y, resized_width, resized_height)));
+  cv::rectangle(tile, cv::Rect(0, 0, size.width, size.height), cv::Scalar(80, 80, 80), 2);
+  return tile;
+}
+
+cv::Mat compose_debug_view(
+  const cv::Mat & main_img, const cv::Mat & ros_img, const cv::Mat & usb_img, double fps)
+{
+  const cv::Size tile_size(640, 360);
+  auto main_tile = make_debug_tile(main_img, "Main Camera", tile_size);
+  auto ros_tile = make_debug_tile(ros_img, "ROS Camera", tile_size);
+  auto usb_tile = make_debug_tile(usb_img, "USB Camera", tile_size);
+  auto blank_tile = make_debug_tile(cv::Mat(), "Status", tile_size);
+
+  cv::putText(
+    blank_tile, cv::format("Main FPS: %.1f", fps), cv::Point(20, 90), cv::FONT_HERSHEY_SIMPLEX,
+    0.9, cv::Scalar(0, 255, 0), 2, cv::LINE_AA);
+  cv::putText(
+    blank_tile, "Side views refresh in scan mode", cv::Point(20, 140), cv::FONT_HERSHEY_SIMPLEX,
+    0.7, cv::Scalar(255, 255, 255), 2, cv::LINE_AA);
+
+  cv::Mat top_row;
+  cv::Mat bottom_row;
+  cv::hconcat(std::vector<cv::Mat>{main_tile, ros_tile}, top_row);
+  cv::hconcat(std::vector<cv::Mat>{usb_tile, blank_tile}, bottom_row);
+
+  cv::Mat canvas;
+  cv::vconcat(std::vector<cv::Mat>{top_row, bottom_row}, canvas);
+  return canvas;
+}
+
+void draw_armor_boxes(cv::Mat & img, const std::list<auto_aim::Armor> & armors, const cv::Scalar & color)
+{
+  for (const auto & armor : armors) {
+    if (armor.points.size() == 4) {
+      tools::draw_points(img, armor.points, color, 2);
+    } else if (armor.box.width > 0 && armor.box.height > 0) {
+      cv::rectangle(img, armor.box, color, 2);
+    }
+  }
 }
 }  // namespace
 
@@ -102,6 +176,8 @@ int main(int argc, char * argv[])
 
   tools::ThreadSafeQueue<std::optional<auto_aim::Target>, true> target_queue(1);
   target_queue.push(std::nullopt);
+  tools::ThreadSafeQueue<std::list<auto_aim::Armor>, true> main_armor_queue(1);
+  main_armor_queue.push({});
 
   std::atomic<bool> quit = false;
   std::atomic<omniperception::Decider::OmniMode> omni_mode{
@@ -156,14 +232,18 @@ int main(int argc, char * argv[])
 
       // 控制指令（用于日志）
       bool current_fire = false;
+      bool current_control = false;
       double plan_yaw = 0.0, plan_pitch = 0.0, plan_yaw_vel = 0.0, plan_pitch_vel = 0.0,
              plan_yaw_acc = 0.0, plan_pitch_acc = 0.0;
+      double command_yaw = 0.0, command_pitch = 0.0, command_yaw_vel = 0.0,
+             command_pitch_vel = 0.0, command_yaw_acc = 0.0, command_pitch_acc = 0.0;
       double target_yaw = 0.0, target_pitch = 0.0;
       double decider_yaw = 0.0, decider_pitch = 0.0;
       bool decider_shoot = false;
 
       if (current_mode == omniperception::Decider::OmniMode::tracking) {
         auto plan = planner.plan(target, gs.bullet_speed, gs.yaw, gs.pitch);
+        current_control = plan.control;
         current_fire = plan.fire;
         plan_yaw = plan.yaw;
         plan_pitch = plan.pitch;
@@ -171,6 +251,12 @@ int main(int argc, char * argv[])
         plan_pitch_vel = plan.pitch_vel;
         plan_yaw_acc = plan.yaw_acc;
         plan_pitch_acc = plan.pitch_acc;
+        command_yaw = plan.yaw;
+        command_pitch = -plan.pitch;
+        command_yaw_vel = plan.yaw_vel;
+        command_pitch_vel = -plan.pitch_vel;
+        command_yaw_acc = plan.yaw_acc;
+        command_pitch_acc = -plan.pitch_acc;
         if (target.has_value()) {
           target_yaw = plan.target_yaw;
           target_pitch = plan.target_pitch;
@@ -182,10 +268,13 @@ int main(int argc, char * argv[])
       } else {
         gimbal.set_aim_status(false);
         auto command = decider.decide(gs.yaw, gs.pitch, dt, perceptron);
+        current_control = command.control;
         decider_yaw = command.yaw;
         decider_pitch = command.pitch;
         decider_shoot = command.shoot;
         current_fire = command.shoot;
+        command_yaw = command.yaw;
+        command_pitch = command.pitch;
         if (command.control) {
           gimbal.send(true, command.shoot, command.yaw, 0, 0, command.pitch, 0, 0);
         }
@@ -239,6 +328,9 @@ int main(int argc, char * argv[])
         rec->log("yaw/gimbal_yaw_vel", rerun::Scalars(gs.yaw_vel));
         rec->log("yaw/plan_yaw_vel", rerun::Scalars(plan_yaw_vel));
         rec->log("yaw/plan_yaw_acc", rerun::Scalars(plan_yaw_acc));
+        rec->log("yaw/command_yaw", rerun::Scalars(command_yaw));
+        rec->log("yaw/command_yaw_vel", rerun::Scalars(command_yaw_vel));
+        rec->log("yaw/command_yaw_acc", rerun::Scalars(command_yaw_acc));
       
 
         rec->log("pitch/plan_pitch", rerun::Scalars(plan_pitch));
@@ -246,11 +338,15 @@ int main(int argc, char * argv[])
         rec->log("pitch/gimbal_pitch", rerun::Scalars(-gs.pitch));
         rec->log("pitch/plan_pitch_vel", rerun::Scalars(plan_pitch_vel));
         rec->log("pitch/plan_pitch_acc", rerun::Scalars(plan_pitch_acc));
+        rec->log("pitch/command_pitch", rerun::Scalars(command_pitch));
+        rec->log("pitch/command_pitch_vel", rerun::Scalars(command_pitch_vel));
+        rec->log("pitch/command_pitch_acc", rerun::Scalars(command_pitch_acc));
 
         rec->log("fire/fired", rerun::Scalars(fired ? 1.0f : 0.0f));
         rec->log("fire/plan_fire", rerun::Scalars(current_fire ? 1.0f : 0.0f));
         rec->log("fire/duty_cycle", rerun::Scalars(fire_duty));
         rec->log("bullet_speed", rerun::Scalars(gs.bullet_speed));
+        rec->log("control/enabled", rerun::Scalars(current_control ? 1.0f : 0.0f));
 
         rec->log("mode/is_tracking", rerun::Scalars(current_mode == omniperception::Decider::OmniMode::tracking ? 1.0f : 0.0f));
         rec->log("mode/is_scan", rerun::Scalars(current_mode == omniperception::Decider::OmniMode::scan ? 1.0f : 0.0f));
@@ -382,6 +478,7 @@ int main(int argc, char * argv[])
 
     auto armors = yolo.detect(img);
     auto targets = tracker.track(armors, timestamp);
+    main_armor_queue.push(armors);
 
     if (!targets.empty()) {
       omni_mode = omniperception::Decider::OmniMode::tracking;
@@ -396,7 +493,20 @@ int main(int argc, char * argv[])
       target_queue.push(std::nullopt);
     }
     if(imshow) {
-      cv::imshow("sentry_debug", img);
+      cv::Mat ros_img;
+      cv::Mat usb_img;
+      auto main_armors = main_armor_queue.front();
+      std::list<auto_aim::Armor> ros_armors;
+      std::list<auto_aim::Armor> usb_armors;
+      perceptron.get_latest_left_image(ros_img);
+      perceptron.get_latest_right_image(usb_img);
+      perceptron.get_latest_left_armors(ros_armors);
+      perceptron.get_latest_right_armors(usb_armors);
+      draw_armor_boxes(img, main_armors, {0, 255, 0});
+      if (!ros_img.empty()) draw_armor_boxes(ros_img, ros_armors, {0, 255, 0});
+      if (!usb_img.empty()) draw_armor_boxes(usb_img, usb_armors, {0, 255, 0});
+      auto debug_view = compose_debug_view(img, ros_img, usb_img, avg_fps);
+      cv::imshow("sentry_debug", debug_view);
       cv::waitKey(1);
     }
 

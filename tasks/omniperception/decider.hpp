@@ -89,7 +89,7 @@ private:
   std::chrono::steady_clock::time_point last_side_detect_time_;
   bool detect_left_next_ = true;
   std::chrono::milliseconds side_detect_interval_{25};
-  std::chrono::milliseconds switching_timeout_{1200};
+  std::chrono::milliseconds switching_timeout_{12000};
   int confirm_count_ = 5;
 
   using PriorityMap = std::unordered_map<auto_aim::ArmorName, auto_aim::ArmorPriority>;
