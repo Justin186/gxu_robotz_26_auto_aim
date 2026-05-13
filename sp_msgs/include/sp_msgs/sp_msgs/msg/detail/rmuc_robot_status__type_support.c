@@ -37,7 +37,7 @@ void sp_msgs__msg__RMUCRobotStatus__rosidl_typesupport_introspection_c__RMUCRobo
   sp_msgs__msg__RMUCRobotStatus__fini(message_memory);
 }
 
-static rosidl_typesupport_introspection_c__MessageMember sp_msgs__msg__RMUCRobotStatus__rosidl_typesupport_introspection_c__RMUCRobotStatus_message_member_array[7] = {
+static rosidl_typesupport_introspection_c__MessageMember sp_msgs__msg__RMUCRobotStatus__rosidl_typesupport_introspection_c__RMUCRobotStatus_message_member_array[8] = {
   {
     "header",  // name
     rosidl_typesupport_introspection_c__ROS_TYPE_MESSAGE,  // type
@@ -141,6 +141,23 @@ static rosidl_typesupport_introspection_c__MessageMember sp_msgs__msg__RMUCRobot
     NULL  // resize(index) function pointer
   },
   {
+    "enemy_outpost_status",  // name
+    rosidl_typesupport_introspection_c__ROS_TYPE_UINT32,  // type
+    0,  // upper bound of string
+    NULL,  // members of sub message
+    false,  // is array
+    0,  // array size
+    false,  // is upper bound
+    offsetof(sp_msgs__msg__RMUCRobotStatus, enemy_outpost_status),  // bytes offset in struct
+    NULL,  // default value
+    NULL,  // size() function pointer
+    NULL,  // get_const(index) function pointer
+    NULL,  // get(index) function pointer
+    NULL,  // fetch(index, &value) function pointer
+    NULL,  // assign(index, value) function pointer
+    NULL  // resize(index) function pointer
+  },
+  {
     "is_detect_enemy",  // name
     rosidl_typesupport_introspection_c__ROS_TYPE_BOOLEAN,  // type
     0,  // upper bound of string
@@ -162,7 +179,7 @@ static rosidl_typesupport_introspection_c__MessageMember sp_msgs__msg__RMUCRobot
 static const rosidl_typesupport_introspection_c__MessageMembers sp_msgs__msg__RMUCRobotStatus__rosidl_typesupport_introspection_c__RMUCRobotStatus_message_members = {
   "sp_msgs__msg",  // message namespace
   "RMUCRobotStatus",  // message name
-  7,  // number of fields
+  8,  // number of fields
   sizeof(sp_msgs__msg__RMUCRobotStatus),
   sp_msgs__msg__RMUCRobotStatus__rosidl_typesupport_introspection_c__RMUCRobotStatus_message_member_array,  // message members
   sp_msgs__msg__RMUCRobotStatus__rosidl_typesupport_introspection_c__RMUCRobotStatus_init_function,  // function to initialize message memory (memory has to be allocated)

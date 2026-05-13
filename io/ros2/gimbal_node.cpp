@@ -77,7 +77,7 @@ void GimbalNode::thread_loop()
     ros2_->publish_robot_buff(robot_buff_msg);
     ros2_->publish_game_status(game_status_msg);
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
   }
 }
 

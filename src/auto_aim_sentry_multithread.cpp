@@ -1,5 +1,6 @@
 #include <atomic>
 #include <chrono>
+#include <iostream>
 #include <opencv2/opencv.hpp>
 #include <optional>
 #include <thread>
@@ -21,6 +22,7 @@ using namespace std::chrono_literals;
 
 const std::string keys =
   "{help h usage ? |                        | output help}"
+  "{fps            | false                  | print yolo fps}"
   "{@config-path   | configs/sentry.yaml | yaml config path}";
 
 int main(int argc, char * argv[])
@@ -29,6 +31,7 @@ int main(int argc, char * argv[])
 
   cv::CommandLineParser cli(argc, argv, keys);
   auto config_path = cli.get<std::string>(0);
+  const bool print_fps = cli.get<bool>("fps");
   if (cli.has("help") || config_path.empty()) {
     cli.printMessage();
     return 0;
@@ -49,6 +52,7 @@ int main(int argc, char * argv[])
       return gimbal.get_image(img, ts);
     },
     [&]() { gimbal.clear_image(); }, &usb_cam_right, config_path);
+  perceptron.set_fps_enabled(print_fps);
 
   tools::ThreadSafeQueue<std::optional<auto_aim::Target>, true> target_queue(1);
   target_queue.push(std::nullopt);
@@ -152,6 +156,8 @@ int main(int argc, char * argv[])
 
   cv::Mat img;
   std::chrono::steady_clock::time_point timestamp;
+  auto main_fps_time = std::chrono::steady_clock::now();
+  int main_fps_count = 0;
 
   while (!exiter.exit()) {
     camera.read(img, timestamp);
@@ -160,6 +166,17 @@ int main(int argc, char * argv[])
     solver.set_R_gimbal2world(q);
 
     auto armors = yolo.detect(img);
+    if (print_fps) {
+      main_fps_count++;
+      auto now = std::chrono::steady_clock::now();
+      auto elapsed = std::chrono::duration<double>(now - main_fps_time).count();
+      if (elapsed >= 1.0) {
+        std::cout << "[FPS] main_yolo: " << main_fps_count / elapsed << std::endl;
+        main_fps_count = 0;
+        main_fps_time = now;
+      }
+    }
+
     auto targets = tracker.track(armors, timestamp);
 
     if (!targets.empty()) {

@@ -71,6 +71,13 @@ inline void to_flow_style_yaml(
     out << ", ";
   }
 
+  // member: enemy_outpost_status
+  {
+    out << "enemy_outpost_status: ";
+    rosidl_generator_traits::value_to_yaml(msg.enemy_outpost_status, out);
+    out << ", ";
+  }
+
   // member: is_detect_enemy
   {
     out << "is_detect_enemy: ";
@@ -139,6 +146,16 @@ inline void to_block_style_yaml(
     }
     out << "base_hp: ";
     rosidl_generator_traits::value_to_yaml(msg.base_hp, out);
+    out << "\n";
+  }
+
+  // member: enemy_outpost_status
+  {
+    if (indentation > 0) {
+      out << std::string(indentation, ' ');
+    }
+    out << "enemy_outpost_status: ";
+    rosidl_generator_traits::value_to_yaml(msg.enemy_outpost_status, out);
     out << "\n";
   }
 

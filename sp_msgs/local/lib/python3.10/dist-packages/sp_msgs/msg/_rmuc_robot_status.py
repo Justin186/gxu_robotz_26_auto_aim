@@ -65,6 +65,7 @@ class RMUCRobotStatus(metaclass=Metaclass_RMUCRobotStatus):
         '_ammo_allow',
         '_outpost_hp',
         '_base_hp',
+        '_enemy_outpost_status',
         '_is_detect_enemy',
     ]
 
@@ -75,6 +76,7 @@ class RMUCRobotStatus(metaclass=Metaclass_RMUCRobotStatus):
         'ammo_allow': 'uint16',
         'outpost_hp': 'uint16',
         'base_hp': 'uint16',
+        'enemy_outpost_status': 'uint32',
         'is_detect_enemy': 'boolean',
     }
 
@@ -85,6 +87,7 @@ class RMUCRobotStatus(metaclass=Metaclass_RMUCRobotStatus):
         rosidl_parser.definition.BasicType('uint16'),  # noqa: E501
         rosidl_parser.definition.BasicType('uint16'),  # noqa: E501
         rosidl_parser.definition.BasicType('uint16'),  # noqa: E501
+        rosidl_parser.definition.BasicType('uint32'),  # noqa: E501
         rosidl_parser.definition.BasicType('boolean'),  # noqa: E501
     )
 
@@ -99,6 +102,7 @@ class RMUCRobotStatus(metaclass=Metaclass_RMUCRobotStatus):
         self.ammo_allow = kwargs.get('ammo_allow', int())
         self.outpost_hp = kwargs.get('outpost_hp', int())
         self.base_hp = kwargs.get('base_hp', int())
+        self.enemy_outpost_status = kwargs.get('enemy_outpost_status', int())
         self.is_detect_enemy = kwargs.get('is_detect_enemy', bool())
 
     def __repr__(self):
@@ -141,6 +145,8 @@ class RMUCRobotStatus(metaclass=Metaclass_RMUCRobotStatus):
         if self.outpost_hp != other.outpost_hp:
             return False
         if self.base_hp != other.base_hp:
+            return False
+        if self.enemy_outpost_status != other.enemy_outpost_status:
             return False
         if self.is_detect_enemy != other.is_detect_enemy:
             return False
@@ -239,6 +245,21 @@ class RMUCRobotStatus(metaclass=Metaclass_RMUCRobotStatus):
             assert value >= 0 and value < 65536, \
                 "The 'base_hp' field must be an unsigned integer in [0, 65535]"
         self._base_hp = value
+
+    @builtins.property
+    def enemy_outpost_status(self):
+        """Message field 'enemy_outpost_status'."""
+        return self._enemy_outpost_status
+
+    @enemy_outpost_status.setter
+    def enemy_outpost_status(self, value):
+        if __debug__:
+            assert \
+                isinstance(value, int), \
+                "The 'enemy_outpost_status' field must be of type 'int'"
+            assert value >= 0 and value < 4294967296, \
+                "The 'enemy_outpost_status' field must be an unsigned integer in [0, 4294967295]"
+        self._enemy_outpost_status = value
 
     @builtins.property
     def is_detect_enemy(self):

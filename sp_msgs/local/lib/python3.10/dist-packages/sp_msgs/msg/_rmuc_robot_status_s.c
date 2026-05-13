@@ -110,6 +110,15 @@ bool sp_msgs__msg__rmuc_robot_status__convert_from_py(PyObject * _pymsg, void * 
     ros_message->base_hp = (uint16_t)PyLong_AsUnsignedLong(field);
     Py_DECREF(field);
   }
+  {  // enemy_outpost_status
+    PyObject * field = PyObject_GetAttrString(_pymsg, "enemy_outpost_status");
+    if (!field) {
+      return false;
+    }
+    assert(PyLong_Check(field));
+    ros_message->enemy_outpost_status = PyLong_AsUnsignedLong(field);
+    Py_DECREF(field);
+  }
   {  // is_detect_enemy
     PyObject * field = PyObject_GetAttrString(_pymsg, "is_detect_enemy");
     if (!field) {
@@ -204,6 +213,17 @@ PyObject * sp_msgs__msg__rmuc_robot_status__convert_to_py(void * raw_ros_message
     field = PyLong_FromUnsignedLong(ros_message->base_hp);
     {
       int rc = PyObject_SetAttrString(_pymessage, "base_hp", field);
+      Py_DECREF(field);
+      if (rc) {
+        return NULL;
+      }
+    }
+  }
+  {  // enemy_outpost_status
+    PyObject * field = NULL;
+    field = PyLong_FromUnsignedLong(ros_message->enemy_outpost_status);
+    {
+      int rc = PyObject_SetAttrString(_pymessage, "enemy_outpost_status", field);
       Py_DECREF(field);
       if (rc) {
         return NULL;

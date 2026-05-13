@@ -45,6 +45,7 @@ public:
     const std::string & config_path);
   ~Perceptron();
 
+  void set_fps_enabled(bool enabled);
   void clear_side_buffers();
   bool get_latest_left_image(cv::Mat & img);
   bool get_latest_right_image(cv::Mat & img);
@@ -68,6 +69,7 @@ private:
   bool detect_left_once();
   bool detect_right_once();
   void detection_loop();
+  void count_side_fps();
   DetectStatus take_cached_detection(bool left, DetectionResult & result);
 
   LeftImageReader left_reader_;
@@ -81,6 +83,9 @@ private:
   std::list<auto_aim::Armor> latest_right_armors_;
   CachedDetection left_detection_;
   CachedDetection right_detection_;
+  bool fps_enabled_ = false;
+  int side_fps_count_ = 0;
+  std::chrono::steady_clock::time_point side_fps_time_{};
   std::atomic<bool> quit_{false};
   std::thread detection_thread_;
 

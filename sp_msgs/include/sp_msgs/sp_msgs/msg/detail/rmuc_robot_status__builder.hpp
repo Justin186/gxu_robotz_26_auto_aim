@@ -37,16 +37,32 @@ private:
   ::sp_msgs::msg::RMUCRobotStatus msg_;
 };
 
+class Init_RMUCRobotStatus_enemy_outpost_status
+{
+public:
+  explicit Init_RMUCRobotStatus_enemy_outpost_status(::sp_msgs::msg::RMUCRobotStatus & msg)
+  : msg_(msg)
+  {}
+  Init_RMUCRobotStatus_is_detect_enemy enemy_outpost_status(::sp_msgs::msg::RMUCRobotStatus::_enemy_outpost_status_type arg)
+  {
+    msg_.enemy_outpost_status = std::move(arg);
+    return Init_RMUCRobotStatus_is_detect_enemy(msg_);
+  }
+
+private:
+  ::sp_msgs::msg::RMUCRobotStatus msg_;
+};
+
 class Init_RMUCRobotStatus_base_hp
 {
 public:
   explicit Init_RMUCRobotStatus_base_hp(::sp_msgs::msg::RMUCRobotStatus & msg)
   : msg_(msg)
   {}
-  Init_RMUCRobotStatus_is_detect_enemy base_hp(::sp_msgs::msg::RMUCRobotStatus::_base_hp_type arg)
+  Init_RMUCRobotStatus_enemy_outpost_status base_hp(::sp_msgs::msg::RMUCRobotStatus::_base_hp_type arg)
   {
     msg_.base_hp = std::move(arg);
-    return Init_RMUCRobotStatus_is_detect_enemy(msg_);
+    return Init_RMUCRobotStatus_enemy_outpost_status(msg_);
   }
 
 private:

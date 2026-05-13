@@ -50,6 +50,15 @@ typedef struct sp_msgs__msg__RMUCRobotStatus
   uint16_t outpost_hp;
   /// offset 14: 基地血量
   uint16_t base_hp;
+  /// ── 状态标志位 ──
+  /// [1B] 敌方前哨站状态 (outpost_status)
+  /// 0: 无敌
+  /// 1: 存活, 解除无敌, 中部装甲旋转
+  /// 2: 存活, 解除无敌, 中部装甲停转
+  /// 3: 被击毁, 不可重建
+  /// 4: 被击毁, 可重建
+  /// 5: 被击毁, 重建中
+  uint32_t enemy_outpost_status;
   /// ── 视觉检测 ──
   /// [1B] 是否检测到敌人
   bool is_detect_enemy;

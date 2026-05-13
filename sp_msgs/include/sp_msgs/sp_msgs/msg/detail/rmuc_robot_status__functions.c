@@ -31,6 +31,7 @@ sp_msgs__msg__RMUCRobotStatus__init(sp_msgs__msg__RMUCRobotStatus * msg)
   // ammo_allow
   // outpost_hp
   // base_hp
+  // enemy_outpost_status
   // is_detect_enemy
   return true;
 }
@@ -48,6 +49,7 @@ sp_msgs__msg__RMUCRobotStatus__fini(sp_msgs__msg__RMUCRobotStatus * msg)
   // ammo_allow
   // outpost_hp
   // base_hp
+  // enemy_outpost_status
   // is_detect_enemy
 }
 
@@ -83,6 +85,10 @@ sp_msgs__msg__RMUCRobotStatus__are_equal(const sp_msgs__msg__RMUCRobotStatus * l
   if (lhs->base_hp != rhs->base_hp) {
     return false;
   }
+  // enemy_outpost_status
+  if (lhs->enemy_outpost_status != rhs->enemy_outpost_status) {
+    return false;
+  }
   // is_detect_enemy
   if (lhs->is_detect_enemy != rhs->is_detect_enemy) {
     return false;
@@ -114,6 +120,8 @@ sp_msgs__msg__RMUCRobotStatus__copy(
   output->outpost_hp = input->outpost_hp;
   // base_hp
   output->base_hp = input->base_hp;
+  // enemy_outpost_status
+  output->enemy_outpost_status = input->enemy_outpost_status;
   // is_detect_enemy
   output->is_detect_enemy = input->is_detect_enemy;
   return true;

@@ -48,6 +48,7 @@ struct RMUCRobotStatus_
       this->ammo_allow = 0;
       this->outpost_hp = 0;
       this->base_hp = 0;
+      this->enemy_outpost_status = 0ul;
       this->is_detect_enemy = false;
     }
   }
@@ -63,6 +64,7 @@ struct RMUCRobotStatus_
       this->ammo_allow = 0;
       this->outpost_hp = 0;
       this->base_hp = 0;
+      this->enemy_outpost_status = 0ul;
       this->is_detect_enemy = false;
     }
   }
@@ -86,6 +88,9 @@ struct RMUCRobotStatus_
   using _base_hp_type =
     uint16_t;
   _base_hp_type base_hp;
+  using _enemy_outpost_status_type =
+    uint32_t;
+  _enemy_outpost_status_type enemy_outpost_status;
   using _is_detect_enemy_type =
     bool;
   _is_detect_enemy_type is_detect_enemy;
@@ -125,6 +130,12 @@ struct RMUCRobotStatus_
     const uint16_t & _arg)
   {
     this->base_hp = _arg;
+    return *this;
+  }
+  Type & set__enemy_outpost_status(
+    const uint32_t & _arg)
+  {
+    this->enemy_outpost_status = _arg;
     return *this;
   }
   Type & set__is_detect_enemy(
@@ -192,6 +203,9 @@ struct RMUCRobotStatus_
       return false;
     }
     if (this->base_hp != other.base_hp) {
+      return false;
+    }
+    if (this->enemy_outpost_status != other.enemy_outpost_status) {
       return false;
     }
     if (this->is_detect_enemy != other.is_detect_enemy) {

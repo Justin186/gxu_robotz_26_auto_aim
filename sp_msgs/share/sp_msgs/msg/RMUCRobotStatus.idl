@@ -48,6 +48,18 @@ module sp_msgs {
       uint16 base_hp;
 
       @verbatim (language="comment", text=
+        "── 状态标志位 ──" "\n"
+        "[1B] 敌方前哨站状态 (outpost_status)" "\n"
+        "0: 无敌" "\n"
+        "1: 存活, 解除无敌, 中部装甲旋转" "\n"
+        "2: 存活, 解除无敌, 中部装甲停转" "\n"
+        "3: 被击毁, 不可重建" "\n"
+        "4: 被击毁, 可重建" "\n"
+        "5: 被击毁, 重建中")
+      @unit (value="1B")
+      uint32 enemy_outpost_status;
+
+      @verbatim (language="comment", text=
         "── 视觉检测 ──" "\n"
         "[1B] 是否检测到敌人")
       @unit (value="1B")

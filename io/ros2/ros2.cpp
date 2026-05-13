@@ -46,7 +46,7 @@ void ROS2::publish_robot_status(const sp_msgs::msg::RMUCRobotStatus & msg)
   robot_status_publish_started_ = true;
   last_robot_status_publish_time_ = now;
   robot_status_publisher_->publish(msg);
-  // tools::logger()->debug("publish robot_status");
+  tools::logger()->debug("publish robot_status");
 }
 void ROS2::publish_game_status(const sp_msgs::msg::RMUCGameStatus & msg) { game_status_publisher_->publish(msg); }
 void ROS2::publish_robot_buff(const sp_msgs::msg::RMUCRobotBuff & msg) { robot_buff_publisher_->publish(msg); }

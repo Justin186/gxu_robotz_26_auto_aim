@@ -3,6 +3,8 @@
 #include "io/usbcamera/usbcamera.hpp"
 #include "tasks/auto_aim/yolo.hpp"
 
+#include <iostream>
+
 using namespace std::chrono_literals;
 
 namespace omniperception
@@ -22,6 +24,13 @@ Perceptron::~Perceptron()
   if (detection_thread_.joinable()) {
     detection_thread_.join();
   }
+}
+
+void Perceptron::set_fps_enabled(bool enabled)
+{
+  fps_enabled_ = enabled;
+  side_fps_count_ = 0;
+  side_fps_time_ = std::chrono::steady_clock::now();
 }
 
 void Perceptron::clear_side_buffers()
@@ -116,6 +125,7 @@ bool Perceptron::detect_left_once()
 
   // 这里只返回原始检测结果，后续过滤、排序、角度换算都在 Decider 里做
   auto armors = yolo_side_->detect(img);
+  count_side_fps();
   {
     std::lock_guard<std::mutex> lock(debug_image_mutex_);
     latest_left_armors_ = armors;
@@ -150,6 +160,7 @@ bool Perceptron::detect_right_once()
   }
 
   auto armors = yolo_side_->detect(img);
+  count_side_fps();
   {
     std::lock_guard<std::mutex> lock(debug_image_mutex_);
     latest_right_armors_ = armors;
@@ -168,6 +179,22 @@ bool Perceptron::detect_right_once()
   right_detection_.result = std::move(result);
   right_detection_.has_update = true;
   return true;
+}
+
+void Perceptron::count_side_fps()
+{
+  if (!fps_enabled_) {
+    return;
+  }
+
+  side_fps_count_++;
+  auto now = std::chrono::steady_clock::now();
+  auto elapsed = std::chrono::duration<double>(now - side_fps_time_).count();
+  if (elapsed >= 1.0) {
+    std::cout << "[FPS] side_yolo: " << side_fps_count_ / elapsed << std::endl;
+    side_fps_count_ = 0;
+    side_fps_time_ = now;
+  }
 }
 
 void Perceptron::detection_loop()
