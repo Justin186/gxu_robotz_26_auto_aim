@@ -16,7 +16,7 @@ namespace auto_aim
 class YOLOV5 : public YOLOBase
 {
 public:
-  YOLOV5(const std::string & config_path, bool debug);
+  YOLOV5(const std::string & config_path, bool debug, bool is_side_yolo = false);
 
   std::list<Armor> detect(const cv::Mat & bgr_img, int frame_count) override;
 

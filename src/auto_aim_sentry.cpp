@@ -91,13 +91,13 @@ int main(int argc, char * argv[])
           first_scan = false;
         }
 
-        double delta_angle = 120; // 哨兵扫描：yaw 每秒旋转度数
-        double amplitude = 20.0;   // 哨兵扫描：pitch 上下扫动幅度(度)
-        double period = 0.6;       // 哨兵扫描：pitch 扫动周期(秒)
+        double delta_angle = 60; // 哨兵扫描：yaw 每秒旋转度数
+        double amplitude = 15.0;   // 哨兵扫描：pitch 上下扫动幅度(度)
+        double period = 0.8;       // 哨兵扫描：pitch 扫动周期(秒)
 
         scan_cmd_angle += delta_angle * dt;
         double yaw = tools::limit_rad(scan_cmd_angle / 57.3);
-        double pitch = tools::limit_rad(amplitude * std::sin(2 * M_PI * scan_t / period) / 57.3 - 0.1);
+        double pitch = tools::limit_rad(amplitude * std::sin(2 * M_PI * scan_t / period) / 57.3 + 0.03);
         
         gimbal.send(true, false, yaw, 0, 0, pitch, 0, 0);
 

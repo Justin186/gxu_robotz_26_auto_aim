@@ -19,7 +19,7 @@ public:
 class YOLO
 {
 public:
-  YOLO(const std::string & config_path, bool debug = true);
+  YOLO(const std::string & config_path, bool debug = true, bool is_side_yolo = false);
 
   std::list<Armor> detect(const cv::Mat & img, int frame_count = -1);
 

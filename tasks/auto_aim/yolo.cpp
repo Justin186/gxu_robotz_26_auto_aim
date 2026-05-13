@@ -8,7 +8,7 @@
 
 namespace auto_aim
 {
-YOLO::YOLO(const std::string & config_path, bool debug)
+YOLO::YOLO(const std::string & config_path, bool debug, bool is_side_yolo)
 {
   auto yaml = YAML::LoadFile(config_path);
   auto yolo_name = yaml["yolo_name"].as<std::string>();
@@ -22,7 +22,7 @@ YOLO::YOLO(const std::string & config_path, bool debug)
   }
 
   else if (yolo_name == "yolov5") {
-    yolo_ = std::make_unique<YOLOV5>(config_path, debug);
+    yolo_ = std::make_unique<YOLOV5>(config_path, debug, is_side_yolo);
   }
 
   else {

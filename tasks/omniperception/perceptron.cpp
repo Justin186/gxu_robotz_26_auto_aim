@@ -14,7 +14,7 @@ Perceptron::Perceptron(
   const std::string & config_path)
 : left_reader_(std::move(left_reader)), left_clearer_(std::move(left_clearer)), right_cam_(right_cam)
 {
-  yolo_side_ = std::make_shared<auto_aim::YOLO>(config_path, false);
+  yolo_side_ = std::make_shared<auto_aim::YOLO>(config_path, false, true);
   detection_thread_ = std::thread(&Perceptron::detection_loop, this);
 }
 

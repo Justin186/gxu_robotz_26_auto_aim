@@ -4,13 +4,14 @@
 #include <yaml-cpp/yaml.h>
 
 #include <filesystem>
+#include <thread>
 
 #include "tools/img_tools.hpp"
 #include "tools/logger.hpp"
 
 namespace auto_aim
 {
-YOLOV5::YOLOV5(const std::string & config_path, bool debug)
+YOLOV5::YOLOV5(const std::string & config_path, bool debug, bool is_side_yolo)
 : debug_(debug), detector_(config_path, false)
 {
   auto yaml = YAML::LoadFile(config_path);
@@ -50,8 +51,19 @@ YOLOV5::YOLOV5(const std::string & config_path, bool debug)
 
   // TODO: ov::hint::performance_mode(ov::hint::PerformanceMode::LATENCY)
   model = ppp.build();
-  compiled_model_ = core_.compile_model(
-    model, device_, ov::hint::performance_mode(ov::hint::PerformanceMode::LATENCY));
+  if (is_side_yolo) {
+    compiled_model_ = core_.compile_model(
+      model, device_,
+      ov::hint::performance_mode(ov::hint::PerformanceMode::THROUGHPUT),
+      ov::inference_num_threads(std::thread::hardware_concurrency()),
+      ov::num_streams(ov::streams::AUTO),
+      ov::hint::enable_cpu_pinning(true),
+      ov::hint::enable_hyper_threading(true),
+      ov::hint::scheduling_core_type(ov::hint::SchedulingCoreType::ANY_CORE));
+  } else {
+    compiled_model_ = core_.compile_model(
+      model, device_, ov::hint::performance_mode(ov::hint::PerformanceMode::LATENCY));
+  }
 }
 
 std::list<Armor> YOLOV5::detect(const cv::Mat & raw_img, int frame_count)

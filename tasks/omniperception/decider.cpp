@@ -192,7 +192,7 @@ std::optional<DetectionResult> Decider::choose_switch_candidate(
 
 Decider::ScanResult Decider::omni_scan(double dt)
 {
-  constexpr double delta_angle = 30.0;
+  constexpr double delta_angle = 50.0;
   constexpr double amplitude = 20.0;
   constexpr double period = 0.8;
 
@@ -223,7 +223,7 @@ Decider::ScanResult Decider::short_lost_scan(double start_yaw_deg, double dt)
     start_yaw_deg - yaw_amplitude * std::sin(2 * M_PI * scan_state_.scan_t / yaw_period);
   const double yaw = tools::limit_rad(yaw_deg / 57.3);
   const double pitch = tools::limit_rad(
-    pitch_amplitude * std::sin(2 * M_PI * scan_state_.scan_t / pitch_period) / 57.3 - 0.03);
+    pitch_amplitude * std::sin(2 * M_PI * scan_state_.scan_t / pitch_period) / 57.3 + 0.03);
 
   return {yaw, pitch};
 }
