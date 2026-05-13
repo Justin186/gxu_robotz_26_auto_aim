@@ -41,7 +41,8 @@ private:
   rclcpp::Publisher<sp_msgs::msg::RMUCRobotBuff>::SharedPtr robot_buff_publisher_;
   std::shared_ptr<Subscribe2Nav> subscribe2nav_;
   std::mutex robot_status_publish_mutex_;
-  std::chrono::steady_clock::time_point last_robot_status_publish_time_;
+  std::chrono::steady_clock::time_point last_robot_status_publish_time_{};
+  bool robot_status_publish_started_ = false;
 
   std::unique_ptr<std::thread> publish_spin_thread_;
   std::unique_ptr<std::thread> subscribe_spin_thread_;

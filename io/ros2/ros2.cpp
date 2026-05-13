@@ -8,7 +8,6 @@ ROS2::ROS2()
 {
   rclcpp::init(0, nullptr);
   node_ = std::make_shared<rclcpp::Node>("ros2_interface_node");
-  last_robot_status_publish_time_ = std::chrono::steady_clock::time_point::min();
   robot_status_publisher_ = node_->create_publisher<sp_msgs::msg::RMUCRobotStatus>("/robot_status", 10);
   game_status_publisher_ = node_->create_publisher<sp_msgs::msg::RMUCGameStatus>("/game_status", 10);
   robot_buff_publisher_ = node_->create_publisher<sp_msgs::msg::RMUCRobotBuff>("/robot_buff", 10);
@@ -37,13 +36,17 @@ void ROS2::publish_robot_status(const sp_msgs::msg::RMUCRobotStatus & msg)
   const auto publish_interval = std::chrono::milliseconds(100);
 
   std::lock_guard<std::mutex> lock(robot_status_publish_mutex_);
-  if (now - last_robot_status_publish_time_ < publish_interval) {
+  if (
+    robot_status_publish_started_ &&
+    now - last_robot_status_publish_time_ < publish_interval)
+  {
     return;
   }
 
+  robot_status_publish_started_ = true;
   last_robot_status_publish_time_ = now;
   robot_status_publisher_->publish(msg);
-    tools::logger()->debug("publish robot_status");
+  // tools::logger()->debug("publish robot_status");
 }
 void ROS2::publish_game_status(const sp_msgs::msg::RMUCGameStatus & msg) { game_status_publisher_->publish(msg); }
 void ROS2::publish_robot_buff(const sp_msgs::msg::RMUCRobotBuff & msg) { robot_buff_publisher_->publish(msg); }
