@@ -67,17 +67,17 @@ max_temp_lost_count: 25
 outpost_max_temp_lost_count: 75
 
 #####-----aimer参数-----#####
-yaw_offset: -0.65 # degree -2.5
-pitch_offset: 4  # degree 2
+yaw_offset: 0 # degree -2.5
+pitch_offset: 0.65  # degree 2
 comming_angle: 55 # degree
 leaving_angle: 20 # degree
 left_yaw_offset: -1
 right_yaw_offset: -0.6
 decision_speed: 10 # rad/s
 high_speed_delay_time: 0.026 # s
-low_speed_delay_time: 0.006 # s
-max_armor_angle: 25 # degree
-defult_bullet_speed: 21.11 # m/s
+low_speed_delay_time: 0.050 # s
+max_armor_angle: 10 # degree
+defult_bullet_speed: 22 # m/s
 
 #####-----shooter参数-----#####
 first_tolerance: 5 # 近距离射击容差，degree
@@ -93,9 +93,9 @@ R_gimbal2imubody: [1, 0, 0, 0, 1, 0,  0, 0, 1]
 # 重投影误差: 0.0787px
 camera_matrix: [2365.2292710685488, 0, 717.84874030069716, 0, 2365.2595057507042, 507.10051676922996, 0, 0, 1]
 distort_coeffs: [-0.053032056252978271, 0.12304744809762919, -0.00083306525109508019, 0.00044012934474125322, 0]
-# 相机同理想情况的偏角: yaw0.56 pitch1.05 roll0.41 degree
-R_camera2gimbal: [0, 0, 1, -1, 0, 0, 0, -1, 0]
-t_camera2gimbal: [0.10751, 0.06, 0.0815]
+# 相机同理想情况的偏角: yaw0.86 pitch0.90 roll-0.70 degree
+R_camera2gimbal: [-0.005363505111270871, 0.010406891295026864, 0.999931462364543666, -0.999910993074167975, -0.012271659158532851, -0.005235676740200547, 0.012216330969339833, -0.999870543117992949, 0.010471784116245792]
+t_camera2gimbal: [0.09943263287787589, 0.002207428336672681, 0.078171412409120872]
 
 #####-----planner-----#####
 fire_thresh: 0.001

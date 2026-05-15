@@ -11,7 +11,7 @@ YOLO11_BUFF::YOLO11_BUFF(const std::string & config)
   model = core.read_model(model_path);
   // printInputAndOutputsInfo(*model);  // 打印模型信息
   /// 载入并编译模型
-  compiled_model = core.compile_model(model, "CPU");
+  compiled_model = core.compile_model(model, "GPU");
   /// 创建推理请求
   infer_request = compiled_model.create_infer_request();
   // 获取模型输入节点

@@ -164,6 +164,7 @@ int main(int argc, char * argv[])
         if (f) fire_duty += 1.0;
       }
       fire_duty /= fire_history.size();
+      auto ypr = tools::eulers(q_gimbal, 2, 1, 0);
 
       // 因为 Rerun 自动对子层应用正向旋转，这正好抵消了我们刚刚乘的逆向转置矩阵（且R_gimbal矩阵已被正确修复），现在肯定完全水平了！
       if (do_rerun) { 
@@ -172,7 +173,7 @@ int main(int argc, char * argv[])
         );
         rec->log("yaw/plan_yaw", rerun::Scalars(plan.yaw));
         rec->log("yaw/target_yaw", rerun::Scalars(plan.target_yaw));
-        rec->log("yaw/gimbal_yaw", rerun::Scalars(gs.yaw));
+        rec->log("yaw/gimbal_yaw", rerun::Scalars(ypr[0]));
         rec->log("yaw/gimbal_yaw_vel", rerun::Scalars(gs.yaw_vel));
         rec->log("yaw/plan_yaw_vel", rerun::Scalars(plan.yaw_vel));
         rec->log("yaw/plan_yaw_acc", rerun::Scalars(plan.yaw_acc));
@@ -180,7 +181,7 @@ int main(int argc, char * argv[])
 
         rec->log("pitch/plan_pitch", rerun::Scalars(plan.pitch));
         rec->log("pitch/target_pitch", rerun::Scalars(plan.target_pitch));
-        rec->log("pitch/gimbal_pitch", rerun::Scalars(gs.pitch));
+        rec->log("pitch/gimbal_pitch", rerun::Scalars(-ypr[1]));
         rec->log("pitch/plan_pitch_vel", rerun::Scalars(plan.pitch_vel));
         rec->log("pitch/plan_pitch_acc", rerun::Scalars(plan.pitch_acc));
 
