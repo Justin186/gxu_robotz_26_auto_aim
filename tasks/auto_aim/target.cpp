@@ -282,6 +282,20 @@ void Target::update_ypda(const Armor & armor, int id)
   const Eigen::VectorXd & ypr = armor.ypr_in_world;
   Eigen::VectorXd z{{ypd[0], ypd[1], ypd[2], ypr[0]}};  //获得观测量
 
+  // 极端异常观测会把状态一下子拉飞，所以先做一次创新门限。
+  // 这里用的是更新前的预测残差，超过阈值就直接丢弃这一帧。
+  Eigen::VectorXd z_pred = h(ekf_.x);
+  Eigen::VectorXd innovation = z_subtract(z, z_pred);
+  Eigen::MatrixXd S = H * ekf_.P * H.transpose() + R;
+  double nis_pred = innovation.transpose() * S.inverse() * innovation;
+  constexpr double nis_gate_threshold = 16.0;
+  if (nis_pred > nis_gate_threshold) {
+    tools::logger()->warn(
+      "[Target] Innovation gated, nis={:.3f} > {:.3f}, dropped observation",
+      nis_pred, nis_gate_threshold);
+    return;
+  }
+
   ekf_.update(z, H, R, h, z_subtract); // 送进EKF进行更新
   
   // 提取更新后的速度，送入滑动窗口以计算真实的物理加速度
@@ -302,10 +316,17 @@ void Target::update_ypda(const Armor & armor, int id)
     if (dt_history > 0.05) { // 确保有足够的时间跨度防止除数过小放大噪声
       double true_acc = (velocity_history_.back().second - velocity_history_.front().second).norm() / dt_history;
       double true_w_acc = std::abs(w_history_.back().second - w_history_.front().second) / dt_history;
+
+      // 观测不稳定时，EKF 的速度估计会抖得很厉害，这时不要把噪声当成真实机动。
+      // 只有在目标已经基本收敛、且近期创新检验没有大量失败时才启用机动判定。
+      const double recent_nis_fail_rate = ekf_.data.at("recent_nis_failures");
+      const bool tracking_stable = convergened() && recent_nis_fail_rate < 0.2 && !is_switch_;
       
       // 真实加速度大于 5 m/s^2 或角加速度大于 10 rad/s^2 判定为强机动
-      if (true_acc > 5.0 || true_w_acc > 10.0) {
-        tools::logger()->warn("[Target] Acceleration/Maneuver Detected! a: {:.3f} m/s^2, w_acc: {:.3f} rad/s^2", true_acc, true_w_acc);
+      if (tracking_stable && (true_acc > 5.0 || true_w_acc > 10.0)) {
+        tools::logger()->warn(
+          "[Target] Acceleration/Maneuver Detected! a: {:.3f} m/s^2, w_acc: {:.3f} rad/s^2",
+          true_acc, true_w_acc);
         maneuver_ticks = 10; // 设置机动状态，暂缓开火
       } else {
         if (maneuver_ticks > 0) maneuver_ticks--;

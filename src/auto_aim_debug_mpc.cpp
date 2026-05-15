@@ -39,7 +39,7 @@ int main(int argc, char * argv[])
   cv::CommandLineParser cli(argc, argv, keys);
   auto config_path = cli.get<std::string>(0);
   auto rerun_ip = cli.get<std::string>("ip");
-  auto fire = cli.get<bool>("f");
+  std::atomic<bool> fire_flag{cli.get<bool>("f")};
   auto imshow = cli.get<bool>("imshow");
   auto rerun = cli.get<bool>("rerun");
 
@@ -92,12 +92,17 @@ int main(int argc, char * argv[])
       // auto plan = planner.plan(target, gs.bullet_speed);
 
       gimbal.send(
-        plan.control, plan.fire && fire,
+        plan.control, plan.fire && fire_flag.load(),
         plan.v_yaw, plan.yaw_vel, plan.yaw_acc,
         plan.v_pitch, plan.pitch_vel, plan.pitch_acc);
 
       auto fired = gs.bullet_count > last_bullet_count;
       last_bullet_count = gs.bullet_count;
+
+      // 始终即时发送 fired 到 Rerun（不走缩频），以免丢失发射事件
+      if (rec.has_value()) {
+        rec->log("fire/fired", rerun::Scalars(fired ? 1.0f : 0.0f));
+      }
 
       // 实时记录一下yaw和pitch的角度，让它们在Rerun上产生时间序列图表，类似PlotJuggler
       auto current_time = std::chrono::steady_clock::now();
@@ -176,6 +181,7 @@ int main(int argc, char * argv[])
         rec->log("fire/bullet_speed", rerun::Scalars(gs.bullet_speed));
         rec->log("fire/fired", rerun::Scalars(fired ? 1.0f : 0.0f));
         rec->log("fire/plan_fire", rerun::Scalars(plan.fire ? 1.0f : 0.0f));
+        rec->log("fire/true_fire", rerun::Scalars(plan.fire && fire_flag.load() ? 1.0f : 0.0f));
         rec->log("fire/duty_cycle", rerun::Scalars(fire_duty));
       }
 
@@ -338,12 +344,20 @@ int main(int argc, char * argv[])
       }
 
       tools::draw_text(img, fmt::format("FPS: {:.2f}", fps), {10, 30});
+      // 显示当前开火状态
+      tools::draw_text(img, fmt::format("FIRE: {}", fire_flag.load() ? "ON" : "OFF"), {10, 50});
       cv::resize(img, img, {}, 0.5, 0.5);  // 显示时缩小图片尺寸
       cv::imshow("reprojection", img);
     }
     if (rerun) rec->log("scalar/fps", rerun::Scalars((float)fps));
     auto key = cv::waitKey(1);
     if (key == 'q') break;
+    if (key == 'f' || key == 'F') {
+      // 切换开火标志（线程安全）并打印
+      bool newv = !fire_flag.load();
+      fire_flag.store(newv);
+      fmt::print("fire -> {}\n", newv ? "ON" : "OFF");
+    }
   }
 
   quit = true;

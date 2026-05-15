@@ -32,9 +32,9 @@ Planner::Planner(const std::string & config_path)
 Plan Planner::plan(Target target, double bullet_speed, double current_yaw, double current_pitch)
 {
   // 0. Check bullet speed
-  if (bullet_speed < 10 || bullet_speed > 25) {
+  // if (bullet_speed < 10 || bullet_speed > 25) {
     bullet_speed = defult_bullet_speed_;
-  }
+  // }
 
   // 1. Predict fly_time
   Eigen::Vector3d xyz;
@@ -61,7 +61,14 @@ Plan Planner::plan(Target target, double bullet_speed, double current_yaw, doubl
     debug_xyza = final_aim_xyza; // 恢复真正的击打点供外部红框绘制
   } catch (const std::exception & e) {
     tools::logger()->warn("Unsolvable target {:.2f}", bullet_speed);
-    return {false};
+    Plan empty_plan{};
+    empty_plan.control = false;
+    empty_plan.fire = false;
+    empty_plan.yaw = current_yaw;
+    empty_plan.pitch = current_pitch;
+    empty_plan.v_yaw = current_yaw;
+    empty_plan.v_pitch = current_pitch;
+    return empty_plan;
   }
 
   // 3. Solve yaw
@@ -120,7 +127,16 @@ Plan Planner::plan(
   std::optional<Target> target, double bullet_speed, double current_yaw, double current_pitch,
   std::optional<std::chrono::steady_clock::time_point> current_time)
 {
-  if (!target.has_value()) return {false};
+  if (!target.has_value()) {
+    Plan empty_plan{};
+    empty_plan.control = false;
+    empty_plan.fire = false;
+    empty_plan.yaw = current_yaw;
+    empty_plan.pitch = current_pitch;
+    empty_plan.v_yaw = current_yaw;
+    empty_plan.v_pitch = current_pitch;
+    return empty_plan;
+  }
 
   double delay_time =
     std::abs(target->ekf_x()[7]) > decision_speed_ ? high_speed_delay_time_ : low_speed_delay_time_;
