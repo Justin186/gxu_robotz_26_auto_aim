@@ -4,6 +4,7 @@
 #include <Eigen/Geometry>
 #include <atomic>
 #include <chrono>
+#include <deque>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -25,8 +26,8 @@ struct __attribute__((packed)) GimbalToVision
   float pitch_vel;
   float bullet_speed;
   uint16_t bullet_count;  // 子弹累计发送次数
-  uint8_t yaw_offset;
-  uint8_t pitch_offset;
+  int8_t yaw_offset;
+  int8_t pitch_offset;
   uint16_t crc16;
 };
 
@@ -63,8 +64,8 @@ struct GimbalState
   float pitch_vel;
   float bullet_speed;
   uint16_t bullet_count;
-  uint8_t yaw_offset;
-  uint8_t pitch_offset;
+  int8_t yaw_offset;
+  int8_t pitch_offset;
 };
 
 class Gimbal
@@ -98,6 +99,7 @@ private:
 
   GimbalMode mode_ = GimbalMode::IDLE;
   GimbalState state_;
+  std::deque<float> bullet_speed_history_;
   tools::ThreadSafeQueue<std::tuple<Eigen::Quaterniond, std::chrono::steady_clock::time_point>>
     queue_{1000};
 
