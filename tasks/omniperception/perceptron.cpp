@@ -33,6 +33,11 @@ void Perceptron::set_fps_enabled(bool enabled)
   side_fps_time_ = std::chrono::steady_clock::now();
 }
 
+void Perceptron::set_enabled(bool enabled)
+{
+  enabled_ = enabled;
+}
+
 void Perceptron::clear_side_buffers()
 {
   // 主相机重新接管时，把侧向残留旧帧清掉，避免后面误用旧目标
@@ -201,6 +206,11 @@ void Perceptron::detection_loop()
 {
   bool detect_left_next = true;
   while (!quit_) {
+    if (!enabled_) {
+      std::this_thread::sleep_for(5ms);
+      continue;
+    }
+
     const bool got_frame = detect_left_next ? detect_left_once() : detect_right_once();
     detect_left_next = !detect_left_next;
 

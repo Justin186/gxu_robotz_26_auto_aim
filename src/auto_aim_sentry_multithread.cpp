@@ -16,6 +16,7 @@
 #include "tasks/omniperception/perceptron.hpp"
 #include "tools/exiter.hpp"
 #include "tools/math_tools.hpp"
+#include "tools/recorder.hpp"
 #include "tools/thread_safe_queue.hpp"
 
 using namespace std::chrono_literals;
@@ -23,6 +24,7 @@ using namespace std::chrono_literals;
 const std::string keys =
   "{help h usage ? |                        | output help}"
   "{fps            | false                  | print yolo fps}"
+  "{v              | true                   | record main camera video}"
   "{@config-path   | configs/sentry.yaml | yaml config path}";
 
 int main(int argc, char * argv[])
@@ -32,10 +34,14 @@ int main(int argc, char * argv[])
   cv::CommandLineParser cli(argc, argv, keys);
   auto config_path = cli.get<std::string>(0);
   const bool print_fps = cli.get<bool>("fps");
+  const bool record_video = cli.get<bool>("v");
   if (cli.has("help") || config_path.empty()) {
     cli.printMessage();
     return 0;
   }
+
+  std::optional<tools::Recorder> recorder;
+  if (record_video) recorder.emplace(30);
 
   io::GimbalNode gimbal(config_path);
   io::Camera camera(config_path);
@@ -97,6 +103,7 @@ int main(int argc, char * argv[])
           last_mode != omniperception::Decider::OmniMode::tracking) {
         perceptron.clear_side_buffers();
       }
+      perceptron.set_enabled(current_mode == omniperception::Decider::OmniMode::scan);
 
       if (current_mode == omniperception::Decider::OmniMode::tracking) {
         last_scan_command.reset();
@@ -164,6 +171,9 @@ int main(int argc, char * argv[])
 
     auto q = gimbal.q(timestamp);
     solver.set_R_gimbal2world(q);
+    if (record_video && recorder.has_value()) {
+      recorder->record(img, q, timestamp);
+    }
 
     auto armors = yolo.detect(img);
     if (print_fps) {

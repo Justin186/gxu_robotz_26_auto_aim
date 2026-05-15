@@ -46,6 +46,7 @@ public:
   ~Perceptron();
 
   void set_fps_enabled(bool enabled);
+  void set_enabled(bool enabled);
   void clear_side_buffers();
   bool get_latest_left_image(cv::Mat & img);
   bool get_latest_right_image(cv::Mat & img);
@@ -84,6 +85,7 @@ private:
   CachedDetection left_detection_;
   CachedDetection right_detection_;
   bool fps_enabled_ = false;
+  std::atomic<bool> enabled_{false};
   int side_fps_count_ = 0;
   std::chrono::steady_clock::time_point side_fps_time_{};
   std::atomic<bool> quit_{false};
