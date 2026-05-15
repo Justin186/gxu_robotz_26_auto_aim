@@ -97,9 +97,12 @@ int main(int argc, char * argv[])
   tools::ThreadSafeQueue<std::optional<auto_aim::Target>, true> target_queue(1);
   target_queue.push(std::nullopt);
 
+  std::mutex shared_q_mutex;
+  Eigen::Quaterniond shared_q = Eigen::Quaterniond::Identity();
+  bool shared_q_ready = false;
+
   std::atomic<bool> quit = false;
   auto plan_thread = std::thread([&]() {
-    auto t0 = std::chrono::steady_clock::now();
     uint16_t last_bullet_count = 0;
     
     std::deque<bool> fire_history;
@@ -124,13 +127,19 @@ int main(int argc, char * argv[])
       last_bullet_count = gs.bullet_count;
 
       // 实时记录一下yaw和pitch的角度，让它们在Rerun上产生时间序列图表，类似PlotJuggler
-      auto current_time = std::chrono::steady_clock::now();
-      
       bool do_rerun = rerun && (rerun_counter % rerun_interval == 0);
 
-      // rec.set_time_duration_secs("plots_time", tools::delta_time(current_time, t0));
-      
-      auto q_gimbal = gimbal.q(current_time); // 必须使用当前时间去获取四元数
+      // rec.set_time_duration_secs("plots_time", ...);
+
+      Eigen::Quaterniond q_gimbal;
+      {
+        std::lock_guard<std::mutex> lock(shared_q_mutex);
+        if (!shared_q_ready) {
+          q_gimbal = Eigen::Quaterniond::Identity();
+        } else {
+          q_gimbal = shared_q;
+        }
+      }
       Eigen::Matrix3d R_imubody2world = q_gimbal.toRotationMatrix();
       
       Eigen::Matrix3d R_gimbal2world = R_imubody2world * R_gimbal2imubody;
@@ -352,6 +361,12 @@ int main(int argc, char * argv[])
     last_t = now;
     
     auto q = gimbal.q(t);
+
+    {
+      std::lock_guard<std::mutex> lock(shared_q_mutex);
+      shared_q = q;
+      shared_q_ready = true;
+    }
 
     solver.set_R_gimbal2world(q);
     auto armors = yolo.detect(img);

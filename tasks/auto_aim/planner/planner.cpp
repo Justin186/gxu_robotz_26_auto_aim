@@ -207,8 +207,21 @@ Eigen::Matrix<double, 2, 1> Planner::aim(const Target & target, double bullet_sp
 
   bool is_spinning = std::abs(target.ekf_x()[7]) > 2.0;
 
+  // 暂时：对于装甲板高度不同的目标只选同一高度（选取最低的一组）的板子，防止 pitch 抖动
+  double min_z = 1e10;
+  for (size_t i = 0; i < target_armors.size(); i++) {
+    if (target_armors[i].z() < min_z) {
+      min_z = target_armors[i].z();
+    }
+  }
+
   for (size_t i = 0; i < target_armors.size(); i++) {
     auto & xyza = target_armors[i];
+    // 只过滤掉高度差大于 5cm 的非同高度装甲板
+    if (std::abs(xyza.z() - min_z) > 0.05) {
+      continue;
+    }
+
     auto delta_angle = std::abs(tools::limit_rad(xyza[3] - center_yaw));
     
     // 滞回机制：低速时赋予当前跟踪板子 0.08rad（约4.6°）的倾向性，防止目标抖动导致换板
