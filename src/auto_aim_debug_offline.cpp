@@ -119,7 +119,7 @@ int main(int argc, char * argv[])
       double mock_yaw = eulers[0];
       double mock_pitch = eulers[1];
 
-      auto plan = planner.plan(target, 21, mock_yaw, mock_pitch, current_time);
+      auto plan = planner.plan(target, 21, mock_yaw, mock_pitch, 0.0, 0.0, current_time);
 
       Eigen::Matrix3d R_imubody2world = q_gimbal.toRotationMatrix();
       Eigen::Matrix3d R_gimbal2world = R_imubody2world * R_gimbal2imubody;
