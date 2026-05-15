@@ -25,8 +25,8 @@ struct __attribute__((packed)) GimbalToVision
   float pitch_vel;
   float bullet_speed;
   uint16_t bullet_count;  // 子弹累计发送次数
-  float yaw_offset;
-  float pitch_offset;
+  uint8_t yaw_offset;
+  uint8_t pitch_offset;
   uint16_t crc16;
 };
 
@@ -63,8 +63,8 @@ struct GimbalState
   float pitch_vel;
   float bullet_speed;
   uint16_t bullet_count;
-  float yaw_offset;
-  float pitch_offset;
+  uint8_t yaw_offset;
+  uint8_t pitch_offset;
 };
 
 class Gimbal

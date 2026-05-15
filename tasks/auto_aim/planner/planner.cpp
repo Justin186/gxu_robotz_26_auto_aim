@@ -97,8 +97,10 @@ Plan Planner::plan(
 
   // 补偿云台底层控制的稳态跟踪误差及弹道经验偏置，在此处外部加上
   // 从而使得 Rerun 中显示的 plan.yaw 依旧是纯净的目标轨迹，电控接收到的是带有稳态补偿的指令
-  plan.v_yaw = tools::limit_rad(plan.yaw + yaw_offset_ + yaw_offset);
-  plan.v_pitch = plan.pitch + pitch_offset_ + pitch_offset;
+  auto yaw_offset_from_gimbal = yaw_offset / 10.0 / 57.3;
+  auto pitch_offset_from_gimbal = pitch_offset / 10.0 / 57.3;
+  plan.v_yaw = tools::limit_rad(plan.yaw + yaw_offset_ + yaw_offset_from_gimbal);
+  plan.v_pitch = plan.pitch + pitch_offset_ + pitch_offset_from_gimbal;
 
   auto shoot_offset_ = 1;
   auto center_yaw = std::atan2(target.ekf_x()[2], target.ekf_x()[0]);
