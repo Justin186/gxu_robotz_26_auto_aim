@@ -29,7 +29,9 @@ Planner::Planner(const std::string & config_path)
   setup_pitch_solver(config_path);
 }
 
-Plan Planner::plan(Target target, double bullet_speed, double current_yaw, double current_pitch)
+Plan Planner::plan(
+  Target target, double bullet_speed, double current_yaw, double current_pitch, double yaw_offset,
+  double pitch_offset)
 {
   // 0. Check bullet speed
   if (bullet_speed < 10 || bullet_speed > 25) {
@@ -95,8 +97,8 @@ Plan Planner::plan(Target target, double bullet_speed, double current_yaw, doubl
 
   // 补偿云台底层控制的稳态跟踪误差及弹道经验偏置，在此处外部加上
   // 从而使得 Rerun 中显示的 plan.yaw 依旧是纯净的目标轨迹，电控接收到的是带有稳态补偿的指令
-  plan.v_yaw = tools::limit_rad(plan.yaw + yaw_offset_);
-  plan.v_pitch = plan.pitch + pitch_offset_;
+  plan.v_yaw = tools::limit_rad(plan.yaw + yaw_offset_ + yaw_offset);
+  plan.v_pitch = plan.pitch + pitch_offset_ + pitch_offset;
 
   auto shoot_offset_ = 1;
   auto center_yaw = std::atan2(target.ekf_x()[2], target.ekf_x()[0]);
@@ -118,6 +120,7 @@ Plan Planner::plan(Target target, double bullet_speed, double current_yaw, doubl
 
 Plan Planner::plan(
   std::optional<Target> target, double bullet_speed, double current_yaw, double current_pitch,
+  double yaw_offset, double pitch_offset,
   std::optional<std::chrono::steady_clock::time_point> current_time)
 {
   if (!target.has_value()) return {false};
@@ -130,7 +133,7 @@ Plan Planner::plan(
 
   target->predict(future);
 
-  return plan(*target, bullet_speed, current_yaw, current_pitch);
+  return plan(*target, bullet_speed, current_yaw, current_pitch, yaw_offset, pitch_offset);
 }
 
 void Planner::setup_yaw_solver(const std::string & config_path)

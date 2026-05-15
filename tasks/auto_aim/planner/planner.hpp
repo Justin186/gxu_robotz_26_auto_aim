@@ -38,10 +38,12 @@ public:
   Eigen::Vector4d debug_xyza;
   Planner(const std::string & config_path);
 
-  Plan plan(Target target, double bullet_speed, double current_yaw = 0.0, double current_pitch = 0.0);
+  Plan plan(
+    Target target, double bullet_speed, double current_yaw = 0.0, double current_pitch = 0.0,
+    double yaw_offset = 0.0, double pitch_offset = 0.0);
   Plan plan(
     std::optional<Target> target, double bullet_speed, double current_yaw = 0.0,
-    double current_pitch = 0.0,
+    double current_pitch = 0.0, double yaw_offset = 0.0, double pitch_offset = 0.0,
     std::optional<std::chrono::steady_clock::time_point> current_time = std::nullopt);
 
 private:
