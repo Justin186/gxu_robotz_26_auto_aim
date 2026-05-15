@@ -79,6 +79,7 @@ Eigen::Quaterniond Gimbal::q(std::chrono::steady_clock::time_point t)
 
 void Gimbal::send(io::VisionToGimbal VisionToGimbal)
 {
+  std::lock_guard<std::mutex> serial_lock(serial_mutex_);
   tx_data_.mode = VisionToGimbal.mode;
   tx_data_.yaw = VisionToGimbal.yaw;
   tx_data_.yaw_vel = VisionToGimbal.yaw_vel;
@@ -119,6 +120,7 @@ void Gimbal::send(
 
 bool Gimbal::read(uint8_t * buffer, size_t size)
 {
+  std::lock_guard<std::mutex> serial_lock(serial_mutex_);
   try {
     return serial_.read(buffer, size) == size;
   } catch (const std::exception & e) {
@@ -201,6 +203,7 @@ void Gimbal::read_thread()
 
 void Gimbal::reconnect()
 {
+  std::lock_guard<std::mutex> serial_lock(serial_mutex_);
   int max_retry_count = 10;
   for (int i = 0; i < max_retry_count && !quit_; ++i) {
     tools::logger()->warn("[Gimbal] Reconnecting serial, attempt {}/{}...", i + 1, max_retry_count);
