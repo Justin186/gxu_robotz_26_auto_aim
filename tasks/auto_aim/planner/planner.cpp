@@ -215,7 +215,13 @@ Eigen::Matrix<double, 2, 1> Planner::aim(const Target & target, double bullet_sp
 
   auto azim = std::atan2(xyz.y(), xyz.x());
   auto dist = xyz.head<2>().norm();
-  auto bullet_traj = tools::Trajectory(bullet_speed, dist, xyz.z());
+
+  constexpr double pitch_dist_bias = 5;  // 水平前后偏移
+  constexpr double pitch_z_bias = 0.0;     // 竖直偏移
+  auto bullet_traj = tools::Trajectory(
+    bullet_speed,
+    dist - pitch_dist_bias,
+    xyz.z() - pitch_z_bias);
   if (bullet_traj.unsolvable) throw std::runtime_error("Unsolvable bullet trajectory!");
 
   double yaw_world = tools::limit_rad(azim);
