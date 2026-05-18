@@ -92,7 +92,6 @@ private:
   std::thread thread_;
   std::atomic<bool> quit_ = false;
   mutable std::mutex mutex_;
-  mutable std::mutex serial_mutex_;
 
   GimbalToVision rx_data_;
   VisionToGimbal tx_data_;

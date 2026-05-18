@@ -83,7 +83,6 @@ Eigen::Quaterniond Gimbal::q(std::chrono::steady_clock::time_point t)
 
 void Gimbal::send(io::VisionToGimbal VisionToGimbal)
 {
-  std::lock_guard<std::mutex> serial_lock(serial_mutex_);
   tx_data_.mode = VisionToGimbal.mode;
   tx_data_.yaw = VisionToGimbal.yaw;
   tx_data_.yaw_vel = VisionToGimbal.yaw_vel;
@@ -124,7 +123,6 @@ void Gimbal::send(
 
 bool Gimbal::read(uint8_t * buffer, size_t size)
 {
-  std::lock_guard<std::mutex> serial_lock(serial_mutex_);
   try {
     return serial_.read(buffer, size) == size;
   } catch (const std::exception & e) {
@@ -139,7 +137,7 @@ void Gimbal::read_thread()
   int error_count = 0;
 
   while (!quit_) {
-    if (error_count > 5000) {
+    if (error_count > 10000) {
       error_count = 0;
       tools::logger()->warn("[Gimbal] Too many errors, attempting to reconnect...");
       reconnect();
@@ -173,26 +171,27 @@ void Gimbal::read_thread()
 
     std::lock_guard<std::mutex> lock(mutex_);
 
-    // 对弹速进行平滑滤波（取历史10次，去2个最高、2个最低，剩余取平均）
-    // 注意：假设裁判系统测出的抖动值存放于 bullet_speed
-    bullet_speed_history_.push_back(rx_data_.bullet_speed);
-    if (bullet_speed_history_.size() > 10) {
-      bullet_speed_history_.pop_front();
-    }
+    // // 对弹速进行平滑滤波（取历史10次，去2个最高、2个最低，剩余取平均）
+    // // 注意：假设裁判系统测出的抖动值存放于 bullet_speed
+    // bullet_speed_history_.push_back(rx_data_.bullet_speed);
+    // if (bullet_speed_history_.size() > 10) {
+    //   bullet_speed_history_.pop_front();
+    // }
     
-    if (bullet_speed_history_.size() == 10) {
-      std::vector<float> sorted_history(bullet_speed_history_.begin(), bullet_speed_history_.end());
-      std::sort(sorted_history.begin(), sorted_history.end());
-      float sum = std::accumulate(sorted_history.begin() + 2, sorted_history.end() - 2, 0.0f);
-      state_.bullet_speed = sum / 6.0f;
-    } else {
-      state_.bullet_speed = rx_data_.bullet_speed;
-    }
+    // if (bullet_speed_history_.size() == 10) {
+    //   std::vector<float> sorted_history(bullet_speed_history_.begin(), bullet_speed_history_.end());
+    //   std::sort(sorted_history.begin(), sorted_history.end());
+    //   float sum = std::accumulate(sorted_history.begin() + 2, sorted_history.end() - 2, 0.0f);
+    //   state_.bullet_speed = sum / 6.0f;
+    // } else {
+    //   state_.bullet_speed = rx_data_.bullet_speed;
+    // }
 
     state_.yaw = rx_data_.yaw;
     state_.yaw_vel = rx_data_.yaw_vel;
     state_.pitch = rx_data_.pitch;
     state_.pitch_vel = rx_data_.pitch_vel;
+    state_.bullet_speed = rx_data_.bullet_speed;
     state_.bullet_count = rx_data_.bullet_count;
     state_.yaw_offset = rx_data_.yaw_offset;
     state_.pitch_offset = rx_data_.pitch_offset;
@@ -222,7 +221,6 @@ void Gimbal::read_thread()
 
 void Gimbal::reconnect()
 {
-  std::lock_guard<std::mutex> serial_lock(serial_mutex_);
   int max_retry_count = 10;
   for (int i = 0; i < max_retry_count && !quit_; ++i) {
     tools::logger()->warn("[Gimbal] Reconnecting serial, attempt {}/{}...", i + 1, max_retry_count);
