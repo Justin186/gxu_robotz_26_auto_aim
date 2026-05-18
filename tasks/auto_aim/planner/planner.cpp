@@ -34,9 +34,9 @@ Plan Planner::plan(
   double pitch_offset)
 {
   // 0. Check bullet speed
-  if (bullet_speed < 10 || bullet_speed > 25) {
-    bullet_speed = defult_bullet_speed_;
-  }
+  // if (bullet_speed < 10 || bullet_speed > 25) {
+  bullet_speed = defult_bullet_speed_;
+  // }
 
   // 1. Predict fly_time
   Eigen::Vector3d xyz;

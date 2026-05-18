@@ -1,5 +1,5 @@
-enemy_color: "red"
-# enemy_color: "blue"
+# enemy_color: "red"
+enemy_color: "blue"
 
 
 #####-----神经网络参数-----#####
@@ -68,22 +68,22 @@ outpost_max_temp_lost_count: 75
 
 #####-----aimer参数-----#####
 yaw_offset: 0 # degree -2.5
-pitch_offset: 0.65  # degree 2
+pitch_offset: 3  # degree 2
 comming_angle: 55 # degree
 leaving_angle: 20 # degree
 left_yaw_offset: -1
 right_yaw_offset: -0.6
 decision_speed: 10 # rad/s
 high_speed_delay_time: 0.026 # s
-low_speed_delay_time: 0.050 # s
-max_armor_angle: 10 # degree
+low_speed_delay_time: 0.120 # s
+max_armor_angle: 30 # degree
 defult_bullet_speed: 22 # m/s
 
 #####-----shooter参数-----#####
 first_tolerance: 5 # 近距离射击容差，degree
 second_tolerance: 2 # 远距离射击容差，degree
 judge_distance: 3 #距离判断阈值
-auto_fire: true # 是否由自瞄控制射击
+auto_fire: true # 是否由自瞄控  制射击
 
 #####-----decider参数-----#####
 mode: 1
@@ -93,12 +93,12 @@ R_gimbal2imubody: [1, 0, 0, 0, 1, 0,  0, 0, 1]
 # 重投影误差: 0.0787px
 camera_matrix: [2365.2292710685488, 0, 717.84874030069716, 0, 2365.2595057507042, 507.10051676922996, 0, 0, 1]
 distort_coeffs: [-0.053032056252978271, 0.12304744809762919, -0.00083306525109508019, 0.00044012934474125322, 0]
-# 相机同理想情况的偏角: yaw0.86 pitch0.90 roll-0.70 degree
-R_camera2gimbal: [-0.005363505111270871, 0.010406891295026864, 0.999931462364543666, -0.999910993074167975, -0.012271659158532851, -0.005235676740200547, 0.012216330969339833, -0.999870543117992949, 0.010471784116245792]
-t_camera2gimbal: [0.09943263287787589, 0.002207428336672681, 0.078171412409120872]
+# 相机同理想情况的偏角: yaw0.56 pitch1.05 roll0.41 degree
+R_camera2gimbal: [0, 0, 1, -1, 0, 0, 0, -1, 0]
+t_camera2gimbal: [0.10751, 0, 0.0815]
 
 #####-----planner-----#####
-fire_thresh: 0.001
+fire_thresh: 0.000001
 
 max_yaw_acc: 50
 Q_yaw: [9e6, 0]

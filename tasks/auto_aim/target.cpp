@@ -217,36 +217,30 @@ void Target::update(const Armor & armor) // EKF中的第二大步：更新
 
 void Target::update_ypda(const Armor & armor, int id)
 {
-  if (name == ArmorName::outpost && id >= 0 && id < 3) {
-    if (outpost_z_count_[id] < 50) {
-      outpost_z_count_[id]++;
-      double alpha = 1.0 / outpost_z_count_[id];
-      outpost_z_ema_[id] = (1 - alpha) * outpost_z_ema_[id] + alpha * armor.xyz_in_world[2];
-    } else {
-      outpost_z_ema_[id] = 0.98 * outpost_z_ema_[id] + 0.02 * armor.xyz_in_world[2];
-    }
+  if (name == ArmorName::outpost && !outpost_z_resolved_ && id >= 0 && id < 3) {
+    outpost_z_sum_[id] += armor.xyz_in_world[2];
+    outpost_z_count_[id]++;
 
     // 判断三个id的装甲板是否都有足够(如10次)观测，以求稳定平均
     if (outpost_z_count_[0] > 20 && outpost_z_count_[1] > 20 && outpost_z_count_[2] > 20) {
+      double avgs[3] = {outpost_z_sum_[0] / outpost_z_count_[0],
+                        outpost_z_sum_[1] / outpost_z_count_[1],
+                        outpost_z_sum_[2] / outpost_z_count_[2]};
+      
       int sorted_ids[3] = {0, 1, 2};
-      std::sort(sorted_ids, sorted_ids + 3, [this](int a, int b) {
-        return outpost_z_ema_[a] < outpost_z_ema_[b];
+      std::sort(sorted_ids, sorted_ids + 3, [&avgs](int a, int b) {
+        return avgs[a] < avgs[b];
       });
 
-      // 核心问题：物理绝对高度差的确是约 10.2cm，但由于相机仰角透视、PnP算法对15度倾斜装甲板的尺度漂移特性，
-      // 视觉解算出的“观测Z落差”会被拉伸/压缩，往往不是 0.102。如果强行写入物理极值 0.102，会导致观测与模型对抗（上下拽）。
-      // 解决方案：信任视觉的相对关系，直接使用视觉长时间滑动平均收敛出来的统计高度差，令观测与模型做到真正的动态自洽。
-      outpost_z_offset_[sorted_ids[0]] = outpost_z_ema_[sorted_ids[0]] - outpost_z_ema_[sorted_ids[1]]; // 通常可能解算出来是 -0.12 ~ -0.15 等
+      // 实地高度理论值：1.114 (低)，1.216 (中)，1.318 (高)
+      // 则相对于 1.216，三者偏移为 -0.102, 0, 0.102
+      outpost_z_offset_[sorted_ids[0]] = -0.102;
       outpost_z_offset_[sorted_ids[1]] = 0.0;
-      outpost_z_offset_[sorted_ids[2]] = outpost_z_ema_[sorted_ids[2]] - outpost_z_ema_[sorted_ids[1]]; // 通常可能解算出来是 0.12 ~ 0.15 等
+      outpost_z_offset_[sorted_ids[2]] = 0.102;
 
-      if (!outpost_z_resolved_) {
-        outpost_z_resolved_ = true;
-        tools::logger()->info("[Target] Outpost Z initial sorted! id[{}]={:.3f}, id[{}]={:.3f}, id[{}]={:.3f}",
-                              sorted_ids[0], outpost_z_offset_[sorted_ids[0]], 
-                              sorted_ids[1], outpost_z_offset_[sorted_ids[1]], 
-                              sorted_ids[2], outpost_z_offset_[sorted_ids[2]]);
-      }
+      outpost_z_resolved_ = true;
+      tools::logger()->info("[Target] Outpost Z sorted! id[{}]=-0.102, id[{}]={:.3f}, id[{}]={:.3f}",
+                            sorted_ids[0], sorted_ids[1], 0.0, sorted_ids[2], 0.102);
     }
   }
 
@@ -258,7 +252,7 @@ void Target::update_ypda(const Armor & armor, int id)
   auto delta_angle = tools::limit_rad(armor.ypr_in_world[0] - center_yaw); // 装甲板朝向与车身朝向的夹角
   // 算出观测噪声协方差矩阵R的对角线元素
   Eigen::VectorXd R_dig{
-      {8e-3,  // 固定yaw噪声
+      {4e-3,  // 固定yaw噪声
       4e-2,  // 固定pitch噪声
       log(std::abs(delta_angle) + 1) + 1,  // 自适应距离噪声：当装甲板不在正对时（delta_angle大），距离估计不准，增大噪声
       log(std::abs(armor.ypd_in_world[2]) + 1) / 200 + 9e-2}};  // 自适应角度噪声：距离越远，角度估计越不准
@@ -288,6 +282,20 @@ void Target::update_ypda(const Armor & armor, int id)
   const Eigen::VectorXd & ypr = armor.ypr_in_world;
   Eigen::VectorXd z{{ypd[0], ypd[1], ypd[2], ypr[0]}};  //获得观测量
 
+  // 极端异常观测会把状态一下子拉飞，所以先做一次创新门限。
+  // 这里用的是更新前的预测残差，超过阈值就直接丢弃这一帧。
+  Eigen::VectorXd z_pred = h(ekf_.x);
+  Eigen::VectorXd innovation = z_subtract(z, z_pred);
+  Eigen::MatrixXd S = H * ekf_.P * H.transpose() + R;
+  double nis_pred = innovation.transpose() * S.inverse() * innovation;
+  constexpr double nis_gate_threshold = 16.0;
+  if (nis_pred > nis_gate_threshold) {
+    tools::logger()->warn(
+      "[Target] Innovation gated, nis={:.3f} > {:.3f}, dropped observation",
+      nis_pred, nis_gate_threshold);
+    return;
+  }
+
   ekf_.update(z, H, R, h, z_subtract); // 送进EKF进行更新
   
   // 提取更新后的速度，送入滑动窗口以计算真实的物理加速度
@@ -308,10 +316,17 @@ void Target::update_ypda(const Armor & armor, int id)
     if (dt_history > 0.05) { // 确保有足够的时间跨度防止除数过小放大噪声
       double true_acc = (velocity_history_.back().second - velocity_history_.front().second).norm() / dt_history;
       double true_w_acc = std::abs(w_history_.back().second - w_history_.front().second) / dt_history;
+
+      // 观测不稳定时，EKF 的速度估计会抖得很厉害，这时不要把噪声当成真实机动。
+      // 只有在目标已经基本收敛、且近期创新检验没有大量失败时才启用机动判定。
+      const double recent_nis_fail_rate = ekf_.data.at("recent_nis_failures");
+      const bool tracking_stable = convergened() && recent_nis_fail_rate < 0.2 && !is_switch_;
       
       // 真实加速度大于 5 m/s^2 或角加速度大于 10 rad/s^2 判定为强机动
-      if (true_acc > 5.0 || true_w_acc > 10.0) {
-        tools::logger()->warn("[Target] Acceleration/Maneuver Detected! a: {:.3f} m/s^2, w_acc: {:.3f} rad/s^2", true_acc, true_w_acc);
+      if (tracking_stable && (true_acc > 5.0 || true_w_acc > 10.0)) {
+        tools::logger()->warn(
+          "[Target] Acceleration/Maneuver Detected! a: {:.3f} m/s^2, w_acc: {:.3f} rad/s^2",
+          true_acc, true_w_acc);
         maneuver_ticks = 10; // 设置机动状态，暂缓开火
       } else {
         if (maneuver_ticks > 0) maneuver_ticks--;

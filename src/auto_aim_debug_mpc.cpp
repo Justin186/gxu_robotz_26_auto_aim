@@ -172,14 +172,16 @@ int main(int argc, char * argv[])
           rerun::LineStrips3D(strips).with_colors({{255, 165, 0}}) // 橙色直线
         );
         rec->log("yaw/plan_yaw", rerun::Scalars(plan.yaw));
+        rec->log("yaw/plan_yaw_offset", rerun::Scalars(plan.v_yaw));
         rec->log("yaw/target_yaw", rerun::Scalars(plan.target_yaw));
         rec->log("yaw/gimbal_yaw", rerun::Scalars(ypr[0]));
         rec->log("yaw/gimbal_yaw_vel", rerun::Scalars(gs.yaw_vel));
         rec->log("yaw/plan_yaw_vel", rerun::Scalars(plan.yaw_vel));
         rec->log("yaw/plan_yaw_acc", rerun::Scalars(plan.yaw_acc));
       
-
-        rec->log("pitch/plan_pitch", rerun::Scalars(plan.pitch));
+        auto pitch_offset = tools::read<float>(yaml, "pitch_offset");
+        rec->log("pitch/plan_pitch", rerun::Scalars(plan.pitch + pitch_offset));
+        rec->log("pitch/plan_pitch_offset", rerun::Scalars(plan.v_pitch));
         rec->log("pitch/target_pitch", rerun::Scalars(plan.target_pitch));
         rec->log("pitch/gimbal_pitch", rerun::Scalars(-ypr[1]));
         rec->log("pitch/plan_pitch_vel", rerun::Scalars(plan.pitch_vel));
@@ -187,6 +189,7 @@ int main(int argc, char * argv[])
 
         rec->log("fire/fired", rerun::Scalars(fired ? 1.0f : 0.0f));
         rec->log("fire/plan_fire", rerun::Scalars(plan.fire ? 1.0f : 0.0f));
+        rec->log("fire/bullet_speed", rerun::Scalars(gs.bullet_speed));
         rec->log("fire/duty_cycle", rerun::Scalars(fire_duty));
       }
 
