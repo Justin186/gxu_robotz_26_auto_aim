@@ -76,15 +76,15 @@ std::list<Target> Tracker::track(
   // 过滤掉距离大于7米的装甲板（超距离极大概率为误识别，且弹道解算无意义）
   armors.remove_if([this](auto_aim::Armor & a) {
     solver_.solve(a);
-    return a.ypd_in_world[2] > 7.0;
+    return a.ypd_in_world[2] > 8.0;
   });
 
   // 过滤前哨站顶部装甲板
-  // armors.remove_if([this](const auto_aim::Armor & a) {
-  //   return a.name == ArmorName::outpost &&
-  //          solver_.oupost_reprojection_error(a, 27.5 * CV_PI / 180.0) <
-  //            solver_.oupost_reprojection_error(a, -15 * CV_PI / 180.0);
-  // });
+  armors.remove_if([this](const auto_aim::Armor & a) {
+    return a.name == ArmorName::outpost &&
+           solver_.oupost_reprojection_error(a, 27.5 * CV_PI / 180.0) <
+             solver_.oupost_reprojection_error(a, -15 * CV_PI / 180.0);
+  });
 
   auto best_armor_it = select_best_armor(armors);
 
@@ -144,7 +144,7 @@ std::tuple<omniperception::DetectionResult, std::list<Target>> Tracker::track(
   // 过滤掉距离大于7米的装甲板（超距离极大概率为误识别，且弹道解算无意义）
   armors.remove_if([this](auto_aim::Armor & a) {
     solver_.solve(a);
-    return a.ypd_in_world[2] > 7.0;
+    return a.ypd_in_world[2] > 8.0;
   });
 
   auto best_armor_it = select_best_armor(armors);
