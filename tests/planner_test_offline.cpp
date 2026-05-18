@@ -39,7 +39,7 @@ int main(int argc, char * argv[])
   while (!exiter.exit()) {
     target.predict(0.01);
 
-    auto plan = planner.plan(target, 22);
+    auto plan = planner.plan(target, 22, 0.0, 0.0, 0.0, 0.0);
 
     nlohmann::json data;
     data["t"] = tools::delta_time(std::chrono::steady_clock::now(), t0);

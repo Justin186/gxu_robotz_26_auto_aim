@@ -1,6 +1,10 @@
 #include "gimbal.hpp"
 
 #include <cstring>
+#include <algorithm>
+#include <numeric>
+#include <deque>
+
 #include "tools/crc.hpp"
 #include "tools/logger.hpp"
 #include "tools/math_tools.hpp"
@@ -226,12 +230,30 @@ void Gimbal::read_thread()
 
     std::lock_guard<std::mutex> lock(mutex_);
 
+    // 对弹速进行平滑滤波（取历史10次，去2个最高、2个最低，剩余取平均）
+    // 注意：假设裁判系统测出的抖动值存放于 bullet_speed
+    bullet_speed_history_.push_back(rx_data_.bullet_speed);
+    if (bullet_speed_history_.size() > 10) {
+      bullet_speed_history_.pop_front();
+    }
+    
+    if (bullet_speed_history_.size() == 10) {
+      std::vector<float> sorted_history(bullet_speed_history_.begin(), bullet_speed_history_.end());
+      std::sort(sorted_history.begin(), sorted_history.end());
+      float sum = std::accumulate(sorted_history.begin() + 2, sorted_history.end() - 2, 0.0f);
+      state_.bullet_speed = sum / 6.0f;
+    } else {
+      state_.bullet_speed = rx_data_.bullet_speed;
+    }
+
     state_.yaw = rx_data_.yaw;
     state_.yaw_vel = rx_data_.yaw_vel;
     state_.pitch = rx_data_.pitch;
     state_.pitch_vel = rx_data_.pitch_vel;
-    state_.bullet_speed = rx_data_.bullet_speed;
+    // state_.bullet_speed = rx_data_.bullet_speed;
     state_.bullet_count = rx_data_.bullet_count;
+    state_.yaw_offset = rx_data_.yaw_offset;
+    state_.pitch_offset = rx_data_.pitch_offset;
 
     switch (rx_data_.mode) {
       case 0:
@@ -268,7 +290,7 @@ void Gimbal::reconnect()
       handle_ = nullptr;
     }
     
-    std::this_thread::sleep_for(std::chrono::seconds(1));
+      std::this_thread::sleep_for(std::chrono::seconds(1));
 
     handle_ = libusb_open_device_with_vid_pid(ctx_, vid_, pid_);
     if (handle_) {
@@ -276,9 +298,9 @@ void Gimbal::reconnect()
         libusb_detach_kernel_driver(handle_, interface_num_);
       }
       if (libusb_claim_interface(handle_, interface_num_) >= 0) {
-        queue_.clear();
+      queue_.clear();
         tools::logger()->info("[Gimbal] Reconnected USB successfully.");
-        break;
+      break;
       }
       libusb_close(handle_);
       handle_ = nullptr;
