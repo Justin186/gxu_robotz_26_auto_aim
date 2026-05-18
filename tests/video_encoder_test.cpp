@@ -85,6 +85,17 @@ int main(int argc, char * argv[])
 
     if (imshow) {
       if (!encoded_preview.empty()) {
+        cv::Mat overlay;
+        encoded_preview.copyTo(overlay);
+        int grid_size = 6;
+        for (int i = 1; i < grid_size; ++i) {
+          int x = overlay.cols * i / grid_size;
+          int y = overlay.rows * i / grid_size;
+          cv::line(overlay, cv::Point(x, 0), cv::Point(x, overlay.rows), cv::Scalar(0, 255, 0), 1);
+          cv::line(overlay, cv::Point(0, y), cv::Point(overlay.cols, y), cv::Scalar(0, 255, 0), 1);
+        }
+        cv::addWeighted(overlay, 0.3, encoded_preview, 0.7, 0, encoded_preview);
+        
         cv::imshow("Video Encoder Preview", encoded_preview);
       }
       auto key = cv::waitKey(1);
