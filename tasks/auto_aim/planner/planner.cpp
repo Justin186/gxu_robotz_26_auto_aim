@@ -106,8 +106,8 @@ Plan Planner::plan(
   auto center_yaw = std::atan2(target.ekf_x()[2], target.ekf_x()[0]);
   auto delta_angle = std::abs(tools::limit_rad(current_armor_yaw - center_yaw));
 
-  double real_yaw_error = tools::limit_rad(std::abs(current_yaw - plan.target_yaw));
-  double real_pitch_error = current_pitch - plan.target_pitch;
+  double real_yaw_error = tools::limit_rad(current_yaw - plan.v_yaw);
+  double real_pitch_error = current_pitch + plan.v_pitch;
 
   plan.fire =
     target.maneuver_ticks > 0 ? false :
@@ -115,7 +115,8 @@ Plan Planner::plan(
       traj(0, HALF_HORIZON + shoot_offset_) - yaw_solver_->work->x(0, HALF_HORIZON + shoot_offset_),
       traj(2, HALF_HORIZON + shoot_offset_) -
         pitch_solver_->work->x(0, HALF_HORIZON + shoot_offset_)) < fire_thresh_ &&
-    delta_angle < max_armor_angle_;
+    delta_angle < max_armor_angle_ &&
+    std::hypot(real_yaw_error, real_pitch_error) < fire_thresh_;
 
   return plan;
 }
