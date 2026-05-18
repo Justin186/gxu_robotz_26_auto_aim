@@ -103,6 +103,8 @@ int main(int argc, char * argv[])
 
       auto target = input.target;
       auto gs = gimbal.state();
+      planner.set_runtime_yaw_offset(gs.yaw_offset);
+      planner.set_runtime_pitch_offset(gs.pitch_offset);
       auto plan = planner.plan(target, input.bullet_speed, input.yaw, input.pitch, input.t);
 
       gimbal.send(

@@ -5,6 +5,8 @@
 #include "tools/math_tools.hpp"
 #include "tools/trajectory.hpp"
 #include "tools/yaml.hpp"
+#include "tools/logger.hpp"
+#include "tools/yaml.hpp"
 
 using namespace std::chrono_literals;
 
@@ -28,6 +30,16 @@ Planner::Planner(const std::string & config_path)
   setup_yaw_solver(config_path);
   setup_pitch_solver(config_path);
 }
+
+void Planner::set_runtime_yaw_offset(double yaw_offset)
+{
+  tools::logger()->debug("yaw_offset: {}", yaw_offset);
+  runtime_yaw_offset_ = yaw_offset;
+}
+
+void Planner::set_runtime_pitch_offset(double pitch_offset) { 
+  tools::logger()->debug("pitch_offset: {}", pitch_offset);
+  runtime_pitch_offset_ = pitch_offset; }
 
 Plan Planner::plan(Target target, double bullet_speed, double current_yaw, double current_pitch)
 {
@@ -95,8 +107,8 @@ Plan Planner::plan(Target target, double bullet_speed, double current_yaw, doubl
 
   // 补偿云台底层控制的稳态跟踪误差及弹道经验偏置，在此处外部加上
   // 从而使得 Rerun 中显示的 plan.yaw 依旧是纯净的目标轨迹，电控接收到的是带有稳态补偿的指令
-  plan.v_yaw = tools::limit_rad(plan.yaw + yaw_offset_);
-  plan.v_pitch = plan.pitch + pitch_offset_;
+  plan.v_yaw = tools::limit_rad(plan.yaw + yaw_offset_ + runtime_yaw_offset_);
+  plan.v_pitch = plan.pitch + pitch_offset_ + runtime_pitch_offset_;
 
   auto shoot_offset_ = 1;
   auto center_yaw = std::atan2(target.ekf_x()[2], target.ekf_x()[0]);

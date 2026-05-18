@@ -7,6 +7,18 @@
 
 namespace io
 {
+namespace
+{
+float decode_runtime_offset(uint8_t sign, uint8_t magnitude)
+{
+  constexpr float deg_to_rad = 3.14159265358979323846f / 180.0f;
+  const float offset = magnitude / 10.0f * deg_to_rad;
+  if (sign == 1) return -offset;
+  if (sign == 2) return offset;
+  return 0.0f;
+}
+}  // namespace
+
 Gimbal::Gimbal(const std::string & config_path)
 {
   auto yaml = tools::load(config_path);
@@ -173,6 +185,14 @@ void Gimbal::read_thread()
     state_.pitch_vel = rx_data_.pitch_vel;
     state_.bullet_speed = rx_data_.bullet_speed;
     state_.bullet_count = rx_data_.bullet_count;
+    state_.yaw_offset_sign = rx_data_.yaw_offset_sign;
+    state_.yaw_offset_magnitude = rx_data_.yaw_offset_magnitude;
+    state_.pitch_offset_sign = rx_data_.pitch_offset_sign;
+    state_.pitch_offset_magnitude = rx_data_.pitch_offset_magnitude;
+    state_.yaw_offset =
+      decode_runtime_offset(rx_data_.yaw_offset_sign, rx_data_.yaw_offset_magnitude);
+    state_.pitch_offset =
+      decode_runtime_offset(rx_data_.pitch_offset_sign, rx_data_.pitch_offset_magnitude);
 
     switch (rx_data_.mode) {
       case 0:

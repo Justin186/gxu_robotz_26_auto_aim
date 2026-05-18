@@ -38,6 +38,8 @@ public:
   Eigen::Vector4d debug_xyza;
   Planner(const std::string & config_path);
 
+  void set_runtime_yaw_offset(double yaw_offset);
+  void set_runtime_pitch_offset(double pitch_offset);
   Plan plan(Target target, double bullet_speed, double current_yaw = 0.0, double current_pitch = 0.0);
   Plan plan(
     std::optional<Target> target, double bullet_speed, double current_yaw = 0.0,
@@ -46,7 +48,9 @@ public:
 
 private:
   double yaw_offset_;
+  double runtime_yaw_offset_ = 0.0;
   double pitch_offset_;
+  double runtime_pitch_offset_ = 0.0;
   double fire_thresh_;
   double max_armor_angle_;
   double low_speed_delay_time_, high_speed_delay_time_, decision_speed_;

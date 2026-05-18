@@ -148,8 +148,8 @@ auto_aim::Plan Aimer::mpc_aim(
     last_fire_t_ = now;
   }
 
-  plan.v_yaw = tools::limit_rad(plan.yaw + yaw_offset_);
-  plan.v_pitch = plan.pitch + pitch_offset_;
+  plan.v_yaw = tools::limit_rad(plan.yaw + yaw_offset_ + gs.yaw_offset);
+  plan.v_pitch = plan.pitch + pitch_offset_ + gs.pitch_offset;
   return plan;
 }
 
