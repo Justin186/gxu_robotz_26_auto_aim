@@ -5,7 +5,7 @@
 cd ~/gxu_robotz_26_auto_aim || exit
 
 # 启动程序
-./build/auto_aim_mpc -rec=true
+./build/auto_aim_mpc_full
 
 # 清理历史
 history -c
