@@ -268,6 +268,9 @@ void Gimbal::read_thread()
       case 3:
         mode_ = GimbalMode::BIG_BUFF;
         break;
+      case 4:
+        mode_ = GimbalMode::BIG_BUFF;
+        break;
       default:
         mode_ = GimbalMode::IDLE;
         tools::logger()->warn("[Gimbal] Invalid mode: {}", rx_data_.mode);

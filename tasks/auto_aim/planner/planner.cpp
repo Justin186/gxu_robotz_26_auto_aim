@@ -30,13 +30,13 @@ Planner::Planner(const std::string & config_path)
 }
 
 Plan Planner::plan(
-  Target target, double bullet_speed, double current_yaw, double current_pitch,
-  double yaw_offset, double pitch_offset)
+  Target target, double bullet_speed, double current_yaw, double current_pitch, double yaw_offset,
+  double pitch_offset)
 {
   // 0. Check bullet speed
-  if (bullet_speed < 10 || bullet_speed > 25) {
-    bullet_speed = defult_bullet_speed_;
-  }
+  // if (bullet_speed < 10 || bullet_speed > 25) {
+  bullet_speed = defult_bullet_speed_;
+  // }
 
   // 1. Predict fly_time
   Eigen::Vector3d xyz;
@@ -51,26 +51,23 @@ Plan Planner::plan(
   auto bullet_traj = tools::Trajectory(bullet_speed, min_dist, xyz.z());
   target.predict(bullet_traj.fly_time);
 
+  auto shoot_offset_ = 1;
+
   // 2. Get trajectory
   double yaw0;
   Trajectory traj;
   double current_armor_yaw;
   try {
     yaw0 = aim(target, bullet_speed, tracking_id_)(0); // 这里会传入并更新物理帧的 tracking_id_
-    current_armor_yaw = tracking_id_ != -1 ? target.armor_xyza_list()[tracking_id_][3] : 0.0;
-    Eigen::Vector4d final_aim_xyza = debug_xyza; // 记录真正的击打点，防止被下方的循环覆盖
     traj = get_trajectory(target, yaw0, bullet_speed);
-    debug_xyza = final_aim_xyza; // 恢复真正的击打点供外部红框绘制
+    
+    target.predict(shoot_offset_ * DT);
+    int temp_id = tracking_id_;
+    aim(target, bullet_speed, temp_id);
+    current_armor_yaw = debug_xyza[3];
   } catch (const std::exception & e) {
     tools::logger()->warn("Unsolvable target {:.2f}", bullet_speed);
-    Plan empty_plan{};
-    empty_plan.control = false;
-    empty_plan.fire = false;
-    empty_plan.yaw = current_yaw;
-    empty_plan.pitch = current_pitch;
-    empty_plan.v_yaw = current_yaw;
-    empty_plan.v_pitch = current_pitch;
-    return empty_plan;
+    return {false};
   }
 
   // 3. Solve yaw
@@ -104,15 +101,16 @@ Plan Planner::plan(
 
   // 补偿云台底层控制的稳态跟踪误差及弹道经验偏置，在此处外部加上
   // 从而使得 Rerun 中显示的 plan.yaw 依旧是纯净的目标轨迹，电控接收到的是带有稳态补偿的指令
-  plan.v_yaw = tools::limit_rad(plan.yaw + yaw_offset_ + yaw_offset);
-  plan.v_pitch = plan.pitch + pitch_offset_ + pitch_offset;
+  auto yaw_offset_from_gimbal = yaw_offset / 10.0 / 57.3;
+  auto pitch_offset_from_gimbal = pitch_offset / 10.0 / 57.3;
+  plan.v_yaw = tools::limit_rad(plan.yaw + yaw_offset_ + yaw_offset_from_gimbal);
+  plan.v_pitch = plan.pitch + pitch_offset_ + pitch_offset_from_gimbal;
 
-  auto shoot_offset_ = 1;
   auto center_yaw = std::atan2(target.ekf_x()[2], target.ekf_x()[0]);
   auto delta_angle = std::abs(tools::limit_rad(current_armor_yaw - center_yaw));
 
-  double real_yaw_error = tools::limit_rad(std::abs(current_yaw - plan.target_yaw));
-  double real_pitch_error = current_pitch - plan.target_pitch;
+  double real_yaw_error = tools::limit_rad(current_yaw - plan.v_yaw);
+  double real_pitch_error = current_pitch + plan.v_pitch;
 
   plan.fire =
     target.maneuver_ticks > 0 ? false :
@@ -120,7 +118,9 @@ Plan Planner::plan(
       traj(0, HALF_HORIZON + shoot_offset_) - yaw_solver_->work->x(0, HALF_HORIZON + shoot_offset_),
       traj(2, HALF_HORIZON + shoot_offset_) -
         pitch_solver_->work->x(0, HALF_HORIZON + shoot_offset_)) < fire_thresh_ &&
-    delta_angle < max_armor_angle_;
+    delta_angle < max_armor_angle_
+    // std::hypot(real_yaw_error, real_pitch_error) < fire_thresh_
+    ;
 
   return plan;
 }
@@ -130,16 +130,7 @@ Plan Planner::plan(
   double yaw_offset, double pitch_offset,
   std::optional<std::chrono::steady_clock::time_point> current_time)
 {
-  if (!target.has_value()) {
-    Plan empty_plan{};
-    empty_plan.control = false;
-    empty_plan.fire = false;
-    empty_plan.yaw = current_yaw;
-    empty_plan.pitch = current_pitch;
-    empty_plan.v_yaw = current_yaw;
-    empty_plan.v_pitch = current_pitch;
-    return empty_plan;
-  }
+  if (!target.has_value()) return {false};
 
   double delay_time =
     std::abs(target->ekf_x()[7]) > decision_speed_ ? high_speed_delay_time_ : low_speed_delay_time_;
@@ -200,75 +191,36 @@ void Planner::setup_pitch_solver(const std::string & config_path)
 
 Eigen::Matrix<double, 2, 1> Planner::aim(const Target & target, double bullet_speed, int & id_state)
 {
-  Eigen::Vector3d center_xyz;
-  center_xyz << target.ekf_x()[0], target.ekf_x()[2], target.ekf_x()[4]; // 目标中心
-  double yaw = 0;
+  Eigen::Vector3d xyz;
+  double yaw;
   auto target_armors = target.armor_xyza_list();
-  auto center_yaw = std::atan2(center_xyz.y(), center_xyz.x());
+  auto center_yaw = std::atan2(target.ekf_x()[2], target.ekf_x()[0]);
   auto min_delta_angle = 1e10;
   int best_id = -1;
 
-  bool is_spinning = std::abs(target.ekf_x()[7]) > 2.0;
-
-  // 暂时：对于装甲板高度不同的目标只选同一高度（选取最低的一组）的板子，防止 pitch 抖动
-  double min_z = 1e10;
-  for (size_t i = 0; i < target_armors.size(); i++) {
-    if (target_armors[i].z() < min_z) {
-      min_z = target_armors[i].z();
-    }
-  }
-
   for (size_t i = 0; i < target_armors.size(); i++) {
     auto & xyza = target_armors[i];
-    // 只过滤掉高度差大于 5cm 的非同高度装甲板
-    if (std::abs(xyza.z() - min_z) > 0.05) {
-      continue;
-    }
-
     auto delta_angle = std::abs(tools::limit_rad(xyza[3] - center_yaw));
     
-    // 滞回机制：低速时赋予当前跟踪板子 0.08rad（约4.6°）的倾向性，防止目标抖动导致换板
-    if (!is_spinning && id_state == (int)i) {
+    // 滞回机制：如果是当前正在跟踪的板子，赋予 0.08rad（约4.6°）的倾向性，防止目标抖动导致换板
+    if (id_state == (int)i) {
       delta_angle -= 0.08;
     }
 
     if (delta_angle < min_delta_angle) {
       min_delta_angle = delta_angle;
       best_id = (int)i;
+      xyz = xyza.head<3>();
       yaw = xyza[3];
     }
   }
-  id_state = best_id; // 反馈更新选择的装甲板ID，开火判断需要
+  id_state = best_id; // 反馈更新选择的装甲板ID
 
-  Eigen::Vector3d aim_xyz;
-  if (is_spinning) {
-    aim_xyz = center_xyz;
-    if (best_id != -1) {
-      auto & best_xyza = target_armors[best_id];
-      // 计算该装甲板到中心的半径 (水平面上)
-      double radius = std::hypot(best_xyza[0] - center_xyz.x(), best_xyza[1] - center_xyz.y());
-      
-      // 计算正对枪管的位置：从中心点朝向摄像头直线拉近 radius 的距离
-      aim_xyz.x() = center_xyz.x() - radius * std::cos(center_yaw);
-      aim_xyz.y() = center_xyz.y() - radius * std::sin(center_yaw);
-      aim_xyz.z() = best_xyza.z();
-    }
-    // 高速旋转：朝向固定为朝向相机（即 center_yaw），这样Rerun可视化中板子不会自转
-    debug_xyza = Eigen::Vector4d(aim_xyz.x(), aim_xyz.y(), aim_xyz.z(), center_yaw);
-  } else {
-    // 低速或平移：直接瞄准最好的那块装甲板的3D中心
-    if (best_id != -1) {
-      aim_xyz = target_armors[best_id].head<3>();
-    } else {
-      aim_xyz = center_xyz;
-    }
-    // 渲染框朝向跟随装甲板真实物理偏航角
-    debug_xyza = Eigen::Vector4d(aim_xyz.x(), aim_xyz.y(), aim_xyz.z(), yaw);
-  }
+  debug_xyza = Eigen::Vector4d(xyz.x(), xyz.y(), xyz.z(), yaw);
 
-  auto azim = std::atan2(aim_xyz.y(), aim_xyz.x());
-  auto dist = aim_xyz.head<2>().norm();
-  auto bullet_traj = tools::Trajectory(bullet_speed, dist, aim_xyz.z());
+  auto azim = std::atan2(xyz.y(), xyz.x());
+  auto dist = xyz.head<2>().norm();
+  auto bullet_traj = tools::Trajectory(bullet_speed, dist, xyz.z());
   if (bullet_traj.unsolvable) throw std::runtime_error("Unsolvable bullet trajectory!");
 
   double yaw_world = tools::limit_rad(azim);
@@ -281,7 +233,7 @@ Eigen::Matrix<double, 2, 1> Planner::aim(const Target & target, double bullet_sp
   return {ypd_gimbal[0], ypd_gimbal[1]};
 }
 
-Trajectory Planner::get_trajectory(Target & target, double yaw0, double bullet_speed)
+Trajectory Planner::get_trajectory(Target target, double yaw0, double bullet_speed)
 {
   Trajectory traj;
   int sim_id = tracking_id_; // 取当前真实帧跟踪的装甲板作为预测起点，并允许在预测中自然换面

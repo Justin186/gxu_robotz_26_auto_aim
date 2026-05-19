@@ -160,7 +160,7 @@ void VideoEncoder::shutdown_gstreamer()
 cv::Mat VideoEncoder::preprocess_image(const cv::Mat & input)
 {
   int x = (input.cols - config_.crop_size) / 2;
-  int y = (input.rows - config_.crop_size) / 2;
+  int y = (input.rows - config_.crop_size) / 2 + 200;
   x = std::max(0, x);
   y = std::max(0, y);
   int w = std::min(config_.crop_size, input.cols - x);

@@ -20,7 +20,7 @@ using namespace std::chrono_literals;
 const std::string keys =
   "{help h usage ? |                        | 输出命令行参数说明}"
   "{imshow         | true                   | 是否显示图像窗口}"
-  "{@config-path   | configs/hero.yaml      | 位置参数，yaml配置文件路径 }";
+  "{@config-path   | configs/camera.yaml      | 位置参数，yaml配置文件路径 }";
 
 int main(int argc, char * argv[])
 {
@@ -91,10 +91,12 @@ int main(int argc, char * argv[])
         for (int i = 1; i < grid_size; ++i) {
           int x = overlay.cols * i / grid_size;
           int y = overlay.rows * i / grid_size;
-          cv::line(overlay, cv::Point(x, 0), cv::Point(x, overlay.rows), cv::Scalar(0, 255, 0), 1);
-          cv::line(overlay, cv::Point(0, y), cv::Point(overlay.cols, y), cv::Scalar(0, 255, 0), 1);
+          cv::line(overlay, cv::Point(x, 0), cv::Point(x, overlay.rows), cv::Scalar(255, 255, 255), 1);
+          cv::line(overlay, cv::Point(0, y), cv::Point(overlay.cols, y), cv::Scalar(255, 255, 255), 1);
         }
         cv::addWeighted(overlay, 0.3, encoded_preview, 0.7, 0, encoded_preview);
+        // 缩放图像2倍
+        cv::resize(encoded_preview, encoded_preview, {}, 2.0, 2.0);
         
         cv::imshow("Video Encoder Preview", encoded_preview);
       }
