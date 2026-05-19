@@ -180,7 +180,7 @@ int main(int argc, char * argv[])
         rec->log("yaw/plan_yaw_acc", rerun::Scalars(plan.yaw_acc));
       
         auto pitch_offset = tools::read<float>(yaml, "pitch_offset");
-        rec->log("pitch/plan_pitch", rerun::Scalars(plan.pitch + pitch_offset));
+        rec->log("pitch/plan_pitch", rerun::Scalars(plan.pitch));
         rec->log("pitch/plan_pitch_offset", rerun::Scalars(plan.v_pitch));
         rec->log("pitch/target_pitch", rerun::Scalars(plan.target_pitch));
         rec->log("pitch/gimbal_pitch", rerun::Scalars(-ypr[1]));
