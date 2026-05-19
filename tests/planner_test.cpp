@@ -43,7 +43,7 @@ int main(int argc, char * argv[])
     target.predict(0.01);
 
     auto gs = gimbal.state();
-    auto plan = planner.plan(target, gs.bullet_speed, gs.yaw, gs.pitch, gs.yaw_offset, gs.pitch_offset);
+    auto plan = planner.plan(target, gs.bullet_speed, gs.yaw, gs.pitch);
 
     gimbal.send(
       plan.control, plan.fire, plan.yaw, plan.yaw_vel, plan.yaw_acc, plan.pitch, plan.pitch_vel,

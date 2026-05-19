@@ -83,7 +83,7 @@ defult_bullet_speed: 22 # m/s
 first_tolerance: 5 # 近距离射击容差，degree
 second_tolerance: 2 # 远距离射击容差，degree
 judge_distance: 3 #距离判断阈值
-auto_fire: true # 是否由自瞄控  制射击
+auto_fire: true # 是否由自瞄控制射击
 
 #####-----decider参数-----#####
 mode: 1

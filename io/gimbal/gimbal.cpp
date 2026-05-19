@@ -193,8 +193,6 @@ void Gimbal::read_thread()
     state_.pitch_vel = rx_data_.pitch_vel;
     state_.bullet_speed = rx_data_.bullet_speed;
     state_.bullet_count = rx_data_.bullet_count;
-    state_.yaw_offset = rx_data_.yaw_offset;
-    state_.pitch_offset = rx_data_.pitch_offset;
 
     switch (rx_data_.mode) {
       case 0:
