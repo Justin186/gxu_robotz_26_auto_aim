@@ -26,8 +26,8 @@ struct VideoEncoderConfig {
     int motion_threshold = 14;
     int motion_erode_px = 2;
     int motion_dilate_px = 6;
-    int motion_trail_frames = 90;
-    double trail_disable_motion_ratio = 0.30;
+    int motion_trail_frames = 50;
+    double trail_disable_motion_ratio = 0.10;
     double bg_update_alpha = 0.01;
     double bg_blur_sigma = 1.8;
     int center_clear_size = 150;

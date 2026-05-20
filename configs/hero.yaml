@@ -74,7 +74,7 @@ right_yaw_offset: -0.6
 decision_speed: 10 # rad/s
 high_speed_delay_time: 0.026 # s
 low_speed_delay_time: 0.005 # s
-max_armor_angle: 1 # degree
+max_armor_angle: 5 # degree
 defult_bullet_speed: 11.5 # m/s
 
 #####-----shooter参数-----#####
