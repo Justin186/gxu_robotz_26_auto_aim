@@ -51,16 +51,20 @@ Plan Planner::plan(
   auto bullet_traj = tools::Trajectory(bullet_speed, min_dist, xyz.z());
   target.predict(bullet_traj.fly_time);
 
+  auto shoot_offset_ = 1;
+
   // 2. Get trajectory
   double yaw0;
   Trajectory traj;
   double current_armor_yaw;
   try {
     yaw0 = aim(target, bullet_speed, tracking_id_)(0); // 这里会传入并更新物理帧的 tracking_id_
-    current_armor_yaw = debug_xyza[3];
-    Eigen::Vector4d final_aim_xyza = debug_xyza; // 记录真正的击打点，防止被下方的循环覆盖
     traj = get_trajectory(target, yaw0, bullet_speed);
-    debug_xyza = final_aim_xyza; // 恢复真正的击打点供外部红框绘制
+    
+    target.predict(shoot_offset_ * DT);
+    int temp_id = tracking_id_;
+    aim(target, bullet_speed, temp_id);
+    current_armor_yaw = debug_xyza[3];
   } catch (const std::exception & e) {
     tools::logger()->warn("Unsolvable target {:.2f}", bullet_speed);
     return {false};
@@ -102,7 +106,6 @@ Plan Planner::plan(
   plan.v_yaw = tools::limit_rad(plan.yaw + yaw_offset_ + yaw_offset_from_gimbal);
   plan.v_pitch = plan.pitch + pitch_offset_ + pitch_offset_from_gimbal;
 
-  auto shoot_offset_ = 1;
   auto center_yaw = std::atan2(target.ekf_x()[2], target.ekf_x()[0]);
   auto delta_angle = std::abs(tools::limit_rad(current_armor_yaw - center_yaw));
 
@@ -229,7 +232,7 @@ Eigen::Matrix<double, 2, 1> Planner::aim(const Target & target, double bullet_sp
   return {ypd_gimbal[0], ypd_gimbal[1]};
 }
 
-Trajectory Planner::get_trajectory(Target & target, double yaw0, double bullet_speed)
+Trajectory Planner::get_trajectory(Target target, double yaw0, double bullet_speed)
 {
   Trajectory traj;
   int sim_id = tracking_id_; // 取当前真实帧跟踪的装甲板作为预测起点，并允许在预测中自然换面
