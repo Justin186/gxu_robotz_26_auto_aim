@@ -33,13 +33,13 @@ Planner::Planner(const std::string & config_path)
 
 void Planner::set_runtime_yaw_offset(double yaw_offset)
 {
-  tools::logger()->debug("yaw_offset: {}", yaw_offset);
   runtime_yaw_offset_ = yaw_offset;
 }
 
-void Planner::set_runtime_pitch_offset(double pitch_offset) { 
-  tools::logger()->debug("pitch_offset: {}", pitch_offset);
-  runtime_pitch_offset_ = pitch_offset; }
+void Planner::set_runtime_pitch_offset(double pitch_offset)
+{
+  runtime_pitch_offset_ = pitch_offset;
+}
 
 Plan Planner::plan(Target target, double bullet_speed, double current_yaw, double current_pitch)
 {
@@ -109,6 +109,10 @@ Plan Planner::plan(Target target, double bullet_speed, double current_yaw, doubl
   // 从而使得 Rerun 中显示的 plan.yaw 依旧是纯净的目标轨迹，电控接收到的是带有稳态补偿的指令
   plan.v_yaw = tools::limit_rad(plan.yaw + yaw_offset_ + runtime_yaw_offset_);
   plan.v_pitch = plan.pitch + pitch_offset_ + runtime_pitch_offset_;
+  tools::logger()->info(
+    "[Planner] total offset: yaw={:.2f} deg, pitch={:.2f} deg",
+    (yaw_offset_ + runtime_yaw_offset_) * 180.0 / CV_PI,
+    (pitch_offset_ + runtime_pitch_offset_) * 180.0 / CV_PI);
 
   auto shoot_offset_ = 1;
   auto center_yaw = std::atan2(target.ekf_x()[2], target.ekf_x()[0]);

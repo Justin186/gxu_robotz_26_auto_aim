@@ -9,13 +9,15 @@ namespace io
 {
 namespace
 {
-float decode_runtime_offset(uint8_t sign, uint8_t magnitude)
+int8_t decode_int8(uint8_t raw)
+{
+  return raw < 128 ? static_cast<int8_t>(raw) : static_cast<int8_t>(static_cast<int>(raw) - 256);
+}
+
+float decode_runtime_offset(uint8_t raw)
 {
   constexpr float deg_to_rad = 3.14159265358979323846f / 180.0f;
-  const float offset = magnitude / 10.0f * deg_to_rad;
-  if (sign == 1) return -offset;
-  if (sign == 2) return offset;
-  return 0.0f;
+  return decode_int8(raw) / 10.0f * deg_to_rad;
 }
 }  // namespace
 
@@ -184,15 +186,12 @@ void Gimbal::read_thread()
     state_.pitch = rx_data_.pitch;
     state_.pitch_vel = rx_data_.pitch_vel;
     state_.bullet_speed = rx_data_.bullet_speed;
-    state_.bullet_count = rx_data_.bullet_count;
-    state_.yaw_offset_sign = rx_data_.yaw_offset_sign;
-    state_.yaw_offset_magnitude = rx_data_.yaw_offset_magnitude;
-    state_.pitch_offset_sign = rx_data_.pitch_offset_sign;
-    state_.pitch_offset_magnitude = rx_data_.pitch_offset_magnitude;
-    state_.yaw_offset =
-      decode_runtime_offset(rx_data_.yaw_offset_sign, rx_data_.yaw_offset_magnitude);
-    state_.pitch_offset =
-      decode_runtime_offset(rx_data_.pitch_offset_sign, rx_data_.pitch_offset_magnitude);
+    state_.bullet_count = (static_cast<uint16_t>(rx_data_.bullet_count_H) << 8) |
+                          static_cast<uint16_t>(rx_data_.bullet_count_L);
+    state_.yaw_offset_raw = decode_int8(rx_data_.yaw_offset);
+    state_.pitch_offset_raw = decode_int8(rx_data_.pitch_offset);
+    state_.yaw_offset = decode_runtime_offset(rx_data_.yaw_offset);
+    state_.pitch_offset = decode_runtime_offset(rx_data_.pitch_offset);
 
     switch (rx_data_.mode) {
       case 0:

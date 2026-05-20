@@ -2,8 +2,10 @@
 
 #include <chrono>
 #include <fstream>
+#include <iostream>
 #include <nlohmann/json.hpp>
 #include <opencv2/opencv.hpp>
+#include <optional>
 
 #include "tasks/auto_aim/aimer.hpp"
 #include "tasks/auto_aim/solver.hpp"
@@ -22,6 +24,101 @@ const std::string keys =
   "{end-index e    | 0                 | 视频结束帧下标    }"
   "{@input-path    | assets/demo/demo  | avi和txt文件的路径}";
 
+std::optional<std::string> value_after_prefix(const std::string & arg, const std::string & prefix)
+{
+  if (arg.rfind(prefix, 0) == 0) return arg.substr(prefix.size());
+  return std::nullopt;
+}
+
+bool is_option(const char * arg) { return arg != nullptr && arg[0] == '-'; }
+
+std::string get_string_arg(
+  int argc, char * argv[], const std::string & long_name, const std::string & short_name,
+  const std::string & fallback)
+{
+  for (int i = 1; i < argc; i++) {
+    const std::string arg = argv[i];
+
+    if (auto value = value_after_prefix(arg, long_name + "="); value.has_value()) return *value;
+    if (auto value = value_after_prefix(arg, short_name + "="); value.has_value()) return *value;
+    if ((arg == long_name || arg == short_name) && i + 1 < argc && !is_option(argv[i + 1])) {
+      return argv[i + 1];
+    }
+  }
+
+  return fallback;
+}
+
+int get_int_arg(
+  int argc, char * argv[], const std::string & long_name, const std::string & short_name,
+  int fallback)
+{
+  auto value = get_string_arg(argc, argv, long_name, short_name, "");
+  if (value.empty()) return fallback;
+
+  try {
+    return std::stoi(value);
+  } catch (const std::exception &) {
+    std::cerr << "Invalid integer for " << long_name << ": " << value << std::endl;
+    return fallback;
+  }
+}
+
+std::string get_input_path(int argc, char * argv[], const std::string & fallback)
+{
+  for (int i = 1; i < argc; i++) {
+    const std::string arg = argv[i];
+
+    if (auto value = value_after_prefix(arg, "@input-path="); value.has_value()) return *value;
+    if (auto value = value_after_prefix(arg, "--input-path="); value.has_value()) return *value;
+    if ((arg == "@input-path" || arg == "--input-path") && i + 1 < argc && !is_option(argv[i + 1])) {
+      return argv[i + 1];
+    }
+
+    if (arg.empty() || arg[0] == '-') continue;
+    if (arg.rfind("@", 0) == 0) continue;
+    return arg;
+  }
+
+  return fallback;
+}
+
+std::string strip_record_extension(const std::string & input_path)
+{
+  if (input_path.size() > 4 && input_path.substr(input_path.size() - 4) == ".avi") {
+    return input_path.substr(0, input_path.size() - 4);
+  }
+  if (input_path.size() > 4 && input_path.substr(input_path.size() - 4) == ".txt") {
+    return input_path.substr(0, input_path.size() - 4);
+  }
+  return input_path;
+}
+
+bool skip_text_frames(std::ifstream & text, int frame_count)
+{
+  for (int i = 0; i < frame_count; i++) {
+    double t, w, x, y, z;
+    if (!(text >> t >> w >> x >> y >> z)) return false;
+  }
+  return true;
+}
+
+bool seek_video(cv::VideoCapture & video, int start_index)
+{
+  if (start_index <= 0) return true;
+
+  video.set(cv::CAP_PROP_POS_FRAMES, start_index);
+  auto current_index = static_cast<int>(video.get(cv::CAP_PROP_POS_FRAMES));
+  if (current_index == start_index) return true;
+
+  video.set(cv::CAP_PROP_POS_FRAMES, 0);
+  cv::Mat skipped;
+  for (int i = 0; i < start_index; i++) {
+    if (!video.read(skipped) || skipped.empty()) return false;
+  }
+  return true;
+}
+
 int main(int argc, char * argv[])
 {
   // 读取命令行参数
@@ -30,10 +127,10 @@ int main(int argc, char * argv[])
     cli.printMessage();
     return 0;
   }
-  auto input_path = cli.get<std::string>(0);
-  auto config_path = cli.get<std::string>("config-path");
-  auto start_index = cli.get<int>("start-index");
-  auto end_index = cli.get<int>("end-index");
+  auto input_path = strip_record_extension(get_input_path(argc, argv, cli.get<std::string>(0)));
+  auto config_path = get_string_arg(argc, argv, "--config-path", "-c", cli.get<std::string>("config-path"));
+  auto start_index = get_int_arg(argc, argv, "--start-index", "-s", cli.get<int>("start-index"));
+  auto end_index = get_int_arg(argc, argv, "--end-index", "-e", cli.get<int>("end-index"));
 
   tools::Plotter plotter;
   tools::Exiter exiter;
@@ -42,6 +139,17 @@ int main(int argc, char * argv[])
   auto text_path = fmt::format("{}.txt", input_path);
   cv::VideoCapture video(video_path);
   std::ifstream text(text_path);
+
+  if (!video.isOpened()) {
+    std::cerr << "Failed to open video: " << video_path << std::endl;
+    std::cerr << "Pass the record prefix without extension, for example: records/1970-01-01_08-00-40"
+              << std::endl;
+    return -1;
+  }
+  if (!text.is_open()) {
+    std::cerr << "Failed to open text: " << text_path << std::endl;
+    return -1;
+  }
 
   auto_aim::YOLO yolo(config_path, false);
   auto_aim::Solver solver(config_path);
@@ -60,10 +168,13 @@ int main(int argc, char * argv[])
   int fps_frame_count = 0;
   double current_fps = 0.0;
 
-  video.set(cv::CAP_PROP_POS_FRAMES, start_index);
-  for (int i = 0; i < start_index; i++) {
-    double t, w, x, y, z;
-    text >> t >> w >> x >> y >> z;
+  if (!seek_video(video, start_index)) {
+    std::cerr << "Failed to seek video to frame " << start_index << std::endl;
+    return -1;
+  }
+  if (!skip_text_frames(text, start_index)) {
+    std::cerr << "Failed to seek text to frame " << start_index << std::endl;
+    return -1;
   }
 
   for (int frame_count = start_index; !exiter.exit(); frame_count++) {
@@ -73,7 +184,7 @@ int main(int argc, char * argv[])
     if (img.empty()) break;
 
     double t, w, x, y, z;
-    text >> t >> w >> x >> y >> z;
+    if (!(text >> t >> w >> x >> y >> z)) break;
     auto timestamp = t0 + std::chrono::microseconds(int(t * 1e6));
 
     /// 自瞄核心逻辑
