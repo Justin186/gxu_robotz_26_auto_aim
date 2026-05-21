@@ -261,8 +261,8 @@ int main(int argc, char * argv[])
       if (aim_point.valid) tools::draw_points(img, image_points, {0, 0, 255});
     }
 
-    cv::resize(img, img, {}, 0.5, 0.5);  // 显示时缩小图片尺寸
-    // cv::imshow("reprojection", img);
+    cv::resize(img, img, {}, 0.7, 0.7);  // 显示时缩小图片尺寸
+    cv::imshow("reprojection", img);
     auto key = cv::waitKey(1);
     if (key == 'q') break;
   }

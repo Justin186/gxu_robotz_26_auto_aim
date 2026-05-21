@@ -6,6 +6,7 @@
 #include <nlohmann/json.hpp>
 #include <opencv2/opencv.hpp>
 #include <thread>
+#include <mutex>
 #include <rerun.hpp>
 
 #include "io/camera.hpp"
@@ -22,19 +23,6 @@
 #include "tools/yaml.hpp"
 
 using namespace std::chrono_literals;
-
-struct PlannerInput
-{
-  std::optional<auto_aim::Target> target;
-  double bullet_speed;
-  double yaw;
-  double pitch;
-  double qw;
-  double qx;
-  double qy;
-  double qz;
-  std::chrono::steady_clock::time_point t;
-};
 
 const std::string keys =
   "{help h usage ? |                        | 输出命令行参数说明}"
@@ -83,11 +71,15 @@ int main(int argc, char * argv[])
 
   auto fire_duty_window = tools::read<size_t>(yaml, "fire_duty_window", 500);
 
-  tools::ThreadSafeQueue<PlannerInput, true> target_queue(1);
+  tools::ThreadSafeQueue<std::optional<auto_aim::Target>, true> target_queue(1);
+  target_queue.push(std::nullopt);
+
+  std::mutex shared_q_mutex;
+  Eigen::Quaterniond shared_q = Eigen::Quaterniond::Identity();
+  bool shared_q_ready = false;
 
   std::atomic<bool> quit = false;
   auto plan_thread = std::thread([&]() {
-    auto t0 = std::chrono::steady_clock::now();
     uint16_t last_bullet_count = 0;
     
     std::deque<bool> fire_history;
@@ -95,18 +87,12 @@ int main(int argc, char * argv[])
     
     // 用于降低 Rerun 的发送频率 (200Hz -> 50Hz)
     size_t rerun_counter = 0;
-    const size_t rerun_interval = 4;
+    const size_t rerun_interval = 10;
 
     while (!quit) {
-      PlannerInput input;
-      target_queue.pop(input);
-      if (quit) break;
-
-      auto target = input.target;
+      auto target = target_queue.front();
       auto gs = gimbal.state();
-      planner.set_runtime_yaw_offset(gs.yaw_offset);
-      planner.set_runtime_pitch_offset(gs.pitch_offset);
-      auto plan = planner.plan(target, input.bullet_speed, input.yaw, input.pitch, input.t);
+      auto plan = planner.plan(target, gs.bullet_speed, gs.yaw, gs.pitch, gs.yaw_offset, gs.pitch_offset);
       // auto plan = planner.plan(target, gs.bullet_speed);
 
       gimbal.send(
@@ -118,13 +104,19 @@ int main(int argc, char * argv[])
       last_bullet_count = gs.bullet_count;
 
       // 实时记录一下yaw和pitch的角度，让它们在Rerun上产生时间序列图表，类似PlotJuggler
-      auto current_time = input.t;
-      
       bool do_rerun = rerun && (rerun_counter % rerun_interval == 0);
 
-      // rec.set_time_duration_secs("plots_time", tools::delta_time(current_time, t0));
-      
-      Eigen::Quaterniond q_gimbal(input.qw, input.qx, input.qy, input.qz);
+      // rec.set_time_duration_secs("plots_time", ...);
+
+      Eigen::Quaterniond q_gimbal;
+      {
+        std::lock_guard<std::mutex> lock(shared_q_mutex);
+        if (!shared_q_ready) {
+          q_gimbal = Eigen::Quaterniond::Identity();
+        } else {
+          q_gimbal = shared_q;
+        }
+      }
       Eigen::Matrix3d R_imubody2world = q_gimbal.toRotationMatrix();
       
       Eigen::Matrix3d R_gimbal2world = R_imubody2world * R_gimbal2imubody;
@@ -172,6 +164,7 @@ int main(int argc, char * argv[])
         if (f) fire_duty += 1.0;
       }
       fire_duty /= fire_history.size();
+      auto ypr = tools::eulers(q_gimbal, 2, 1, 0);
 
       // 因为 Rerun 自动对子层应用正向旋转，这正好抵消了我们刚刚乘的逆向转置矩阵（且R_gimbal矩阵已被正确修复），现在肯定完全水平了！
       if (do_rerun) { 
@@ -179,23 +172,24 @@ int main(int argc, char * argv[])
           rerun::LineStrips3D(strips).with_colors({{255, 165, 0}}) // 橙色直线
         );
         rec->log("yaw/plan_yaw", rerun::Scalars(plan.yaw));
+        rec->log("yaw/plan_yaw_offset", rerun::Scalars(plan.v_yaw));
         rec->log("yaw/target_yaw", rerun::Scalars(plan.target_yaw));
-        rec->log("yaw/gimbal_yaw", rerun::Scalars(input.yaw));
+        rec->log("yaw/gimbal_yaw", rerun::Scalars(ypr[0]));
         rec->log("yaw/gimbal_yaw_vel", rerun::Scalars(gs.yaw_vel));
         rec->log("yaw/plan_yaw_vel", rerun::Scalars(plan.yaw_vel));
         rec->log("yaw/plan_yaw_acc", rerun::Scalars(plan.yaw_acc));
       
-
         rec->log("pitch/plan_pitch", rerun::Scalars(plan.pitch));
+        rec->log("pitch/plan_pitch_offset", rerun::Scalars(plan.v_pitch));
         rec->log("pitch/target_pitch", rerun::Scalars(plan.target_pitch));
-        rec->log("pitch/gimbal_pitch", rerun::Scalars(-input.pitch));
+        rec->log("pitch/gimbal_pitch", rerun::Scalars(-ypr[1]));
         rec->log("pitch/plan_pitch_vel", rerun::Scalars(plan.pitch_vel));
         rec->log("pitch/plan_pitch_acc", rerun::Scalars(plan.pitch_acc));
 
         rec->log("fire/fired", rerun::Scalars(fired ? 1.0f : 0.0f));
         rec->log("fire/plan_fire", rerun::Scalars(plan.fire ? 1.0f : 0.0f));
+        rec->log("fire/bullet_speed", rerun::Scalars(gs.bullet_speed));
         rec->log("fire/duty_cycle", rerun::Scalars(fire_duty));
-        rec->log("fire/speed", rerun::Scalars(input.bullet_speed));
       }
 
       // 记录目标位置 (如果有)
@@ -313,6 +307,7 @@ int main(int argc, char * argv[])
       // =========================
       
       rerun_counter++;
+      std::this_thread::sleep_for(5ms);
     }
   });
 
@@ -327,24 +322,20 @@ int main(int argc, char * argv[])
     last_t = now;
     
     auto q = gimbal.q(t);
-    auto ypr = tools::eulers(q, 2, 1, 0);
-    auto gs = gimbal.state();
+
+    {
+      std::lock_guard<std::mutex> lock(shared_q_mutex);
+      shared_q = q;
+      shared_q_ready = true;
+    }
 
     solver.set_R_gimbal2world(q);
     auto armors = yolo.detect(img);
     auto targets = tracker.track(armors, t);
-
-    PlannerInput planner_input;
-    planner_input.target = targets.empty() ? std::nullopt : std::optional<auto_aim::Target>(targets.front());
-    planner_input.bullet_speed = gs.bullet_speed;
-    planner_input.yaw = ypr[0];
-    planner_input.pitch = ypr[1];
-    planner_input.qw = q.w();
-    planner_input.qx = q.x();
-    planner_input.qy = q.y();
-    planner_input.qz = q.z();
-    planner_input.t = t;
-    target_queue.push(planner_input);
+    if (!targets.empty())
+      target_queue.push(targets.front());
+    else
+      target_queue.push(std::nullopt);
 
     if (imshow) {
       if (!targets.empty()) {
@@ -374,17 +365,6 @@ int main(int argc, char * argv[])
   }
 
   quit = true;
-  PlannerInput dummy;
-  dummy.target = std::nullopt;
-  dummy.bullet_speed = 22.0;
-  dummy.yaw = 0.0;
-  dummy.pitch = 0.0;
-  dummy.qw = 1.0;
-  dummy.qx = 0.0;
-  dummy.qy = 0.0;
-  dummy.qz = 0.0;
-  dummy.t = std::chrono::steady_clock::now();
-  target_queue.push(dummy);
   if (plan_thread.joinable()) plan_thread.join();
   gimbal.send(false, false, 0, 0, 0, 0, 0, 0);
 

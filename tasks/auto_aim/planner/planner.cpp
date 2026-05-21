@@ -5,8 +5,6 @@
 #include "tools/math_tools.hpp"
 #include "tools/trajectory.hpp"
 #include "tools/yaml.hpp"
-#include "tools/logger.hpp"
-#include "tools/yaml.hpp"
 
 using namespace std::chrono_literals;
 
@@ -31,22 +29,14 @@ Planner::Planner(const std::string & config_path)
   setup_pitch_solver(config_path);
 }
 
-void Planner::set_runtime_yaw_offset(double yaw_offset)
-{
-  runtime_yaw_offset_ = yaw_offset;
-}
-
-void Planner::set_runtime_pitch_offset(double pitch_offset)
-{
-  runtime_pitch_offset_ = pitch_offset;
-}
-
-Plan Planner::plan(Target target, double bullet_speed, double current_yaw, double current_pitch)
+Plan Planner::plan(
+  Target target, double bullet_speed, double current_yaw, double current_pitch, double yaw_offset,
+  double pitch_offset)
 {
   // 0. Check bullet speed
-  if (bullet_speed < 10 || bullet_speed > 25) {
-    bullet_speed = defult_bullet_speed_;
-  }
+  // if (bullet_speed < 10 || bullet_speed > 25) {
+  bullet_speed = defult_bullet_speed_;
+  // }
 
   // 1. Predict fly_time
   Eigen::Vector3d xyz;
@@ -61,16 +51,20 @@ Plan Planner::plan(Target target, double bullet_speed, double current_yaw, doubl
   auto bullet_traj = tools::Trajectory(bullet_speed, min_dist, xyz.z());
   target.predict(bullet_traj.fly_time);
 
+  auto shoot_offset_ = 1;
+
   // 2. Get trajectory
   double yaw0;
   Trajectory traj;
   double current_armor_yaw;
   try {
     yaw0 = aim(target, bullet_speed, tracking_id_)(0); // 这里会传入并更新物理帧的 tracking_id_
-    current_armor_yaw = debug_xyza[3];
-    Eigen::Vector4d final_aim_xyza = debug_xyza; // 记录真正的击打点，防止被下方的循环覆盖
     traj = get_trajectory(target, yaw0, bullet_speed);
-    debug_xyza = final_aim_xyza; // 恢复真正的击打点供外部红框绘制
+    
+    target.predict(shoot_offset_ * DT);
+    int temp_id = tracking_id_;
+    aim(target, bullet_speed, temp_id);
+    current_armor_yaw = debug_xyza[3];
   } catch (const std::exception & e) {
     tools::logger()->warn("Unsolvable target {:.2f}", bullet_speed);
     return {false};
@@ -107,19 +101,16 @@ Plan Planner::plan(Target target, double bullet_speed, double current_yaw, doubl
 
   // 补偿云台底层控制的稳态跟踪误差及弹道经验偏置，在此处外部加上
   // 从而使得 Rerun 中显示的 plan.yaw 依旧是纯净的目标轨迹，电控接收到的是带有稳态补偿的指令
-  plan.v_yaw = tools::limit_rad(plan.yaw + yaw_offset_ + runtime_yaw_offset_);
-  plan.v_pitch = plan.pitch + pitch_offset_ + runtime_pitch_offset_;
-  tools::logger()->info(
-    "[Planner] total offset: yaw={:.2f} deg, pitch={:.2f} deg",
-    (yaw_offset_ + runtime_yaw_offset_) * 180.0 / CV_PI,
-    (pitch_offset_ + runtime_pitch_offset_) * 180.0 / CV_PI);
+  auto yaw_offset_from_gimbal = yaw_offset / 10.0 / 57.3;
+  auto pitch_offset_from_gimbal = pitch_offset / 10.0 / 57.3;
+  plan.v_yaw = tools::limit_rad(plan.yaw + yaw_offset_ + yaw_offset_from_gimbal);
+  plan.v_pitch = plan.pitch + pitch_offset_ + pitch_offset_from_gimbal;
 
-  auto shoot_offset_ = 1;
   auto center_yaw = std::atan2(target.ekf_x()[2], target.ekf_x()[0]);
   auto delta_angle = std::abs(tools::limit_rad(current_armor_yaw - center_yaw));
 
-  double real_yaw_error = tools::limit_rad(std::abs(current_yaw - plan.target_yaw));
-  double real_pitch_error = current_pitch - plan.target_pitch;
+  double real_yaw_error = tools::limit_rad(current_yaw - plan.v_yaw);
+  double real_pitch_error = current_pitch + plan.v_pitch;
 
   plan.fire =
     target.maneuver_ticks > 0 ? false :
@@ -127,6 +118,7 @@ Plan Planner::plan(Target target, double bullet_speed, double current_yaw, doubl
       traj(0, HALF_HORIZON + shoot_offset_) - yaw_solver_->work->x(0, HALF_HORIZON + shoot_offset_),
       traj(2, HALF_HORIZON + shoot_offset_) -
         pitch_solver_->work->x(0, HALF_HORIZON + shoot_offset_)) < fire_thresh_ &&
+    // std::hypot(real_yaw_error, real_pitch_error) < fire_thresh_ &&
     delta_angle < max_armor_angle_;
 
   return plan;
@@ -134,6 +126,7 @@ Plan Planner::plan(Target target, double bullet_speed, double current_yaw, doubl
 
 Plan Planner::plan(
   std::optional<Target> target, double bullet_speed, double current_yaw, double current_pitch,
+  double yaw_offset, double pitch_offset,
   std::optional<std::chrono::steady_clock::time_point> current_time)
 {
   if (!target.has_value()) return {false};
@@ -146,7 +139,7 @@ Plan Planner::plan(
 
   target->predict(future);
 
-  return plan(*target, bullet_speed, current_yaw, current_pitch);
+  return plan(*target, bullet_speed, current_yaw, current_pitch, yaw_offset, pitch_offset);
 }
 
 void Planner::setup_yaw_solver(const std::string & config_path)
@@ -239,7 +232,7 @@ Eigen::Matrix<double, 2, 1> Planner::aim(const Target & target, double bullet_sp
   return {ypd_gimbal[0], ypd_gimbal[1]};
 }
 
-Trajectory Planner::get_trajectory(Target & target, double yaw0, double bullet_speed)
+Trajectory Planner::get_trajectory(Target target, double yaw0, double bullet_speed)
 {
   Trajectory traj;
   int sim_id = tracking_id_; // 取当前真实帧跟踪的装甲板作为预测起点，并允许在预测中自然换面

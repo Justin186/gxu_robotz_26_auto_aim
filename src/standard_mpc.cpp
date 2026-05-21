@@ -75,8 +75,6 @@ int main(int argc, char * argv[])
       if (!target_queue.empty() && mode == io::GimbalMode::AUTO_AIM) {
         auto target = target_queue.front();
         auto gs = gimbal.state();
-        planner.set_runtime_yaw_offset(gs.yaw_offset);
-        planner.set_runtime_pitch_offset(gs.pitch_offset);
         auto plan = planner.plan(target, gs.bullet_speed);
 
         gimbal.send(
