@@ -118,8 +118,8 @@ Plan Planner::plan(
       traj(0, HALF_HORIZON + shoot_offset_) - yaw_solver_->work->x(0, HALF_HORIZON + shoot_offset_),
       traj(2, HALF_HORIZON + shoot_offset_) -
         pitch_solver_->work->x(0, HALF_HORIZON + shoot_offset_)) < fire_thresh_ &&
-    delta_angle < max_armor_angle_ &&
-    std::hypot(real_yaw_error, real_pitch_error) < fire_thresh_;
+    // std::hypot(real_yaw_error, real_pitch_error) < fire_thresh_ &&
+    delta_angle < max_armor_angle_;
 
   return plan;
 }
