@@ -1,0 +1,22 @@
+// generated from rosidl_adapter/resource/msg.idl.em
+// with input from rm_interfaces/msg/RuneTarget.msg
+// generated code does not contain a copyright notice
+
+#include "rm_interfaces/msg/Point2d.idl"
+#include "std_msgs/msg/Header.idl"
+
+module rm_interfaces {
+  module msg {
+    typedef rm_interfaces::msg::Point2d rm_interfaces__msg__Point2d;
+    typedef rm_interfaces__msg__Point2d rm_interfaces__msg__Point2d__5[5];
+    struct RuneTarget {
+      std_msgs::msg::Header header;
+
+      rm_interfaces__msg__Point2d__5 pts;
+
+      boolean is_lost;
+
+      boolean is_big_rune;
+    };
+  };
+};

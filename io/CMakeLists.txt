@@ -14,6 +14,7 @@ add_library(io STATIC
     dm_imu/dm_imu.cpp
     gimbal/gimbal.cpp
     xrobot_imu/xrobot_imu.cpp
+    sim_imu/sim_imu.cpp
 )
 
 # hikrobot
@@ -42,19 +43,36 @@ target_link_libraries(io MvCameraControl MVSDK usb-1.0 yaml-cpp serial)
 find_package(ament_cmake QUIET)
 find_package(rclcpp QUIET)
 find_package(std_msgs QUIET)
+find_package(sensor_msgs QUIET)
+find_package(cv_bridge QUIET)
+find_package(geometry_msgs QUIET)
+find_package(tf2_ros QUIET)           # 添加 tf2_ros
+find_package(tf2_geometry_msgs QUIET) # 添加 tf2_geometry_msgs
 find_package(rosidl_typesupport_cpp QUIET)
-find_package(sp_msgs QUIET)
+
+set(rm_interfaces_DIR ${CMAKE_SOURCE_DIR}/rm_interfaces/share/rm_interfaces/cmake)
+find_package(rm_interfaces QUIET)
 
 # 如果找不到 ROS 环境，则跳过 ROS 相关的部分
-if(NOT ament_cmake_FOUND OR NOT rclcpp_FOUND OR NOT std_msgs_FOUND OR NOT rosidl_typesupport_cpp_FOUND OR NOT sp_msgs_FOUND)
+if(NOT ament_cmake_FOUND OR NOT rclcpp_FOUND OR NOT std_msgs_FOUND OR NOT rosidl_typesupport_cpp_FOUND OR NOT rm_interfaces_FOUND OR NOT geometry_msgs_FOUND OR NOT sensor_msgs_FOUND OR NOT cv_bridge_FOUND OR NOT tf2_ros_FOUND OR NOT tf2_geometry_msgs_FOUND)
     message(WARNING "ROS2 not found, skipping ROS2 specific code.")
 else()
     message(STATUS "ROS2 environment found, compiling ROS2-related code.")
     
     # 添加 ROS2 相关的文件
-    target_sources(io PRIVATE ros2/publish2nav.cpp ros2/ros2.cpp ros2/subscribe2nav.cpp)
+    target_sources(io PRIVATE ros2/publish2sim.cpp ros2/subscribe2sim.cpp)
 
-    # 设置 ROS2 依赖
-    include_directories(${std_msgs_INCLUDE_DIRS})
-    ament_target_dependencies(io rclcpp std_msgs sp_msgs)
+    # 设置 ROS2 依赖（添加 tf2_ros 和 tf2_geometry_msgs）
+    include_directories(${std_msgs_INCLUDE_DIRS} ${sensor_msgs_INCLUDE_DIRS} ${cv_bridge_INCLUDE_DIRS})
+    ament_target_dependencies(io 
+        rclcpp 
+        std_msgs 
+        sensor_msgs 
+        cv_bridge 
+        rm_interfaces 
+        geometry_msgs 
+        tf2_ros           # 添加
+        tf2_geometry_msgs # 添加
+        tf2               # 添加核心 tf2 库
+    )
 endif()

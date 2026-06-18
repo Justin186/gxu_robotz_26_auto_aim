@@ -1,0 +1,26 @@
+// generated from rosidl_adapter/resource/msg.idl.em
+// with input from rm_interfaces/msg/SerialReceiveData.msg
+// generated code does not contain a copyright notice
+
+#include "rm_interfaces/msg/JudgeSystemData.idl"
+#include "std_msgs/msg/Header.idl"
+
+module rm_interfaces {
+  module msg {
+    struct SerialReceiveData {
+      std_msgs::msg::Header header;
+
+      uint8 mode;
+
+      float bullet_speed;
+
+      float roll;
+
+      float yaw;
+
+      float pitch;
+
+      rm_interfaces::msg::JudgeSystemData judge_system_data;
+    };
+  };
+};

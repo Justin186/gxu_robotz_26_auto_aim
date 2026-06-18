@@ -1,0 +1,26 @@
+// generated from rosidl_adapter/resource/msg.idl.em
+// with input from rm_interfaces/msg/Measurement.msg
+// generated code does not contain a copyright notice
+
+
+module rm_interfaces {
+  module msg {
+    struct Measurement {
+      double x1;
+
+      double y1;
+
+      double z1;
+
+      double yaw1;
+
+      double x2;
+
+      double y2;
+
+      double z2;
+
+      double yaw2;
+    };
+  };
+};

@@ -1,0 +1,41 @@
+// generated from rosidl_adapter/resource/msg.idl.em
+// with input from rm_interfaces/msg/Target.msg
+// generated code does not contain a copyright notice
+
+#include "geometry_msgs/msg/Point.idl"
+#include "geometry_msgs/msg/Vector3.idl"
+#include "std_msgs/msg/Header.idl"
+
+module rm_interfaces {
+  module msg {
+    struct Target {
+      std_msgs::msg::Header header;
+
+      boolean tracking;
+
+      string id;
+
+      int32 armors_num;
+
+      geometry_msgs::msg::Point position;
+
+      geometry_msgs::msg::Vector3 velocity;
+
+      double yaw;
+
+      double v_yaw;
+
+      double radius_1;
+
+      double radius_2;
+
+      double d_za;
+
+      double d_zc;
+
+      double yaw_diff;
+
+      double position_diff;
+    };
+  };
+};

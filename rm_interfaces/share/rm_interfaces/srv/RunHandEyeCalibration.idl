@@ -1,0 +1,17 @@
+// generated from rosidl_adapter/resource/srv.idl.em
+// with input from rm_interfaces/srv/RunHandEyeCalibration.srv
+// generated code does not contain a copyright notice
+
+
+module rm_interfaces {
+  module srv {
+    struct RunHandEyeCalibration_Request {
+      uint8 structure_needs_at_least_one_member;
+    };
+    struct RunHandEyeCalibration_Response {
+      boolean success;
+
+      string yaml_path;
+    };
+  };
+};

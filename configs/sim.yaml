@@ -1,0 +1,117 @@
+# enemy_color: "red"
+enemy_color: "blue"
+
+
+#####-----神经网络参数-----#####
+yolo_name: yolov5
+classify_model: assets/tiny_resnet.onnx
+yolo11_model_path: assets/yolo11.xml
+yolov8_model_path: assets/yolov8.xml
+yolov5_model_path: assets/0526.xml
+device: GPU
+min_confidence: 0.8
+use_traditional: false
+
+#####-----ROI-----#####
+roi: 
+  x: 420
+  y: 50
+  width: 600
+  height: 600
+
+use_roi: false
+
+#####-----USB相机参数-----#####
+image_width: 1280
+image_height: 720
+fov_h: 57.7 #87.7
+fov_v: 56.7 
+new_fov_h: 27 #67
+new_fov_v: 40.9
+usb_frame_rate: 120
+usb_exposure: 500 #1-80000______250
+usb_gamma: 160
+usb_gain: 10 #0-96
+
+#####-----工业相机参数-----#####
+camera_name: "ros"
+exposure_ms: 5
+gain: 16.9
+image_topic: "/image_raw"
+# vid_pid: "2bdf:0001"
+# need_rotation: true
+
+#####-----传统方法参数-----#####
+threshold: 150
+max_angle_error: 45 # degree
+min_lightbar_ratio: 1.5
+max_lightbar_ratio: 20
+min_lightbar_length: 8
+min_armor_ratio: 1
+max_armor_ratio: 5
+max_side_ratio: 1.5
+max_rectangular_error: 20 # degree
+min_confidence: 0.8
+
+#####-----cboard参数-----#####
+quaternion_canid: 0x01
+bullet_speed_canid: 0x110
+send_canid: 0xff
+can_interface: "can0"
+
+#####-----云台参数-----#####
+com_port: "/dev/ttyACM0"
+
+#####-----tracker参数-----#####
+min_detect_count: 5
+max_temp_lost_count: 25
+outpost_max_temp_lost_count: 75
+
+#####-----aimer参数-----#####
+yaw_offset: 0 # degree -2.5
+pitch_offset: 0  # degree 2
+comming_angle: 55 # degree
+leaving_angle: 20 # degree
+left_yaw_offset: -1
+right_yaw_offset: -0.6
+decision_speed: 10 # rad/s
+high_speed_delay_time: 0.02 # s
+low_speed_delay_time: 0.010 # s
+max_armor_angle: 70 # degree
+defult_bullet_speed: 21.6 # m/s
+
+#####-----shooter参数-----#####
+first_tolerance: 5 # 近距离射击容差，degree
+second_tolerance: 2 # 远距离射击容差，degree
+judge_distance: 3 #距离判断阈值
+auto_fire: true # 是否由自瞄控制射击
+
+#####-----decider参数-----#####
+mode: 1
+
+#####-----工业相机标定参数-----#####
+R_gimbal2imubody: [1, 0, 0, 0, 1, 0,  0, 0, 1]
+# 重投影误差: 0.0787px
+camera_matrix: [1303.675283386667, 0, 720, 0, 1303.675283386667, 540, 0, 0, 1]
+distort_coeffs: [0, 0, 0, 0, 0]
+# 相机同理想情况的偏角: yaw0.56 pitch1.05 roll0.41 degree
+R_camera2gimbal: [0, 0, 1, -1, 0, 0, 0, -1, 0]
+t_camera2gimbal: [0, 0, 0.05]
+
+#####-----planner-----#####
+fire_thresh: 0.01
+
+max_yaw_acc: 280000
+Q_yaw: [9e6, 0]
+R_yaw: [1]
+
+max_pitch_acc: 280000
+Q_pitch: [9e6,0]
+R_pitch: [1]
+
+#####-----buff_detector参数-----#####
+model: "assets/yolo11_buff_int8.xml"
+
+#####-----buff_aimer参数-----#####
+fire_gap_time: 0.700   # s
+predict_time: 0.120     # s

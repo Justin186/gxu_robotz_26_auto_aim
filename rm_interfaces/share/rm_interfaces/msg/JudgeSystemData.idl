@@ -1,0 +1,21 @@
+// generated from rosidl_adapter/resource/msg.idl.em
+// with input from rm_interfaces/msg/JudgeSystemData.msg
+// generated code does not contain a copyright notice
+
+#include "rm_interfaces/msg/OperatorCommand.idl"
+
+module rm_interfaces {
+  module msg {
+    struct JudgeSystemData {
+      uint8 game_status;
+
+      int16 remaining_time;
+
+      int16 blood;
+
+      int16 outpost_hp;
+
+      rm_interfaces::msg::OperatorCommand operator_command;
+    };
+  };
+};

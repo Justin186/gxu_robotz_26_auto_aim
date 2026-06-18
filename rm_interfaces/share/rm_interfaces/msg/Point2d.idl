@@ -1,0 +1,14 @@
+// generated from rosidl_adapter/resource/msg.idl.em
+// with input from rm_interfaces/msg/Point2d.msg
+// generated code does not contain a copyright notice
+
+
+module rm_interfaces {
+  module msg {
+    struct Point2d {
+      float x;
+
+      float y;
+    };
+  };
+};
