@@ -42,8 +42,7 @@ bool ShmAdapter::read_image(cv::Mat& img, std::chrono::steady_clock::time_point&
         return false;
     }
     
-    // ===== 关键修复：RGB → BGR 转换 =====
-    // 共享内存中的图像是 RGB 格式，OpenCV 默认 BGR
+    // 共享内存中的图像是 RGB 格式，需要转换为 BGR（OpenCV 默认）
     cv::cvtColor(frame->image, img, cv::COLOR_RGB2BGR);
     timestamp = std::chrono::steady_clock::now();
     return true;
@@ -138,6 +137,66 @@ ipc::CameraInfo ShmAdapter::camera_info() const
 {
     if (!connected_) return ipc::CameraInfo{};
     return client_->camera_info();
+}
+
+bool ShmAdapter::read_chassis_observation(ipc::ChassisObservation& chassis) const
+{
+    if (!connected_) return false;
+    auto opt = client_->recv_chassis_observation();
+    if (!opt) return false;
+    chassis = *opt;
+    return true;
+}
+
+bool ShmAdapter::read_ground_truth(ipc::GroundTruthBatch& gt) const
+{
+    if (!connected_) return false;
+    auto opt = client_->recv_ground_truth();
+    if (!opt) return false;
+    gt = *opt;
+    return true;
+}
+
+bool ShmAdapter::read_runtime_state(ipc::RuntimeState& state) const
+{
+    if (!connected_) return false;
+    auto opt = client_->recv_runtime_state();
+    if (!opt) return false;
+    state = *opt;
+    return true;
+}
+
+bool ShmAdapter::read_odom_pose(Eigen::Quaterniond& quat, Eigen::Vector3d& pos, uint64_t& timestamp_ns) const
+{
+    if (!connected_) return false;
+    auto pose = client_->recv_pose(ipc::POSE_ODOM);
+    if (!pose) return false;
+    quat.w() = pose->qw; quat.x() = pose->qx; quat.y() = pose->qy; quat.z() = pose->qz;
+    pos.x() = pose->x; pos.y() = pose->y; pos.z() = pose->z;
+    timestamp_ns = pose->timestamp_ns;
+    return true;
+}
+
+bool ShmAdapter::read_muzzle_pose(Eigen::Quaterniond& quat, Eigen::Vector3d& pos, uint64_t& timestamp_ns) const
+{
+    if (!connected_) return false;
+    auto pose = client_->recv_pose(ipc::POSE_MUZZLE);
+    if (!pose) return false;
+    quat.w() = pose->qw; quat.x() = pose->qx; quat.y() = pose->qy; quat.z() = pose->qz;
+    pos.x() = pose->x; pos.y() = pose->y; pos.z() = pose->z;
+    timestamp_ns = pose->timestamp_ns;
+    return true;
+}
+
+bool ShmAdapter::read_camera_pose(Eigen::Quaterniond& quat, Eigen::Vector3d& pos, uint64_t& timestamp_ns) const
+{
+    if (!connected_) return false;
+    auto pose = client_->recv_pose(ipc::POSE_CAMERA);
+    if (!pose) return false;
+    quat.w() = pose->qw; quat.x() = pose->qx; quat.y() = pose->qy; quat.z() = pose->qz;
+    pos.x() = pose->x; pos.y() = pose->y; pos.z() = pose->z;
+    timestamp_ns = pose->timestamp_ns;
+    return true;
 }
 
 void ShmAdapter::print_status() const

@@ -52,6 +52,24 @@ public:
     // ===== 相机信息 =====
     ipc::CameraInfo camera_info() const;
 
+    // ===== 底盘观测 =====
+    bool read_chassis_observation(ipc::ChassisObservation& chassis) const;
+    
+    // ===== Ground Truth =====
+    bool read_ground_truth(ipc::GroundTruthBatch& gt) const;
+    
+    // ===== 运行时状态 =====
+    bool read_runtime_state(ipc::RuntimeState& state) const;
+    
+    // ===== 里程计位姿 =====
+    bool read_odom_pose(Eigen::Quaterniond& quat, Eigen::Vector3d& pos, uint64_t& timestamp_ns) const;
+    
+    // ===== 枪口位姿 =====
+    bool read_muzzle_pose(Eigen::Quaterniond& quat, Eigen::Vector3d& pos, uint64_t& timestamp_ns) const;
+    
+    // ===== 相机位姿 =====
+    bool read_camera_pose(Eigen::Quaterniond& quat, Eigen::Vector3d& pos, uint64_t& timestamp_ns) const;
+
     // ===== 调试 =====
     void print_status() const;
 
