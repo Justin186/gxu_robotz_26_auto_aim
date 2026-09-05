@@ -236,7 +236,7 @@ int main(int argc, char * argv[])
         }
         
         // 可视化预测击打点 (从 planner 获取)
-        Eigen::Vector4d aim_xyza = planner.debug_xyza;
+        Eigen::Vector4d aim_xyza = planner.debug_xyza();
         std::vector<rerun::Position3D> aim_vertices;
         std::vector<rerun::components::Color> aim_colors;
         {
@@ -349,7 +349,7 @@ int main(int argc, char * argv[])
           tools::draw_points(img, image_points, {0, 255, 0});
         }
 
-        Eigen::Vector4d aim_xyza = planner.debug_xyza;
+        Eigen::Vector4d aim_xyza = planner.debug_xyza();
         auto image_points =
           solver.reproject_armor(aim_xyza.head(3), aim_xyza[3], target.armor_type, target.name);
         tools::draw_points(img, image_points, {0, 0, 255});

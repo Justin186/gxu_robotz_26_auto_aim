@@ -134,7 +134,7 @@ int main(int argc, char * argv[])
       }
 
       // 绘制瞄准点
-      Eigen::Vector4d aim_xyza = planner.debug_xyza;
+      Eigen::Vector4d aim_xyza = planner.debug_xyza();
       auto image_points =
         solver.reproject_armor(aim_xyza.head(3), aim_xyza[3], target.armor_type, target.name);
       tools::draw_points(display_img, image_points, {0, 0, 255});

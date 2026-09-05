@@ -3,6 +3,7 @@
 
 #include <Eigen/Dense>
 #include <list>
+#include <mutex>
 #include <optional>
 
 #include "tasks/auto_aim/target.hpp"
@@ -35,8 +36,11 @@ struct Plan
 class Planner
 {
 public:
-  Eigen::Vector4d debug_xyza;
   Planner(const std::string & config_path);
+
+  // debug_xyza由plan线程异步写入、主线程绘制时读取，
+  // 必须通过该线程安全接口访问，避免数据竞争导致调试红框跳变
+  Eigen::Vector4d debug_xyza() const;
 
   Plan plan(
     Target target, double bullet_speed, double current_yaw = 0.0, double current_pitch = 0.0,
@@ -60,10 +64,15 @@ private:
 
   int tracking_id_ = -1; // 记录当前物理帧跟踪的装甲板ID，用于提供滞回阈值
 
+  Eigen::Vector4d debug_xyza_;     // 对外发布的调试瞄准点，仅在plan()的实时瞄准处更新
+  Eigen::Vector4d last_aim_xyza_;  // aim()的内部记录，仅供同线程的plan()读取
+  mutable std::mutex debug_mtx_;   // 保护debug_xyza_
+
   void setup_yaw_solver(const std::string & config_path);
   void setup_pitch_solver(const std::string & config_path);
 
-  Eigen::Matrix<double, 2, 1> aim(const Target & target, double bullet_speed, int & id_state);
+  Eigen::Matrix<double, 2, 1> aim(
+    const Target & target, double bullet_speed, int & id_state, bool publish_debug = false);
   Trajectory get_trajectory(Target target, double yaw0, double bullet_speed);
 };
 

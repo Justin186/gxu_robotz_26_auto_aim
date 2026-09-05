@@ -29,6 +29,12 @@ Planner::Planner(const std::string & config_path)
   setup_pitch_solver(config_path);
 }
 
+Eigen::Vector4d Planner::debug_xyza() const
+{
+  std::lock_guard<std::mutex> lock(debug_mtx_);
+  return debug_xyza_;
+}
+
 Plan Planner::plan(
   Target target, double bullet_speed, double current_yaw, double current_pitch, double yaw_offset,
   double pitch_offset)
@@ -58,13 +64,13 @@ Plan Planner::plan(
   Trajectory traj;
   double current_armor_yaw;
   try {
-    yaw0 = aim(target, bullet_speed, tracking_id_)(0); // 这里会传入并更新物理帧的 tracking_id_
+    yaw0 = aim(target, bullet_speed, tracking_id_, true)(0); // 这里会传入并更新物理帧的 tracking_id_，并发布调试瞄准点
     traj = get_trajectory(target, yaw0, bullet_speed);
-    
+
     target.predict(shoot_offset_ * DT);
     int temp_id = tracking_id_;
     aim(target, bullet_speed, temp_id);
-    current_armor_yaw = debug_xyza[3];
+    current_armor_yaw = last_aim_xyza_[3];
   } catch (const std::exception & e) {
     tools::logger()->warn("Unsolvable target {:.2f}", bullet_speed);
     return {false};
@@ -188,7 +194,8 @@ void Planner::setup_pitch_solver(const std::string & config_path)
   pitch_solver_->settings->max_iter = 10;
 }
 
-Eigen::Matrix<double, 2, 1> Planner::aim(const Target & target, double bullet_speed, int & id_state)
+Eigen::Matrix<double, 2, 1> Planner::aim(
+  const Target & target, double bullet_speed, int & id_state, bool publish_debug)
 {
   Eigen::Vector3d xyz;
   double yaw;
@@ -215,7 +222,13 @@ Eigen::Matrix<double, 2, 1> Planner::aim(const Target & target, double bullet_sp
   }
   id_state = best_id; // 反馈更新选择的装甲板ID
 
-  debug_xyza = Eigen::Vector4d(xyz.x(), xyz.y(), xyz.z(), yaw);
+  // 内部记录仅供同线程的plan()读取；只有实时瞄准处(publish_debug=true)才对外发布，
+  // 避免get_trajectory()沿horizon扫掠的100+次中间预测值污染调试红框
+  last_aim_xyza_ = Eigen::Vector4d(xyz.x(), xyz.y(), xyz.z(), yaw);
+  if (publish_debug) {
+    std::lock_guard<std::mutex> lock(debug_mtx_);
+    debug_xyza_ = last_aim_xyza_;
+  }
 
   auto azim = std::atan2(xyz.y(), xyz.x());
   auto dist = xyz.head<2>().norm();
