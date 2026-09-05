@@ -4,11 +4,12 @@
 #include <fstream>
 #include <opencv2/opencv.hpp>
 
-#include "io/camera.hpp"
-#include "io/gimbal/gimbal.hpp"
+#include "io/shm_ipc/shm_adapter.hpp"
 #include "tools/img_tools.hpp"
 #include "tools/logger.hpp"
 #include "tools/math_tools.hpp"
+
+using namespace std::chrono_literals;
 
 const std::string keys =
   "{help h usage ?  |                          | 输出命令行参数说明}"
@@ -27,15 +28,26 @@ void write_q(const std::string q_path, const Eigen::Quaterniond & q)
 void capture_loop(
   const std::string & config_path, const std::string & can, const std::string & output_folder)
 {
-  io::Gimbal gimbal(config_path);
-  io::Camera camera(config_path);
+  io::ShmAdapter shm;
+  if (!shm.is_connected()) {
+    std::cerr << "[Error] Failed to connect to shared memory!" << std::endl;
+    return;
+  }
+  shm.print_status();
   cv::Mat img;
   std::chrono::steady_clock::time_point timestamp;
 
   int count = 0;
   while (true) {
-    camera.read(img, timestamp);
-    Eigen::Quaterniond q = gimbal.q(timestamp);
+    if (!shm.read_image(img, timestamp)) {
+      std::this_thread::sleep_for(1ms);
+      continue;
+    }
+    Eigen::Quaterniond q;
+    uint64_t timestamp_ns;
+    if (!shm.read_gimbal_pose(q, timestamp_ns)) {
+      continue;
+    }
 
     // 在图像上显示欧拉角，用来判断imuabs系的xyz正方向，同时判断imu是否存在零漂
     auto img_with_ypr = img.clone();

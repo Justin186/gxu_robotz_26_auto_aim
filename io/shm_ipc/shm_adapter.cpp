@@ -5,7 +5,7 @@
 namespace io {
 
 ShmAdapter::ShmAdapter() 
-    : connected_(false), has_last_quat_(false), has_cached_state_(false)
+    : connected_(false), has_last_quat_(false)
 {
     try {
         auto client_result = ipc::ShmClient::connect();
@@ -70,6 +70,37 @@ bool ShmAdapter::has_new_image() const
     return client_->has_new_image();
 }
 
+bool ShmAdapter::consume_next_frame(cv::Mat& img, std::chrono::steady_clock::time_point& timestamp)
+{
+    if (!connected_) return false;
+
+    // 1. 优先取图像；若无新帧则不消费任何东西，交由上层自行调度。
+    if (!read_image(img, timestamp)) {
+        return false;
+    }
+
+    // 2. 消费本轮其余位姿通道，满足 sim 的捆绑式同步发布门控。
+    //
+    //    新版 sim(talos-ipc) 只有在 image 与 gimbal/odom/muzzle/camera 五路全部被消费
+    //    后才能发布下一帧。任一通道残留 dirty 标志都会被 sim 视为"消费者未跟上"而从
+    //    此拒发新帧，令客户端在 read_image() 上空转、貌似卡死。
+    //
+    //    · gimbal 经 read_gimbal_pose() 消费，其内部 last-quat 降级缓存保证了上层事后
+    //      依旧能取到最近一次的云台姿态，二者互不干扰。
+    //    · odom/muzzle/camera 仅为满足门控而消费，返回值在此有意忽略。
+    {
+        Eigen::Quaterniond tmp_q;
+        Eigen::Vector3d tmp_pos;
+        uint64_t dummy_ts;
+        (void)read_gimbal_pose(tmp_q, dummy_ts);
+        (void)read_odom_pose(tmp_q, tmp_pos, dummy_ts);
+        (void)read_muzzle_pose(tmp_q, tmp_pos, dummy_ts);
+        (void)read_camera_pose(tmp_q, tmp_pos, dummy_ts);
+    }
+
+    return true;
+}
+
 bool ShmAdapter::read_gimbal_pose(Eigen::Quaterniond& quat, uint64_t& timestamp_ns) const
 {
     if (!connected_) return false;
@@ -113,18 +144,17 @@ bool ShmAdapter::read_gimbal_euler(float& yaw_deg, float& pitch_deg, float& roll
 
 SimIMUState ShmAdapter::state() const
 {
-    if (has_cached_state_) {
-        return cached_state_;
-    }
-    
+    // 每次调用均实时读取云台欧拉角，绝不缓存——
+    // 原先的永久缓存会使 yaw/pitch 永远停留在首个采样值，导致下游控制失准。
+    SimIMUState s;
+
     float yaw_deg, pitch_deg, roll_deg;
     if (read_gimbal_euler(yaw_deg, pitch_deg, roll_deg)) {
-        cached_state_.yaw = yaw_deg;
-        cached_state_.pitch = pitch_deg;
-        has_cached_state_ = true;
+        s.yaw = yaw_deg;
+        s.pitch = pitch_deg;
     }
-    
-    return cached_state_;
+
+    return s;
 }
 
 void ShmAdapter::send_gimbal_cmd(float yaw_deg, float pitch_deg, float distance_m, bool fire)

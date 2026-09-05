@@ -39,10 +39,30 @@ public:
     bool read_image_zero_copy(cv::Mat& img, uint64_t& seq, uint64_t& timestamp_ns);
     bool has_new_image() const;
 
+    /**
+     * @brief 消费一整轮话题集，满足 sim 的捆绑式同步发布门控。
+     *
+     * 新版 sim(talos-ipc) 只有在消费者把上一轮的 image 与 gimbal/odom/muzzle/camera
+     * 五个主题全部消费完之后，才会发布下一帧。若任一位姿遗留 dirty 标志，sim 便不再
+     * 产出新帧，客户端会因此在 read_image() 上空转而表现出"窗口不显示/疑似卡死"。
+     *
+     * 本方法在读取图像的同时，将该轮其余的位姿通道一并消费(drain)。其中 gimbal 借助
+     * ShmAdapter 自身的 last-quat 降级缓存完成消费，故上层此后仍可通过 read_gimbal_pose()
+     * 取得最近一次的云台姿态，互不冲突。
+     *
+     * @note 适用于需要持续跟进 sim 画面的入口(auto_aim_sim_shm 等)；单纯离线解析录像
+     *       或其他不依赖 sim 同步门的场景仍可使用原始的 read_image()。
+     *
+     * @param img       输出：收到的图像(BGR)。
+     * @param timestamp 输出：接收时刻。
+     * @return true 表示本轮确有新图像并被消费；false 表示暂无可消费的新帧。
+     */
+    bool consume_next_frame(cv::Mat& img, std::chrono::steady_clock::time_point& timestamp);
+
     // ===== 云台姿态读取 =====
     bool read_gimbal_pose(Eigen::Quaterniond& quat, uint64_t& timestamp_ns) const;
     bool read_gimbal_euler(float& yaw_deg, float& pitch_deg, float& roll_deg) const;
-    
+
     // ===== 获取云台状态（与 SimIMU 接口兼容） =====
     SimIMUState state() const;
     
@@ -80,10 +100,6 @@ private:
     // 缓存上一帧姿态（用于降级）
     mutable Eigen::Quaterniond last_quat_;
     mutable bool has_last_quat_{false};
-    
-    // 缓存的状态
-    mutable SimIMUState cached_state_;
-    mutable bool has_cached_state_{false};
 };
 
 } // namespace io

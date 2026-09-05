@@ -114,8 +114,11 @@ int main(int argc, char * argv[])
   const double alpha = 0.1;
 
   while (!exiter.exit()) {
-    // 1. 读取图像（从共享内存）
-    if (!shm.read_image(img, t)) {
+    // 1. 读取图像并从共享内存消费一整轮话题集。
+    //    新版 sim 采用"图像 + 四位姿"捆绑式同步发布：唯有把上一轮的五路全部消费完毕，
+    //    它才会放出下一帧。consume_next_frame() 已在取图之余代劳消费其余位姿通道，
+    //    避免了因残留 dirty 标志而导致 sim 拒发新帧、窗口迟迟不出现的"伪卡死"。
+    if (!shm.consume_next_frame(img, t)) {
       std::this_thread::sleep_for(1ms);
       continue;
     }
